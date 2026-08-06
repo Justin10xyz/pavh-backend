@@ -1,0 +1,99 @@
+# AGENT.md — Reglas para IA trabajando en PAVH
+ 
+Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje en `pavh-backend` o `pavh-frontend`. Léelo antes de generar código. El objetivo es que cualquier sesión nueva produzca resultados consistentes con las anteriores.
+ 
+## Reglas generales de trabajo
+ 
+- **Pedir pasos escoteados, no tareas abiertas.** Justin prefiere prompts como "crea la instancia de axios" en vez de "conecta todo el frontend con el backend". Si te piden una tarea grande, divídela en pasos nombrados y secuenciales antes de escribir código.
+- **Backend antes que frontend** cuando haya dependencia entre ambos — evita debug en capas cruzadas.
+- **Empezar por lo visible.** Orden de construcción de frontend: UI visible → router → capa de config/servicios → estado (Pinia) → guards.
+- **No asumas librerías nuevas.** No agregues una librería de UI (shadcn-vue, Headless UI, PrimeVue, etc.) sin que se pida explícitamente — está diferido a propósito.
+- **No implementes roles/permisos** todavía, aunque el código lo sugiera como "next step" obvio.
+- Commits en inglés, Conventional Commits + gitmoji (ver `PROJECT.md` para la sintaxis y ejemplos).
+## Entorno — cosas que rompen si no se respetan
+ 
+- Usar **`localhost`**, nunca `127.0.0.1` (son orígenes distintos para el navegador y rompen CORS/Sanctum).
+- No usar Laravel Valet por ahora (dominios `.test` rompen cookies `SameSite=Lax`).
+- Antes de cualquier request que modifique estado en Sanctum (`POST`/`PUT`/`DELETE`), debe existir un `GET /sanctum/csrf-cookie` previo — si no, 419.
+- `EnsureFrontendRequestsAreStateful` requiere el header `Origin`. En tests PHPUnit: `$this->withHeader('Origin', 'http://localhost:5173')`.
+- `VITE_API_URL` en el frontend **no** lleva `/api` al final (el store ya arma `/api/login`, `/sanctum/csrf-cookie`, etc.).
+- Logout debe usar `Auth::guard('web')->logout()` — el guard `sanctum` (RequestGuard) no tiene método `logout()`.
+## Convenciones de código (frontend)
+ 
+- Componentes Vue: `PascalCase.vue`
+- Composables/stores: `camelCase.js`, stores de Pinia con nombre descriptivo (`useAuthStore`, no `useStore`)
+- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de sesión en cada navegación — replicar este patrón en stores futuros que dependan de datos de sesión.
+- Layouts en `src/layouts/`, vistas en `src/views/<módulo>/`, componentes reutilizables en `src/components/`.
+- Guards de router centralizados en `src/router/index.js`, no dispersos por vista.
+- **Estructura fija de bloques en todo `.vue`** (existentes y futuros): siempre `template` → `script setup` → `style scoped`, en ese orden, sin excepción, aunque un bloque quede vacío.
+
+```vue
+<template>
+
+</template>
+
+<script setup>
+
+</script>
+
+<style scoped>
+
+</style>
+```
+
+  - Si un componente no necesita estilos propios, el bloque `<style scoped>` se deja vacío — no se omite.
+  - No usar `<script>` sin `setup` en ningún archivo nuevo o existente.
+  - No usar `<style>` global (sin `scoped`) salvo que sea justificado y explícito (no debería ser el caso en este proyecto).
+## Sistema de diseño
+ 
+Dirección: **corporativo serio** (banca/legal), no startup ni SaaS "friendly". Consistencia > creatividad — cualquier pantalla nueva debe verse como si viniera del mismo diseñador.
+ 
+### Implementación técnica (Tailwind v4)
+ 
+Este proyecto usa **Tailwind v4** — no hay `tailwind.config.js`. Los tokens de color y tipografía viven en un bloque `@theme` dentro del CSS de entrada (donde está `@import "tailwindcss";`, normalmente `src/style.css` o `src/assets/main.css`). **No crear `tailwind.config.js` para esto** — si algún día se necesita para un plugin específico, se agrega aparte, pero los tokens de diseño quedan siempre en `@theme`.
+ 
+Fuentes instaladas vía `@fontsource` (self-hosted, no CDN de Google Fonts):
+```
+npm install @fontsource/inter @fontsource/source-serif-4
+```
+Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif 4).
+ 
+### Paleta (variables CSS definidas en `@theme`, nunca hex sueltos en componentes)
+ 
+| Token | Hex | Uso |
+|---|---|---|
+| `primary` | `#14293D` | Sidebar, headers, botones primarios, texto sobre fondo claro en marca |
+| `primary-dark` | `#0B1A29` | Hover/active de elementos `primary` |
+| `accent` | `#A67C3D` | Focus rings, indicador de sección/nav activa. Uso **limitado** — no decorativo, no botones grandes de este color |
+| `bg` | `#F7F8FA` | Fondo general de la app |
+| `surface` | `#FFFFFF` | Cards, modales, inputs |
+| `border` | `#E4E7EC` | Bordes de cards, tablas, inputs |
+| `text` | `#1D2939` | Texto principal |
+| `text-muted` | `#667085` | Texto secundario, placeholders, labels |
+| `success` | `#2F6844` | Confirmaciones, estados positivos |
+| `danger` | `#A13D3D` | Errores, estados destructivos |
+ 
+### Tipografía
+ 
+- **UI general** (botones, forms, tablas, nav, body): **Inter**. Es la fuente por defecto para todo excepto lo indicado abajo.
+- **Wordmark / títulos de página** (`<h1>` de cada vista, logo "PV"/"PAVH"): **Source Serif 4**. Uso restringido — nunca en botones, labels, ni texto de tabla. Es el único lugar donde aparece un serif.
+- Tamaño base 16px, escala modesta (no tipografía gigante tipo landing page — esto es una herramienta de trabajo).
+### Layout
+ 
+- Sidebar fijo, fondo `primary`, íconos + labels en blanco/gris claro.
+- Topbar blanco, borde inferior `border` (1px, sin sombra).
+- Contenido sobre fondo `bg`, cards en `surface` con borde `border` de 1px — **no usar `box-shadow` pesado**, rompe la seriedad del diseño.
+- Border-radius pequeño: `4px`–`6px` en cards, inputs y botones. Nunca `rounded-full` en botones (se siente demasiado "startup").
+- Indicador de item activo en el sidebar: barra delgada de 2-3px en `accent` al lado izquierdo del item — es el único acento de color vivo permitido fuera de estados (success/danger).
+### Componentes base ya definidos (Login)
+ 
+El `Login.vue` ya construido establece el patrón para forms: card centrada, inputs con ícono a la izquierda, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo). Replicar este patrón en formularios futuros.
+ 
+## Checklist antes de dar por terminada una tarea
+ 
+- [ ] ¿Usa los tokens de color definidos arriba (no hex sueltos)?
+- [ ] ¿Usa Inter para UI y Source Serif 4 solo en títulos de página?
+- [ ] ¿Sigue el patrón de layout (sidebar/topbar/cards sin sombra pesada)?
+- [ ] ¿El commit sigue Conventional Commits + gitmoji en inglés?
+- [ ] ¿No introduce una librería de UI o de roles/permisos sin que se haya pedido?
+- [ ] ¿Usa `localhost` (no `127.0.0.1`) en cualquier URL de config?
