@@ -55,6 +55,6 @@ class VariantCodeGenerator
 
     private function codeExists(string $code): bool
     {
-        return ProductVariant::where('code', $code)->exists();
+        return ProductVariant::withTrashed()->where('code', $code)->exists();
     }
 }

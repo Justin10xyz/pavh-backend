@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'product_id',
@@ -23,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class ProductVariant extends Model
 {
+    use SoftDeletes;
+
     protected function casts(): array
     {
         return [
@@ -36,5 +40,18 @@ class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function scopeLowStock(Builder $query): Builder
+    {
+        return $query->whereNotNull('minimum_stock')
+            ->whereColumn('stock_boxes', '<=', 'minimum_stock');
+    }
+
+    public function scopeByCategory(Builder $query, int $categoryId): Builder
+    {
+        return $query->whereHas('product', function (Builder $query) use ($categoryId) {
+            $query->where('category_id', $categoryId);
+        });
     }
 }
