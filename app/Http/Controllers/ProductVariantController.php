@@ -50,6 +50,12 @@ class ProductVariantController extends Controller
 
     public function destroy(ProductVariant $productVariant)
     {
+        if ($productVariant->product->variants()->count() <= 1) {
+            return response()->json([
+                'message' => 'No se puede eliminar la última variante de un producto.',
+            ], 422);
+        }
+
         $productVariant->delete();
 
         return response()->noContent();
@@ -58,6 +64,12 @@ class ProductVariantController extends Controller
     public function adjustStock(AdjustStockRequest $request, ProductVariant $productVariant)
     {
         $data = $request->validated();
+
+        if ($data['type'] === 'subtract' && $data['quantity'] > $productVariant->stock_boxes) {
+            return response()->json([
+                'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
+            ], 422);
+        }
 
         $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
 
