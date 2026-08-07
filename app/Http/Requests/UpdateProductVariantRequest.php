@@ -32,6 +32,7 @@ class UpdateProductVariantRequest extends FormRequest
             'm2_per_box' => ['sometimes', 'nullable', 'numeric'],
             'kilos_per_box' => ['sometimes', 'nullable', 'numeric'],
             'boxes_per_pallet' => ['sometimes', 'nullable', 'integer'],
+            'stock_boxes' => ['sometimes', 'nullable', 'integer'],
             'minimum_stock' => ['sometimes', 'nullable', 'integer'],
             'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
             'pei' => ['sometimes', 'nullable', 'string', 'max:10'],

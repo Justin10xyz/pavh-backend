@@ -74,6 +74,14 @@ class ProductVariantApiTest extends TestCase
             ->assertJsonPath('data.stock_boxes', 25)
             ->assertJsonPath('data.low_stock', false);
 
+        $this->postJson('/api/product-variants', [
+            'product_id' => $productId,
+            'color' => 'Gris',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ])->assertCreated();
+
         $this->deleteJson("/api/product-variants/{$variantId}")->assertNoContent();
 
         $this->getJson('/api/product-variants')
@@ -112,5 +120,111 @@ class ProductVariantApiTest extends TestCase
             'quantity' => 5,
             'type' => 'invalid',
         ])->assertStatus(422);
+    }
+
+    public function test_stock_request_rejects_subtract_exceeding_current_stock(): void
+    {
+        $supplier = Supplier::create(['name' => 'Interceramic']);
+        $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
+        $unitType = UnitType::create(['name' => 'm2']);
+
+        $product = Product::create([
+            'supplier_id' => $supplier->id,
+            'category_id' => $category->id,
+            'unit_type_id' => $unitType->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => 'PIS-CREATO-TAU-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'stock_boxes' => 5,
+        ]);
+
+        $this->patchJson("/api/product-variants/{$variant->id}/stock", [
+            'quantity' => 10,
+            'type' => 'subtract',
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Stock insuficiente. Disponible: 5 cajas.');
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'stock_boxes' => 5,
+        ]);
+    }
+
+    public function test_destroy_deletes_variant_when_product_has_others(): void
+    {
+        $supplier = Supplier::create(['name' => 'Interceramic']);
+        $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
+        $unitType = UnitType::create(['name' => 'm2']);
+
+        $product = Product::create([
+            'supplier_id' => $supplier->id,
+            'category_id' => $category->id,
+            'unit_type_id' => $unitType->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => 'PIS-CREATO-TAU-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ]);
+
+        ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => 'PIS-CREATO-GRI-60X120',
+            'color' => 'Gris',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ]);
+
+        $this->deleteJson("/api/product-variants/{$variant->id}")->assertNoContent();
+
+        $this->assertSoftDeleted('product_variants', ['id' => $variant->id]);
+    }
+
+    public function test_destroy_rejects_deleting_last_active_variant(): void
+    {
+        $supplier = Supplier::create(['name' => 'Interceramic']);
+        $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
+        $unitType = UnitType::create(['name' => 'm2']);
+
+        $product = Product::create([
+            'supplier_id' => $supplier->id,
+            'category_id' => $category->id,
+            'unit_type_id' => $unitType->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => 'PIS-CREATO-TAU-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ]);
+
+        $this->deleteJson("/api/product-variants/{$variant->id}")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'No se puede eliminar la última variante de un producto.');
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'deleted_at' => null,
+        ]);
     }
 }

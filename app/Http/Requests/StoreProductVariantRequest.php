@@ -32,6 +32,7 @@ class StoreProductVariantRequest extends FormRequest
             'm2_per_box' => ['nullable', 'numeric'],
             'kilos_per_box' => ['nullable', 'numeric'],
             'boxes_per_pallet' => ['nullable', 'integer'],
+            'stock_boxes' => ['nullable', 'integer'],
             'minimum_stock' => ['nullable', 'integer'],
             'commission_category_id' => ['nullable', 'exists:commission_categories,id'],
             'pei' => ['nullable', 'string', 'max:10'],

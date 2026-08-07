@@ -4,11 +4,12 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
  
 ## Reglas generales de trabajo
  
-- **Pedir pasos escoteados, no tareas abiertas.** Justin prefiere prompts como "crea la instancia de axios" en vez de "conecta todo el frontend con el backend". Si te piden una tarea grande, divídela en pasos nombrados y secuenciales antes de escribir código.
+- **Pedir pasos acotados, no tareas abiertas.** Justin prefiere prompts como "crea la instancia de axios" en vez de "conecta todo el frontend con el backend". Si te piden una tarea grande, divídela en pasos nombrados y secuenciales antes de escribir código. Si un paso resulta muy grande, divídelo también (ej. crear vs. editar en pasos separados).
 - **Backend antes que frontend** cuando haya dependencia entre ambos — evita debug en capas cruzadas.
 - **Empezar por lo visible.** Orden de construcción de frontend: UI visible → router → capa de config/servicios → estado (Pinia) → guards.
-- **No asumas librerías nuevas.** No agregues una librería de UI (shadcn-vue, Headless UI, PrimeVue, etc.) sin que se pida explícitamente — está diferido a propósito.
+- **No asumas librerías nuevas.** No agregues una librería sin que se pida explícitamente, salvo las ya adoptadas (PrimeVue 4 unstyled para tablas/diálogos).
 - **No implementes roles/permisos** todavía, aunque el código lo sugiera como "next step" obvio.
+- **No implementes borrado si no se pidió explícitamente.** Varios módulos evitaron a propósito el borrado hasta un paso dedicado (ej. CRUD de producto sin eliminar hasta CRUD de variante) — no lo adelantes solo porque "tiene sentido" agregarlo.
 - Commits en inglés, Conventional Commits + gitmoji (ver `PROJECT.md` para la sintaxis y ejemplos).
 
 ## Entorno — cosas que rompen si no se respetan
@@ -29,9 +30,11 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
   - **Form Requests** dedicados para toda validación de entrada — nunca validar inline en el controlador.
   - **API Resources** para dar forma a las respuestas JSON de forma consistente.
   - Controladores delgados: reciben el Form Request ya validado, delegan a scopes/modelo, devuelven un Resource.
-- **Catálogos de valores (categorías, tipos de unidad, proveedores, etc.) van en tablas propias**, no como `enum` de MySQL ni strings hardcodeados — permite agregar/renombrar valores con un insert/update, sin migración ni deploy. Ejemplo ya implementado: `categories` (con `code_prefix` para generación de códigos) y `unit_types`.
+- **Catálogos de valores (categorías, tipos de unidad, proveedores, comisiones, etc.) van en tablas propias**, no como `enum` de MySQL ni strings hardcodeados — permite agregar/renombrar valores con un insert/update, sin migración ni deploy. Cada catálogo expone un `GET /api/{catalogo}` simple (sin paginación, solo `id`+`name`) para poblar selects del frontend. Ejemplos: `categories`, `unit_types`, `suppliers`, `commission_categories`.
 - **Códigos/identificadores generados por el sistema nunca se aceptan desde el cliente** en un Form Request — se generan server-side (ver ejemplo `VariantCodeGenerator`) y se excluyen explícitamente de los campos validados en Store/Update.
 - **Acciones de negocio con efecto específico van en un endpoint dedicado**, no como parte de un update genérico — ej. ajuste de stock (`PATCH /product-variants/{id}/stock` con `quantity`+`type`) en vez de permitir editar `stock_boxes` directamente vía `PUT`. Facilita agregar trazabilidad/historial después sin rediseñar.
+- **Validaciones de negocio que dependen del modelo bindeado por ruta van en el controlador (guard clause), no en el Form Request.** Ningún Form Request de este proyecto tiene acceso al modelo resuelto por route-model-binding. Si una regla necesita comparar contra el estado actual del modelo antes de mutar (ej. "no eliminar la última variante activa de un producto", "no dejar `stock_boxes` negativo al hacer `subtract`"), va como validación explícita al inicio del método del controlador, antes de la mutación — no se fuerza esa lógica dentro del Form Request solo por consistencia formal.
+- **Todo campo nuevo en un modelo necesita regla de validación explícita en AMBOS Form Requests relevantes (Store y Update).** Laravel descarta silenciosamente del `validated()` cualquier campo sin regla definida, sin importar que el cliente sí lo envíe en el body — esto ya causó un bug real (`stock_boxes` nunca llegaba a `create()`/`update()` por faltar la regla). No asumir cobertura por la migración o el Resource; verificar explícitamente los dos Form Requests.
 - **`SoftDeletes`** en cualquier modelo que pueda quedar referenciado desde otro módulo en el futuro (ya aplicado a `Product`/`ProductVariant`, pensando en Cotizaciones/Ventas). Si el modelo tiene un servicio que valida unicidad de algún campo (ej. `code`), esa validación debe usar `withTrashed()` para no reutilizar valores de registros borrados lógicamente.
 - Si una tabla ya está migrada en un ambiente, cambios de estructura (como agregar `SoftDeletes`) van en una **migración nueva**, nunca editando una migración ya ejecutada.
 
@@ -39,11 +42,15 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
  
 - Componentes Vue: `PascalCase.vue`
 - Composables/stores: `camelCase.js`, stores de Pinia con nombre descriptivo (`useAuthStore`, no `useStore`)
-- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de sesión en cada navegación — replicar este patrón en stores futuros que dependan de datos de sesión.
+- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de datos en cada navegación — replicar este patrón en stores futuros que dependan de datos poco cambiantes (ya replicado en `inventory.js` y `catalogs.js`).
+- **Mutaciones puntuales actualizan el store in-place, sin refetch completo.** Cuando una acción afecta un solo registro (ej. ajustar stock de una variante, eliminar una fila), actualiza solo ese registro dentro del array del store con la respuesta del backend — un refetch completo colapsaría filas/grupos que el usuario ya tenía expandidos en la UI. Patrón ya usado en `updateVariantStock()`.
+- **Acciones con endpoint dedicado se ejecutan de inmediato al confirmarlas, no se difieren hasta el submit de un formulario contenedor** (ej. eliminar una variante existente dentro del form de edición de producto dispara el `DELETE` al momento, no espera al guardar el resto del form) — evita tener que implementar diffing de estado entre lo cargado y lo enviado.
+- **Acciones destructivas requieren confirmación vía `ConfirmDialog` de PrimeVue**, nunca `confirm()` nativo del navegador — rompe la seriedad visual del sistema de diseño. Acciones no destructivas o fácilmente reversibles (ej. ajustar stock) no necesitan este paso extra.
 - Layouts en `src/layouts/`, vistas en `src/views/<módulo>/`, componentes reutilizables en `src/components/`.
 - Guards de router centralizados en `src/router/index.js`, no dispersos por vista.
 - **Convención de nombres en inglés aplicada solo al código** (archivos, carpetas, componentes, nombre interno de ruta) — NO al contenido de negocio visible al usuario (labels, placeholders) ni a los paths de URL (esos se quedan en español, ej. `/inventario`, `/cotizaciones`).
 - **Estructura fija de bloques en todo `.vue`** (existentes y futuros): siempre `template` → `script setup` → `style scoped`, en ese orden, sin excepción, aunque un bloque quede vacío.
+- **Tablas de datos y diálogos: PrimeVue 4 (MIT, modo unstyled)** — nunca v5, por su cambio a licenciamiento PrimeUI (requiere licencia o muestra watermark). Estilos vía `:deep()` sobre elementos HTML nativos o markup propio en slots (ej. `#container`), no vía la prop `pt` salvo para piezas sin markup propio en modo unstyled (ej. el `mask`/overlay de un `Dialog`) — las keys internas del `pt` son poco confiables entre versiones.
 
 ```vue
 <template>
@@ -106,9 +113,13 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 - Border-radius pequeño: `4px`–`6px` en cards, inputs y botones. Nunca `rounded-full` en botones (se siente demasiado "startup").
 - Indicador de item activo en el sidebar: barra delgada de 2-3px en `accent` al lado izquierdo del item — es el único acento de color vivo permitido fuera de estados (success/danger).
 
-### Componentes base ya definidos (Login)
- 
-El `Login.vue` ya construido establece el patrón para forms: card centrada, inputs con ícono a la izquierda, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo). Replicar este patrón en formularios futuros.
+### Componentes base ya definidos
+
+- **Forms** (patrón establecido en `Login.vue`, replicado en `ProductFormView.vue`): card centrada o de ancho completo según contexto, inputs con ícono a la izquierda cuando aplica, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo).
+- **Listas repetibles dentro de un form** (patrón de colores en `ProductFormView.vue`): campos compartidos se capturan una sola vez; el campo que varía (ej. color) se captura como lista repetible con botón "+ Agregar" y botón de quitar por fila (deshabilitado si solo queda 1 fila).
+- **Tablas agrupadas con expansión** (patrón de `InventoryView.vue`): PrimeVue `DataTable` con row-expansion nativo vía slots (`#body`/`#expansion`), agrupación visual hecha con un helper de JS puro (no de PrimeVue) cuando el agrupamiento depende de reglas de negocio específicas (ver `groupVariants.js`).
+- **Confirmación de acciones destructivas**: `ConfirmDialog` de PrimeVue unstyled, con markup propio vía slot `#container` y los tokens de color del sistema de diseño.
+- **Diálogos de acción puntual** (ej. ajuste de stock): `Dialog` de PrimeVue unstyled, mismo criterio visual que `ConfirmDialog`.
  
 ## Checklist antes de dar por terminada una tarea
  
@@ -116,7 +127,12 @@ El `Login.vue` ya construido establece el patrón para forms: card centrada, inp
 - [ ] ¿Usa Inter para UI y Source Serif 4 solo en títulos de página?
 - [ ] ¿Sigue el patrón de layout (sidebar/topbar/cards sin sombra pesada)?
 - [ ] ¿El commit sigue Conventional Commits + gitmoji en inglés?
-- [ ] ¿No introduce una librería de UI, Repository Pattern, o roles/permisos sin que se haya pedido?
+- [ ] ¿No introduce una librería de UI nueva, Repository Pattern, o roles/permisos sin que se haya pedido?
+- [ ] ¿No introduce borrado ni ninguna otra acción destructiva sin que se haya pedido explícitamente?
 - [ ] ¿Usa `localhost` (no `127.0.0.1`) en cualquier URL de config?
 - [ ] (Backend) ¿Tablas/columnas nuevas están en inglés? ¿Catálogos de valores van en tabla propia, no hardcodeados?
 - [ ] (Backend) ¿Los identificadores generados por el sistema quedan excluidos de los Form Requests de entrada?
+- [ ] (Backend) ¿Todo campo nuevo tiene regla de validación en AMBOS Form Requests (Store y Update)?
+- [ ] (Backend) ¿Las validaciones que dependen del modelo bindeado por ruta están en el controlador, no forzadas dentro del Form Request?
+- [ ] (Frontend) ¿Las mutaciones puntuales actualizan el store in-place en vez de refetch completo?
+- [ ] (Frontend) ¿Las acciones destructivas usan `ConfirmDialog` de PrimeVue, no `confirm()` nativo?
