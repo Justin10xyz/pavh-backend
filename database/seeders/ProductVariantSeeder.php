@@ -34,38 +34,46 @@ class ProductVariantSeeder extends Seeder
 
         $groups = [
             [
-                'size' => '60X120',
-                'colors' => ['Taupe', 'Terracota', 'Ivory', 'Gray', 'Graphite'],
-                'price_per_m2' => 359.00,
-                'price_per_box' => 516.96,
-                'pieces_per_box' => 2,
-                'm2_per_box' => 1.440,
-            ],
-            [
-                'size' => '30X60',
-                'colors' => ['Taupe', 'Terracota', 'Ivory', 'Gray', 'Graphite', 'Teal', 'Espresso'],
-                'price_per_m2' => 199.00,
-                'price_per_box' => 322.38,
-                'pieces_per_box' => 9,
-                'm2_per_box' => 1.620,
-            ],
-            [
-                'size' => '20X20',
-                'colors' => ['Teal', 'Terracota', 'Taupe', 'Gray Canvas'],
-                'price_per_m2' => 199.00,
-                'price_per_box' => 199.00,
-                'pieces_per_box' => 25,
-                'm2_per_box' => 1.000,
-            ],
-            [
-                'size' => '20X20',
-                'colors' => ['Teal', 'Espresso', 'Taupe Blend'],
-                'price_per_m2' => 229.00,
-                'price_per_box' => 229.00,
-                'pieces_per_box' => 25,
-                'm2_per_box' => 1.000,
-            ],
-        ];
+				'size' => '60X120',
+				'colors' => ['Taupe', 'Terracota', 'Ivory', 'Gray', 'Graphite'],
+				'price_per_m2' => 359.00,
+				'price_per_box' => 516.96,
+				'pieces_per_box' => 2,
+				'm2_per_box' => 1.440,
+				'kilos_per_box' => 33,
+				'boxes_per_pallet' => 30,
+			],
+			[
+				'size' => '30X60',
+				'colors' => ['Taupe', 'Terracota', 'Ivory', 'Gray', 'Graphite', 'Teal', 'Espresso'],
+				'price_per_m2' => 199.00,
+				'price_per_box' => 322.38,
+				'pieces_per_box' => 9,
+				'm2_per_box' => 1.620,
+				'kilos_per_box' => 29,
+				'boxes_per_pallet' => 48,
+			],
+			[
+				'size' => '20X20',
+				'colors' => ['Teal', 'Terracota', 'Taupe', 'Gray Canvas'],
+				'price_per_m2' => 199.00,
+				'price_per_box' => 199.00,
+				'pieces_per_box' => 25,
+				'm2_per_box' => 1.000,
+				'kilos_per_box' => 16,
+				'boxes_per_pallet' => 80,
+			],
+			[
+				'size' => '20X20',
+				'colors' => ['Teal', 'Espresso', 'Taupe Blend'],
+				'price_per_m2' => 229.00,
+				'price_per_box' => 229.00,
+				'pieces_per_box' => 25,
+				'm2_per_box' => 1.000,
+				'kilos_per_box' => 16,
+				'boxes_per_pallet' => 80,
+			],
+		];
 
         // Atributos técnicos por tamaño+color (no por "grupo" de precio): el 20X20
         // se define en dos grupos de precio distintos que comparten el color Teal,
@@ -98,6 +106,36 @@ class ProductVariantSeeder extends Seeder
             ],
         ];
 
+        // Datos de ejemplo SOLO para desarrollo — reemplazar con inventario real
+        // cuando el ajuste de stock esté conectado.
+        $stockExamples = [
+            // 60X120 — min 5
+            'PIS-CREATO-TAU-60X120'  => ['stock_boxes' => 12, 'minimum_stock' => 5],
+            'PIS-CREATO-TER-60X120'  => ['stock_boxes' => 3,  'minimum_stock' => 5], // bajo
+            'PIS-CREATO-IVO-60X120'  => ['stock_boxes' => 20, 'minimum_stock' => 5],
+            'PIS-CREATO-GRA-60X120'  => ['stock_boxes' => 5,  'minimum_stock' => 5], // bajo (límite)
+            'PIS-CREATO-GRAP-60X120' => ['stock_boxes' => 8,  'minimum_stock' => 5],
+            // 30X60 — min 8
+            'PIS-CREATO-TAU-30X60'  => ['stock_boxes' => 25, 'minimum_stock' => 8],
+            'PIS-CREATO-TER-30X60'  => ['stock_boxes' => 10, 'minimum_stock' => 8],
+            'PIS-CREATO-IVO-30X60'  => ['stock_boxes' => 6,  'minimum_stock' => 8], // bajo
+            'PIS-CREATO-GRA-30X60'  => ['stock_boxes' => 40, 'minimum_stock' => 8],
+            'PIS-CREATO-GRAP-30X60' => ['stock_boxes' => 8,  'minimum_stock' => 8], // bajo (límite)
+            'PIS-CREATO-TEA-30X60'  => ['stock_boxes' => 15, 'minimum_stock' => 8],
+            'PIS-CREATO-ESP-30X60'  => ['stock_boxes' => 2,  'minimum_stock' => 8], // bajo
+
+            // 20X20 ($199/caja) — min 10
+            'PIS-CREATO-TEA-20X20' => ['stock_boxes' => 30, 'minimum_stock' => 10],
+            'PIS-CREATO-TER-20X20' => ['stock_boxes' => 9,  'minimum_stock' => 10], // bajo
+            'PIS-CREATO-TAU-20X20' => ['stock_boxes' => 50, 'minimum_stock' => 10],
+            'PIS-CREATO-GRA-20X20' => ['stock_boxes' => 4,  'minimum_stock' => 10], // bajo (Gray Canvas)
+
+            // 20X20 ($229/caja) — min 6
+            'PIS-CREATO-TEAL-20X20' => ['stock_boxes' => 18, 'minimum_stock' => 6],
+            'PIS-CREATO-ESP-20X20'  => ['stock_boxes' => 5,  'minimum_stock' => 6], // bajo
+            'PIS-CREATO-TAUP-20X20' => ['stock_boxes' => 22, 'minimum_stock' => 6],
+        ];
+
         // El "Teal" 20X20 del grupo de 229 colisiona en abreviatura con el "Teal"
         // 20X20 del grupo de 199, así que VariantCodeGenerator le asigna el código
         // largo (TEAL en vez de TEA). Esa fila puntual va en categoría A junto con
@@ -121,6 +159,10 @@ class ProductVariantSeeder extends Seeder
                         'price_per_box' => $group['price_per_box'],
                         'pieces_per_box' => $group['pieces_per_box'],
                         'm2_per_box' => $group['m2_per_box'],
+                        'kilos_per_box' => $group['kilos_per_box'],
+                        'boxes_per_pallet' => $group['boxes_per_pallet'],
+                        'stock_boxes' => $stockExamples[$code]['stock_boxes'] ?? 0,
+                        'minimum_stock' => $stockExamples[$code]['minimum_stock'] ?? null,
                         'pei' => $attributes['pei'] ?? null,
                         'ett' => $attributes['ett'] ?? null,
                         'commission_category_id' => $attributes
