@@ -33,6 +33,9 @@ class UpdateProductVariantRequest extends FormRequest
             'kilos_per_box' => ['sometimes', 'nullable', 'numeric'],
             'boxes_per_pallet' => ['sometimes', 'nullable', 'integer'],
             'minimum_stock' => ['sometimes', 'nullable', 'integer'],
+            'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
+            'pei' => ['sometimes', 'nullable', 'string', 'max:10'],
+            'ett' => ['sometimes', 'nullable', 'integer', 'between:1,4'],
         ];
     }
 }

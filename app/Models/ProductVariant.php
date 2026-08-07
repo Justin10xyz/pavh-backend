@@ -12,6 +12,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'product_id',
     'code',
     'supplier_code',
+    'commission_category_id',
+    'pei',
+    'ett',
     'color',
     'size',
     'price_per_m2',
@@ -40,6 +43,11 @@ class ProductVariant extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function commissionCategory(): BelongsTo
+    {
+        return $this->belongsTo(CommissionCategory::class);
     }
 
     public function scopeLowStock(Builder $query): Builder
