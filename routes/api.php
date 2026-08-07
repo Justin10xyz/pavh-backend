@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\CommissionCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductVariantController;
 use Illuminate\Http\Request;
@@ -13,6 +14,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
 
     Route::apiResource('products', ProductController::class);
+
+    Route::get('/commission-categories', [CommissionCategoryController::class, 'index']);
 
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);

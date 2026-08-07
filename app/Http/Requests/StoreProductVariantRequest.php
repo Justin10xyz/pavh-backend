@@ -33,6 +33,9 @@ class StoreProductVariantRequest extends FormRequest
             'kilos_per_box' => ['nullable', 'numeric'],
             'boxes_per_pallet' => ['nullable', 'integer'],
             'minimum_stock' => ['nullable', 'integer'],
+            'commission_category_id' => ['nullable', 'exists:commission_categories,id'],
+            'pei' => ['nullable', 'string', 'max:10'],
+            'ett' => ['nullable', 'integer', 'between:1,4'],
         ];
     }
 }
