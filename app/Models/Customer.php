@@ -17,7 +17,7 @@ class Customer extends Model
 
     public function sales(): HasMany
     {
-        return $this->hasMany(\App\Models\Sale::class);
+        return $this->hasMany(Sale::class);
     }
 
     public function scopeSearch(Builder $query, string $term): Builder

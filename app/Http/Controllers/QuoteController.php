@@ -86,6 +86,35 @@ class QuoteController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Payload de solo lectura para prellenar el form de nueva venta. No muta
+     * nada — la conversión real ocurre al confirmar POST /api/sales con
+     * quote_id, que marca la cotización como Convertida.
+     */
+    public function convert(Quote $quote)
+    {
+        if ($quote->quoteStatus->name === 'Convertida') {
+            return response()->json([
+                'message' => 'Esta cotización ya fue convertida a venta.',
+            ], 422);
+        }
+
+        $quote->load('items.productVariant');
+
+        return response()->json([
+            'data' => [
+                'quote_id' => $quote->id,
+                'customer_id' => $quote->customer_id,
+                'notes' => $quote->notes,
+                'items' => $quote->items->map(fn ($item) => [
+                    'product_variant_id' => $item->product_variant_id,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->productVariant->price_per_m2,
+                ]),
+            ],
+        ]);
+    }
+
     private function syncItems(Quote $quote, array $items): void
     {
         $subtotal = 0;

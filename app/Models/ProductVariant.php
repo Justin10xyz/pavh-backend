@@ -62,4 +62,14 @@ class ProductVariant extends Model
             $query->where('category_id', $categoryId);
         });
     }
+
+    public function hasSufficientStock(int $boxes): bool
+    {
+        return $boxes <= $this->stock_boxes;
+    }
+
+    public function decrementStock(int $boxes): void
+    {
+        $this->decrement('stock_boxes', $boxes);
+    }
 }
