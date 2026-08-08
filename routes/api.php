@@ -8,6 +8,7 @@ use App\Http\Controllers\Inventory\ProductController;
 use App\Http\Controllers\Inventory\ProductVariantController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
+use App\Http\Controllers\QuoteController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -28,4 +29,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('product-variants', ProductVariantController::class);
 
     Route::apiResource('customers', CustomerController::class)->except(['destroy']);
+
+    Route::apiResource('quotes', QuoteController::class);
 });
