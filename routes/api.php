@@ -1,12 +1,12 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\CommissionCategoryController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ProductVariantController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\UnitTypeController;
+use App\Http\Controllers\Inventory\CategoryController;
+use App\Http\Controllers\Inventory\CommissionCategoryController;
+use App\Http\Controllers\Inventory\ProductController;
+use App\Http\Controllers\Inventory\ProductVariantController;
+use App\Http\Controllers\Inventory\SupplierController;
+use App\Http\Controllers\Inventory\UnitTypeController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
