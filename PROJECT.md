@@ -70,6 +70,8 @@ pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios ·
 | `SoftDeletes` en productos/variantes | Pueden quedar referenciados en cotizaciones/ventas históricas; borrar físicamente rompería esa referencia |
 | Código de variante generado server-side | Nunca se acepta desde el cliente, evita colisiones y manipulación; el código del proveedor se guarda solo como referencia libre (`supplier_code`) |
 | Validaciones de negocio dependientes del modelo en el controlador, no en el Form Request | Ningún Form Request del proyecto tiene acceso al modelo bindeado por ruta; forzarlo ahí sería inconsistente con el patrón ya establecido |
+| `Quote` y `Sale` como entidades separadas (no una tabla con `status`) | Folios independientes por tipo de documento; consistente con "acciones con efecto específico en endpoint dedicado"; reglas de edición distintas (borrador vs. documento ya concretado) |
+| `customers` como tabla simple desde ahora, `customer_id` nullable en `quotes`/`sales` | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; módulo completo de clientes queda diferido |
 
 ## Dominio del negocio
 
@@ -87,10 +89,21 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 - **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
 - Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
 
-### 2. Cotizaciones — 🚧 siguiente módulo
+### 2. Cotizaciones — 🚧 siguiente módulo, spec de datos ✅ definido
 - Generar cotización seleccionando productos del catálogo de Inventario
 - Imprimir cotización en tamaño carta/media carta
-- **Se puede convertir directamente en una Venta (POS) sin recapturar datos** — la cotización es, en esencia, un borrador de venta. Esto implica que Cotización y Venta deben compartir la misma estructura de líneas de producto/cantidad/precio, y que una Venta puede tener un origen: "directa" o "desde cotización".
+- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Esto implica que Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y que una Venta puede tener un origen: "directa" o "desde cotización".
+
+**Decisión de modelado (resuelta):** `Quote` y `Sale` son **entidades separadas** (`quotes`/`quote_items` y `sales`/`sale_items`), no una sola tabla con `status`. Razones:
+  - Folios independientes por tipo de documento (ej. `COT-0001` vs `V-0001`) — inviable de forma limpia con un solo autoincrement
+  - `PROJECT.md` ya describía a `Venta` con un origen "directa" o "desde cotización", lo cual ya apuntaba a esta estructura
+  - Consistente con la convención ya establecida de "acciones con efecto específico van en endpoint dedicado" (ver ajuste de stock) — convertir cotización en venta es una acción con efectos reales (descuenta stock), no un cambio de status genérico
+  - Reglas de edición/borrado distintas por naturaleza: una cotización es un borrador editable libremente; una venta ya afectó inventario
+  - Se acepta la duplicación estructural entre `quote_items`/`sale_items` (sin tabla polimórfica compartida) — consistente con "sin indirección extra"
+
+**Flujo de conversión:** no hay un endpoint "mágico" que cree la venta directo. `GET /quotes/{id}/convert` (de solo lectura) devuelve las líneas de la cotización para prellenar el form de venta en el frontend, editable ahí. La confirmación pasa por el mismo `POST /sales` que usa una venta directa, incluyendo `quote_id` en el payload — evita duplicar lógica de validación de stock/creación entre venta directa y venta convertida.
+
+**Clientes:** nueva tabla `customers` (simple — `name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). El form de cotización/venta incluye buscador de cliente con opción de alta inline ("+ Agregar cliente") sin salir del form — requiere endpoints simples `GET /customers?search=` y `POST /customers` antes de tocar el form. Módulo completo de clientes (edición, historial, etc.) queda diferido, esto es solo el catálogo básico.
 
 ### 3. Punto de Venta (POS)
 - Registrar ventas, ya sea directas o convertidas desde una cotización existente
@@ -98,7 +111,7 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 - Imprimir nota de venta en **tamaño carta/media carta** (no ticket térmico — esto descarta impresoras térmicas de 58mm/80mm como requisito, se resuelve con impresión estándar/PDF)
 
 ### Implicaciones técnicas a resolver cuando se construya cada módulo
-- `Cotizacion` y `Venta` comparten estructura de líneas — evaluar si `Venta` es una entidad separada con referencia opcional a `Cotizacion`, o si `Cotizacion` es un estado de `Venta` (pendiente / convertida). Las líneas probablemente referencian `product_variants` directamente (ya que es la unidad con precio y stock real)
+- ~~`Cotizacion` y `Venta` comparten estructura de líneas — evaluar si `Venta` es una entidad separada...~~ ✅ resuelto — ver spec de datos en la sección de Cotizaciones arriba. Las líneas (`quote_items`/`sale_items`) referencian `product_variants` directamente
 - Impresión: generar PDF carta/media carta (Laravel + librería PDF, ej. dompdf) — pendiente de decidir en detalle cuando se llegue a este módulo
 - El diseño de `SoftDeletes` en variantes ya contempla que queden referenciadas desde cotizaciones/ventas sin romperse
 
