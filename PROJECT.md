@@ -72,6 +72,7 @@ pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios ·
 | Validaciones de negocio dependientes del modelo en el controlador, no en el Form Request | Ningún Form Request del proyecto tiene acceso al modelo bindeado por ruta; forzarlo ahí sería inconsistente con el patrón ya establecido |
 | `Quote` y `Sale` como entidades separadas (no una tabla con `status`) | Folios independientes por tipo de documento; consistente con "acciones con efecto específico en endpoint dedicado"; reglas de edición distintas (borrador vs. documento ya concretado) |
 | `customers` como tabla simple desde ahora, `customer_id` nullable en `quotes`/`sales` | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; módulo completo de clientes queda diferido |
+| Cantidad en `quote_items`/`sale_items` vive en m² (no cajas); conversión a cajas (`ceil(quantity / m2_per_box)`) ocurre solo al descontar stock, nunca al calcular precio | Consistente con `unit_price = price_per_m2`; evita que `quantity` signifique unidades distintas entre cotización y venta; redondear hacia arriba refleja que no se puede vender/descontar media caja físicamente, sin alterar el monto cobrado |
 
 ## Dominio del negocio
 
@@ -89,21 +90,27 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 - **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
 - Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
 
-### 2. Cotizaciones — 🚧 siguiente módulo, spec de datos ✅ definido
+### 2. Cotizaciones y Ventas — ✅ backend completo, 🚧 frontend pendiente
 - Generar cotización seleccionando productos del catálogo de Inventario
-- Imprimir cotización en tamaño carta/media carta
-- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Esto implica que Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y que una Venta puede tener un origen: "directa" o "desde cotización".
+- Imprimir cotización en tamaño carta/media carta (pendiente, ver módulo 3)
+- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y una Venta puede tener un origen: "directa" o "desde cotización".
 
-**Decisión de modelado (resuelta):** `Quote` y `Sale` son **entidades separadas** (`quotes`/`quote_items` y `sales`/`sale_items`), no una sola tabla con `status`. Razones:
-  - Folios independientes por tipo de documento (ej. `COT-0001` vs `V-0001`) — inviable de forma limpia con un solo autoincrement
-  - `PROJECT.md` ya describía a `Venta` con un origen "directa" o "desde cotización", lo cual ya apuntaba a esta estructura
+**Decisión de modelado (resuelta e implementada):** `Quote` y `Sale` son **entidades separadas** (`quotes`/`quote_items` y `sales`/`sale_items`), no una sola tabla con `status`. Razones:
+  - Folios independientes por tipo de documento (`COT-0001` vs `V-0001`) — inviable de forma limpia con un solo autoincrement
   - Consistente con la convención ya establecida de "acciones con efecto específico van en endpoint dedicado" (ver ajuste de stock) — convertir cotización en venta es una acción con efectos reales (descuenta stock), no un cambio de status genérico
-  - Reglas de edición/borrado distintas por naturaleza: una cotización es un borrador editable libremente; una venta ya afectó inventario
+  - Reglas de edición/borrado distintas por naturaleza: una cotización es un borrador editable libremente mientras esté en status "Borrador"; una venta ya afectó inventario y no tiene PUT/DELETE
   - Se acepta la duplicación estructural entre `quote_items`/`sale_items` (sin tabla polimórfica compartida) — consistente con "sin indirección extra"
 
-**Flujo de conversión:** no hay un endpoint "mágico" que cree la venta directo. `GET /quotes/{id}/convert` (de solo lectura) devuelve las líneas de la cotización para prellenar el form de venta en el frontend, editable ahí. La confirmación pasa por el mismo `POST /sales` que usa una venta directa, incluyendo `quote_id` en el payload — evita duplicar lógica de validación de stock/creación entre venta directa y venta convertida.
+**Backend implementado:**
+- `customers`: CRUD sin `destroy` (no pedido), con búsqueda simple (`GET /api/customers?search=`) vía `scopeSearch()`, pensado para el buscador/alta inline del form de cotización/venta
+- `quotes`/`quote_items`: folio server-side (`QuoteFolioGenerator`, formato `COT-0001`, `withTrashed()`), `unit_price` **siempre** resuelto del `price_per_m2` actual de la variante (ignora cualquier precio que mande el cliente), `subtotal`/`total` calculados server-side (`total = subtotal`, sin impuestos por ahora), edición (`PUT`, reemplaza todas las líneas) permitida **solo** mientras `status = "Borrador"` (guard clause en el controlador, 422 si no)
+- `sales`/`sale_items`: folio independiente (`SaleFolioGenerator`, formato `V-0001`). A diferencia de `quotes`, `unit_price` **sí** viene del payload del frontend (el flujo de conversión permite ajustar precio antes de confirmar). Sin `PUT`/`DELETE` (no pedido)
+- `GET /api/quotes/{id}/convert`: **solo lectura**, prellenar el form de nueva venta con las líneas de la cotización y el `price_per_m2` **actual** de cada variante (no el precio congelado en la cotización — se le muestra al usuario el precio de hoy). Rechaza 422 si la cotización ya está "Convertida"
+- `POST /api/sales`: valida stock suficiente (agregado por variante, cubre el caso de líneas duplicadas de la misma variante) **antes** de mutar nada, descuenta stock dentro de una transacción, y si trae `quote_id` marca esa cotización como "Convertida" automáticamente. Rechaza 422 si el `quote_id` referenciado ya está "Convertida" (evita doble conversión)
+- **Conversión de unidades (m² ↔ cajas):** `quote_items.quantity`/`sale_items.quantity` viven en m² (consistente con que `unit_price` = `price_per_m2`), pero `stock_boxes` vive en cajas. Al crear una venta, se convierte con `ceil(quantity / m2_per_box)` por línea, agregando por variante antes de comparar contra stock disponible. Si `m2_per_box` es `null` en la variante, la línea se rechaza con 422 explícito — nunca se asume conversión 1:1. El dinero (`line_total`/`subtotal`/`total`) se calcula siempre sobre la cantidad exacta en m², independiente del redondeo hacia arriba usado para el descuento de stock
+- `ProductVariant::hasSufficientStock()` / `decrementStock()`: extraídos como métodos reusables, usados tanto por el endpoint de ajuste de stock existente como por la creación de ventas — evita duplicar el guard de "Stock insuficiente"
 
-**Clientes:** nueva tabla `customers` (simple — `name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). El form de cotización/venta incluye buscador de cliente con opción de alta inline ("+ Agregar cliente") sin salir del form — requiere endpoints simples `GET /customers?search=` y `POST /customers` antes de tocar el form. Módulo completo de clientes (edición, historial, etc.) queda diferido, esto es solo el catálogo básico.
+**Clientes:** tabla `customers` simple (`name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). Módulo completo de clientes (edición, historial, etc.) queda diferido — esto es solo el catálogo básico + búsqueda.
 
 ### 3. Punto de Venta (POS)
 - Registrar ventas, ya sea directas o convertidas desde una cotización existente
@@ -122,8 +129,8 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 3. ~~Limpieza de scaffold sin usar~~ ✅
 4. ~~Navegación principal (sidebar + topbar)~~ ✅
 5. ~~Módulo de Inventario~~ ✅ — backend y frontend completos (catálogo, CRUD de producto y variante, ajuste de stock)
-6. **Módulo de Cotizaciones** (depende del catálogo de Inventario, ya listo) — siguiente paso
-7. Módulo de Punto de Venta (depende de Cotizaciones e Inventario)
+6. **Módulo de Cotizaciones y Ventas** (depende del catálogo de Inventario, ya listo) — backend ✅ completo (`customers`, `quotes`/`quote_items`, `sales`/`sale_items`, conversión, descuento de stock); frontend 🚧 siguiente paso
+7. Módulo de Punto de Venta (impresión de nota de venta; el backend de creación de venta y descuento de stock ya vive en el paso 6, POS es principalmente la UI de venta directa/rápida + impresión)
 8. Roles y permisos
 9. ~~Selección de librería de componentes~~ ✅ — PrimeVue 4 (unstyled)
 

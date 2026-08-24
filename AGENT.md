@@ -1,148 +1,146 @@
-# PAVH
+# AGENT.md — Reglas para IA trabajando en PAVH
+ 
+Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje en `pavh-backend` o `pavh-frontend`. Léelo antes de generar código. El objetivo es que cualquier sesión nueva produzca resultados consistentes con las anteriores.
+ 
+## Reglas generales de trabajo
+ 
+- **Pedir pasos acotados, no tareas abiertas.** Justin prefiere prompts como "crea la instancia de axios" en vez de "conecta todo el frontend con el backend". Si te piden una tarea grande, divídela en pasos nombrados y secuenciales antes de escribir código. Si un paso resulta muy grande, divídelo también (ej. crear vs. editar en pasos separados).
+- **Backend antes que frontend** cuando haya dependencia entre ambos — evita debug en capas cruzadas.
+- **Empezar por lo visible.** Orden de construcción de frontend: UI visible → router → capa de config/servicios → estado (Pinia) → guards.
+- **No asumas librerías nuevas.** No agregues una librería sin que se pida explícitamente, salvo las ya adoptadas (PrimeVue 4 unstyled para tablas/diálogos).
+- **No implementes roles/permisos** todavía, aunque el código lo sugiera como "next step" obvio.
+- **No implementes borrado si no se pidió explícitamente.** Varios módulos evitaron a propósito el borrado hasta un paso dedicado (ej. CRUD de producto sin eliminar hasta CRUD de variante) — no lo adelantes solo porque "tiene sentido" agregarlo.
+- Commits en inglés, Conventional Commits + gitmoji (ver `PROJECT.md` para la sintaxis y ejemplos).
 
-## Visión
+## Entorno — cosas que rompen si no se respetan
+ 
+- Usar **`localhost`**, nunca `127.0.0.1` (son orígenes distintos para el navegador y rompen CORS/Sanctum).
+- No usar Laravel Valet por ahora (dominios `.test` rompen cookies `SameSite=Lax`).
+- Antes de cualquier request que modifique estado en Sanctum (`POST`/`PUT`/`DELETE`), debe existir un `GET /sanctum/csrf-cookie` previo — si no, 419.
+- `EnsureFrontendRequestsAreStateful` requiere el header `Origin`. En tests PHPUnit: `$this->withHeader('Origin', 'http://localhost:5173')`.
+- `VITE_API_URL` en el frontend **no** lleva `/api` al final (el store ya arma `/api/login`, `/sanctum/csrf-cookie`, etc.).
+- Logout debe usar `Auth::guard('web')->logout()` — el guard `sanctum` (RequestGuard) no tiene método `logout()`.
+- Al crear un registro cuya tabla tiene columnas con `default` a nivel MySQL (ej. `stock_boxes` default 0), Eloquent no refresca el modelo automáticamente tras el `INSERT` — el atributo puede llegar `null` en la respuesta aunque la BD ya tenga el default aplicado. Llamar `->refresh()` después de `create()` en esos casos.
 
-PAVH es una aplicación web tipo **dashboard / panel administrativo**, en desarrollo temprano. Está construida como dos repositorios independientes que se comunican vía API REST + cookies de sesión.
+## Convenciones de código (backend)
 
-## Arquitectura
+- **Nombres de tablas y columnas en inglés**, siempre — aunque el dominio de negocio y las conversaciones sean en español (ej. `products`, `product_variants`, `price_per_box`, no `productos`/`precio_caja`). Los valores de negocio visibles al usuario (labels en frontend, contenido de cotizaciones) sí pueden ir en español; el schema no.
+- **Sin Repository Pattern.** Decisión explícita y deliberada — no agregar esta capa aunque parezca "buena práctica" de proyectos anteriores. Usar en su lugar:
+  - **Query Scopes** nativos de Eloquent para filtros reusables (`scopeLowStock()`, `scopeByCategory()`, etc.) definidos directamente en el modelo.
+  - **Form Requests** dedicados para toda validación de entrada — nunca validar inline en el controlador.
+  - **API Resources** para dar forma a las respuestas JSON de forma consistente.
+  - Controladores delgados: reciben el Form Request ya validado, delegan a scopes/modelo, devuelven un Resource.
+- **Catálogos de valores (categorías, tipos de unidad, proveedores, comisiones, etc.) van en tablas propias**, no como `enum` de MySQL ni strings hardcodeados — permite agregar/renombrar valores con un insert/update, sin migración ni deploy. Cada catálogo expone un `GET /api/{catalogo}` simple (sin paginación, solo `id`+`name`) para poblar selects del frontend. Ejemplos: `categories`, `unit_types`, `suppliers`, `commission_categories`.
+- **Códigos/identificadores generados por el sistema nunca se aceptan desde el cliente** en un Form Request — se generan server-side (ver ejemplo `VariantCodeGenerator`) y se excluyen explícitamente de los campos validados en Store/Update.
+- **Acciones de negocio con efecto específico van en un endpoint dedicado**, no como parte de un update genérico — ej. ajuste de stock (`PATCH /product-variants/{id}/stock` con `quantity`+`type`) en vez de permitir editar `stock_boxes` directamente vía `PUT`. Facilita agregar trazabilidad/historial después sin rediseñar.
+- **Validaciones de negocio que dependen del modelo bindeado por ruta van en el controlador (guard clause), no en el Form Request.** Ningún Form Request de este proyecto tiene acceso al modelo resuelto por route-model-binding. Si una regla necesita comparar contra el estado actual del modelo antes de mutar (ej. "no eliminar la última variante activa de un producto", "no dejar `stock_boxes` negativo al hacer `subtract`"), va como validación explícita al inicio del método del controlador, antes de la mutación — no se fuerza esa lógica dentro del Form Request solo por consistencia formal.
+- **Todo campo nuevo en un modelo necesita regla de validación explícita en AMBOS Form Requests relevantes (Store y Update).** Laravel descarta silenciosamente del `validated()` cualquier campo sin regla definida, sin importar que el cliente sí lo envíe en el body — esto ya causó un bug real (`stock_boxes` nunca llegaba a `create()`/`update()` por faltar la regla). No asumir cobertura por la migración o el Resource; verificar explícitamente los dos Form Requests.
+- **`SoftDeletes`** en cualquier modelo que pueda quedar referenciado desde otro módulo en el futuro (ya aplicado a `Product`/`ProductVariant`, pensando en Cotizaciones/Ventas). Si el modelo tiene un servicio que valida unicidad de algún campo (ej. `code`), esa validación debe usar `withTrashed()` para no reutilizar valores de registros borrados lógicamente.
+- Si una tabla ya está migrada en un ambiente, cambios de estructura (como agregar `SoftDeletes`) van en una **migración nueva**, nunca editando una migración ya ejecutada.
+- **Documentos con folio propio (ej. `Quote`/`Sale`) usan una secuencia de folio independiente por tipo de documento** (ej. `COT-0001`, `V-0001`), generada server-side igual que `code` en `ProductVariant` — nunca aceptada del cliente. No usar el `id` autoincremental como folio visible.
+- **Convertir un documento en otro con efectos reales (ej. cotización → venta) NO es un endpoint que muta y crea de una sola vez.** Patrón establecido: un endpoint de solo lectura (ej. `GET /quotes/{id}/convert`) devuelve los datos prellenados para que el frontend los muestre editables, y la confirmación pasa por el endpoint de creación normal del documento destino (ej. `POST /sales`, el mismo que usa una venta directa), incluyendo la referencia de origen (`quote_id`) en el payload. Evita duplicar lógica de validación/creación entre el flujo directo y el flujo convertido.
+- **Entidades con ciclo de vida y reglas de edición distintas (borrador vs. documento concretado) van en tablas separadas**, no en una sola tabla con `status` genérico — ver `Quote`/`Sale` en `PROJECT.md`. Se acepta duplicar estructura entre tablas de líneas relacionadas (ej. `quote_items`/`sale_items`) en vez de una tabla polimórfica compartida, consistente con "sin indirección extra".
+- **Guards de negocio reusables entre endpoints (ej. validar/descontar stock) van como método público en el modelo, no duplicados en cada controlador.** Ejemplo: `ProductVariant::hasSufficientStock()`/`decrementStock()`, usados tanto por el ajuste de stock manual como por la creación de ventas — mismo guard, mismo mensaje de error, una sola fuente de verdad.
+- **Cuando una cantidad de línea (`quantity`) está en una unidad de venta distinta a la unidad en la que vive el stock** (ej. `quantity` en m² vía `price_per_m2`, `stock_boxes` en cajas), la conversión se hace explícita en el punto donde se compara/descuenta contra stock — nunca se asume una equivalencia 1:1 silenciosa. Redondear hacia arriba (`ceil`) al convertir a la unidad física de stock (no se puede descontar media caja), pero el monto cobrado (`unit_price`/`line_total`) siempre se calcula sobre la cantidad exacta solicitada, no sobre la cantidad redondeada. Si falta el factor de conversión en el registro (ej. `m2_per_box` null), rechazar la línea con 422 explícito en vez de asumir 1:1.
 
-```
-pavh-backend/    Laravel 11 · API REST pura · Sanctum (SPA cookie-based auth) · MySQL
-pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios · PrimeVue 4 (unstyled)
-```
+## Convenciones de código (frontend)
+ 
+- Componentes Vue: `PascalCase.vue`
+- Composables/stores: `camelCase.js`, stores de Pinia con nombre descriptivo (`useAuthStore`, no `useStore`)
+- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de datos en cada navegación — replicar este patrón en stores futuros que dependan de datos poco cambiantes (ya replicado en `inventory.js` y `catalogs.js`).
+- **Mutaciones puntuales actualizan el store in-place, sin refetch completo.** Cuando una acción afecta un solo registro (ej. ajustar stock de una variante, eliminar una fila), actualiza solo ese registro dentro del array del store con la respuesta del backend — un refetch completo colapsaría filas/grupos que el usuario ya tenía expandidos en la UI. Patrón ya usado en `updateVariantStock()`.
+- **Acciones con endpoint dedicado se ejecutan de inmediato al confirmarlas, no se difieren hasta el submit de un formulario contenedor** (ej. eliminar una variante existente dentro del form de edición de producto dispara el `DELETE` al momento, no espera al guardar el resto del form) — evita tener que implementar diffing de estado entre lo cargado y lo enviado.
+- **Acciones destructivas requieren confirmación vía `ConfirmDialog` de PrimeVue**, nunca `confirm()` nativo del navegador — rompe la seriedad visual del sistema de diseño. Acciones no destructivas o fácilmente reversibles (ej. ajustar stock) no necesitan este paso extra.
+- Layouts en `src/layouts/`, vistas en `src/views/<módulo>/`, componentes reutilizables en `src/components/`.
+- Guards de router centralizados en `src/router/index.js`, no dispersos por vista.
+- **Convención de nombres en inglés aplicada solo al código** (archivos, carpetas, componentes, nombre interno de ruta) — NO al contenido de negocio visible al usuario (labels, placeholders) ni a los paths de URL (esos se quedan en español, ej. `/inventario`, `/cotizaciones`).
+- **Estructura fija de bloques en todo `.vue`** (existentes y futuros): siempre `template` → `script setup` → `style scoped`, en ese orden, sin excepción, aunque un bloque quede vacío.
+- **Tablas de datos y diálogos: PrimeVue 4 (MIT, modo unstyled)** — nunca v5, por su cambio a licenciamiento PrimeUI (requiere licencia o muestra watermark). Estilos vía `:deep()` sobre elementos HTML nativos o markup propio en slots (ej. `#container`), no vía la prop `pt` salvo para piezas sin markup propio en modo unstyled (ej. el `mask`/overlay de un `Dialog`) — las keys internas del `pt` son poco confiables entre versiones.
 
-- **Auth**: Laravel Sanctum en modo SPA (cookies HttpOnly, no tokens en localStorage). Elegido sobre Passport por menor complejidad y por ser el patrón recomendado para un SPA propio (no API pública de terceros).
-- **Entorno**: instalación nativa, sin Docker. `php artisan serve` (backend, :8000) + `npm run dev` (frontend, :5173).
-- **Producción (plan)**: backend y frontend bajo el mismo dominio, con nginx como reverse proxy y el backend expuesto bajo `/api`. Esto evita problemas de cookies cross-site que sí aparecen en desarrollo con dominios distintos (por eso no se usa Laravel Valet por ahora — genera dominios `.test` que rompen `SameSite=Lax`).
-- **Patrón de capa de datos (backend)**: controladores delgados + Query Scopes nativos de Eloquent + Form Requests + API Resources. Deliberadamente **sin Repository Pattern** — se evaluó y se descartó por ahora: no resuelve ningún problema real con el tamaño actual del catálogo, se reconsiderará si el proyecto crece lo suficiente para justificarlo. Validaciones de negocio que dependen del modelo bindeado por ruta (ej. reglas de stock) viven como guard clause en el controlador, no en el Form Request.
-- **Componentes UI (frontend)**: PrimeVue 4 en modo unstyled (MIT para siempre; v5 requiere licencia PrimeUI), estilizado con los tokens del sistema de diseño vía `:deep()` o markup propio en slots.
+```vue
+<template>
 
-## Estado actual
+</template>
 
-### Backend — Auth ✅ completo y verificado
-- Sanctum instalado (`php artisan install:api`), `statefulApi()` habilitado
-- Endpoints: `login`, `logout`, `user` en `routes/api.php`
-- CORS y dominios stateful configurados para `localhost:5173`
-- Flujo completo verificado con curl y con `tests/Feature/AuthTest.php`
-- Repo Git con commits limpios, ya en remoto
+<script setup>
 
-### Backend — Inventario ✅ completo y verificado
-**Capa de datos:**
-- Tablas (nombres en inglés): `categories`, `unit_types`, `suppliers`, `commission_categories`, `products` (padre/línea), `product_variants` (color+medida, unidad real con stock)
-- Modelos con relaciones `belongsTo`/`hasMany`
-- Servicio `app/Services/VariantCodeGenerator`: genera `code` único por variante con formato `[PREFIJO]-[LINEA]-[COLOR]-[MEDIDA]` (ej. `PIS-CREATO-TAU-60X120`), con cascada de resolución de colisión
-- Sembrado con datos reales de proveedor (Interceramic)
+</script>
 
-**API REST:**
-- Endpoints separados `/api/products` y `/api/product-variants` (más `?with=variants` como atajo de conveniencia), todos bajo `auth:sanctum`
-- Endpoints simples de catálogo (`/api/suppliers`, `/api/categories`, `/api/unit-types`, `/api/commission-categories`) para poblar selects del frontend
-- Query Scopes (`scopeLowStock`, `scopeByCategory`), Form Requests, API Resources (con `low_stock` calculado)
-- CRUD completo de producto y variante, incluyendo `DELETE /product-variants/{id}` (soft delete, rechaza con 422 si es la última variante activa del producto)
-- Ajuste de stock como acción dedicada (`PATCH /product-variants/{id}/stock`, `quantity`+`type`), con guard clause que rechaza `subtract` si dejaría el stock en negativo (422 "Stock insuficiente")
-- `SoftDeletes` en `Product`/`ProductVariant` — no se borran físicamente porque pueden quedar referenciados en cotizaciones/ventas futuras
-- Suite de tests pasando, verificado manualmente con curl y en navegador
+<style scoped>
 
-### Frontend — Inventario ✅ completo, resto del panel 🚧 en progreso
-- Scaffold Vite + Vue 3 + Pinia + Vue Router + Tailwind (vía `@tailwindcss/vite`)
-- `src/lib/axios.js`, `src/stores/auth.js`, `src/router/index.js` con guard de sesión
-- `src/layouts/AppLayout.vue` y `AuthLayout.vue`, resueltos dinámicamente vía `route.meta.layout`
-- `src/views/login/Login.vue` funcional de punta a punta
-- `src/components/layout/AppSidebar.vue` y `AppTopbar.vue` implementados (sistema de diseño aplicado, item activo, título dinámico)
-- `src/router/` reestructurado por módulo (`auth/`, `dashboard/`, `inventory/`, `quotes/`, `pos/`)
-- **`InventoryView.vue`**: catálogo agrupado (PrimeVue `DataTable` con row-expansion), buscador + filtro de categoría + toggle "solo stock bajo" (100% client-side), botón "Editar" a nivel de grupo por tamaño, ícono de ajuste de stock con `Dialog` de PrimeVue
-- **`ProductFormView.vue`**: crea/edita producto junto con sus variantes en un solo form — campos técnicos compartidos + lista repetible de colores (cada uno con stock inicial/mínimo); eliminar un color existente dispara `DELETE` inmediato con `ConfirmDialog` de PrimeVue
-- **`src/stores/inventory.js`** y **`src/stores/catalogs.js`** (Pinia, patrón `initialized`); mutaciones puntuales (ajuste de stock, borrado de variante) actualizan el store in-place sin refetch completo
-- `src/lib/groupVariants.js`: agrupa variantes por medida+PEI+ETT+categoría de comisión+precio, dejando el color como lo único que varía dentro del grupo
-- Convención de nombres en inglés aplicada a código (archivos/componentes/rutas internas); contenido de negocio visible y URLs de rutas se quedan en español
-- Pendiente: `HomeView.vue` sigue como placeholder del dashboard real
-
-## Decisiones clave y su razón
-
-| Decisión | Razón |
-|---|---|
-| Sanctum sobre Passport | SPA propio, no necesita OAuth2 completo; cookies HttpOnly evitan XSS de localStorage |
-| Sin Docker | Desarrollo nativo, menor fricción para el flujo actual |
-| Sin Valet (por ahora) | Dominios `.test` rompen cookies `SameSite=Lax` frente a `localhost:5173` |
-| `localhost` en vez de `127.0.0.1` | Son orígenes distintos para el navegador; debe coincidir con `CORS` y `SANCTUM_STATEFUL_DOMAINS` |
-| Roles/permisos diferidos | Se definirá cuando el dashboard base esté funcional |
-| PrimeVue 4 (unstyled) para tablas/diálogos | MIT permanente; v5 requiere licencia PrimeUI (watermark si no se registra). Estilos vía `:deep()`/markup propio, no vía `pt` (poco confiable entre versiones) |
-| Sin Repository Pattern | Controladores delgados + Query Scopes + Form Requests + API Resources cubren las necesidades actuales sin la indirección extra |
-| `SoftDeletes` en productos/variantes | Pueden quedar referenciados en cotizaciones/ventas históricas; borrar físicamente rompería esa referencia |
-| Código de variante generado server-side | Nunca se acepta desde el cliente, evita colisiones y manipulación; el código del proveedor se guarda solo como referencia libre (`supplier_code`) |
-| Validaciones de negocio dependientes del modelo en el controlador, no en el Form Request | Ningún Form Request del proyecto tiene acceso al modelo bindeado por ruta; forzarlo ahí sería inconsistente con el patrón ya establecido |
-| `Quote` y `Sale` como entidades separadas (no una tabla con `status`) | Folios independientes por tipo de documento; consistente con "acciones con efecto específico en endpoint dedicado"; reglas de edición distintas (borrador vs. documento ya concretado) |
-| `customers` como tabla simple desde ahora, `customer_id` nullable en `quotes`/`sales` | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; módulo completo de clientes queda diferido |
-
-## Dominio del negocio
-
-PAVH es para un negocio de **venta de pisos y materiales de construcción**. El cliente actualmente hace notas de venta, cotizaciones y ventas a mano — el objetivo del sistema es modernizar y digitalizar ese flujo completo.
-
-Estructura de catálogo confirmada con datos reales de proveedor (Interceramic): un **producto** es la línea/colección (ej. "Creato"), una **variante** es la combinación color+medida específica (ej. Creato/Taupe/60x120) — es la unidad real que se vende, tiene precio propio y stock. El proveedor vende por caja; el sistema calcula m²/piezas disponibles a partir de un factor de conversión (m² por caja) que el proveedor ya provee en sus listas de precios.
-
-## Módulos
-
-### 1. Inventario — ✅ completo (backend + frontend)
-- Catálogo de productos con estructura padre (línea) / variante (color+medida)
-- Alertas de stock bajo (umbral por variante, vía `minimum_stock`)
-- Alta, edición y borrado (soft delete, con reglas de integridad) de productos y variantes
-- Ajuste de stock real vía acción dedicada, con validación de stock insuficiente
-- **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
-- Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
-
-### 2. Cotizaciones — 🚧 siguiente módulo, spec de datos ✅ definido
-- Generar cotización seleccionando productos del catálogo de Inventario
-- Imprimir cotización en tamaño carta/media carta
-- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Esto implica que Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y que una Venta puede tener un origen: "directa" o "desde cotización".
-
-**Decisión de modelado (resuelta):** `Quote` y `Sale` son **entidades separadas** (`quotes`/`quote_items` y `sales`/`sale_items`), no una sola tabla con `status`. Razones:
-  - Folios independientes por tipo de documento (ej. `COT-0001` vs `V-0001`) — inviable de forma limpia con un solo autoincrement
-  - `PROJECT.md` ya describía a `Venta` con un origen "directa" o "desde cotización", lo cual ya apuntaba a esta estructura
-  - Consistente con la convención ya establecida de "acciones con efecto específico van en endpoint dedicado" (ver ajuste de stock) — convertir cotización en venta es una acción con efectos reales (descuenta stock), no un cambio de status genérico
-  - Reglas de edición/borrado distintas por naturaleza: una cotización es un borrador editable libremente; una venta ya afectó inventario
-  - Se acepta la duplicación estructural entre `quote_items`/`sale_items` (sin tabla polimórfica compartida) — consistente con "sin indirección extra"
-
-**Flujo de conversión:** no hay un endpoint "mágico" que cree la venta directo. `GET /quotes/{id}/convert` (de solo lectura) devuelve las líneas de la cotización para prellenar el form de venta en el frontend, editable ahí. La confirmación pasa por el mismo `POST /sales` que usa una venta directa, incluyendo `quote_id` en el payload — evita duplicar lógica de validación de stock/creación entre venta directa y venta convertida.
-
-**Clientes:** nueva tabla `customers` (simple — `name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). El form de cotización/venta incluye buscador de cliente con opción de alta inline ("+ Agregar cliente") sin salir del form — requiere endpoints simples `GET /customers?search=` y `POST /customers` antes de tocar el form. Módulo completo de clientes (edición, historial, etc.) queda diferido, esto es solo el catálogo básico.
-
-### 3. Punto de Venta (POS)
-- Registrar ventas, ya sea directas o convertidas desde una cotización existente
-- Descontar stock de Inventario automáticamente al concretar la venta
-- Imprimir nota de venta en **tamaño carta/media carta** (no ticket térmico — esto descarta impresoras térmicas de 58mm/80mm como requisito, se resuelve con impresión estándar/PDF)
-
-### Implicaciones técnicas a resolver cuando se construya cada módulo
-- ~~`Cotizacion` y `Venta` comparten estructura de líneas — evaluar si `Venta` es una entidad separada...~~ ✅ resuelto — ver spec de datos en la sección de Cotizaciones arriba. Las líneas (`quote_items`/`sale_items`) referencian `product_variants` directamente
-- Impresión: generar PDF carta/media carta (Laravel + librería PDF, ej. dompdf) — pendiente de decidir en detalle cuando se llegue a este módulo
-- El diseño de `SoftDeletes` en variantes ya contempla que queden referenciadas desde cotizaciones/ventas sin romperse
-
-## Roadmap
-
-1. ~~Sistema de diseño~~ ✅ — definido en `AGENT.md` (paleta, tipografía, layout)
-2. Dashboard real (reemplazar `HomeView.vue` placeholder) — pendiente
-3. ~~Limpieza de scaffold sin usar~~ ✅
-4. ~~Navegación principal (sidebar + topbar)~~ ✅
-5. ~~Módulo de Inventario~~ ✅ — backend y frontend completos (catálogo, CRUD de producto y variante, ajuste de stock)
-6. **Módulo de Cotizaciones** (depende del catálogo de Inventario, ya listo) — siguiente paso
-7. Módulo de Punto de Venta (depende de Cotizaciones e Inventario)
-8. Roles y permisos
-9. ~~Selección de librería de componentes~~ ✅ — PrimeVue 4 (unstyled)
-
-## Convenciones de commits
-
-Conventional Commits, descripciones en inglés, con gitmoji:
-
-```
-<type>[optional scope]: <gitmoji> <description>
+</style>
 ```
 
-Ejemplos:
+  - Si un componente no necesita estilos propios, el bloque `<style scoped>` se deja vacío — no se omite.
+  - No usar `<script>` sin `setup` en ningún archivo nuevo o existente.
+  - No usar `<style>` global (sin `scoped`) salvo que sea justificado y explícito (no debería ser el caso en este proyecto).
+
+## Sistema de diseño
+ 
+Dirección: **corporativo serio** (banca/legal), no startup ni SaaS "friendly". Consistencia > creatividad — cualquier pantalla nueva debe verse como si viniera del mismo diseñador.
+ 
+### Implementación técnica (Tailwind v4)
+ 
+Este proyecto usa **Tailwind v4** — no hay `tailwind.config.js`. Los tokens de color y tipografía viven en un bloque `@theme` dentro del CSS de entrada (donde está `@import "tailwindcss";`, normalmente `src/style.css` o `src/assets/main.css`). **No crear `tailwind.config.js` para esto** — si algún día se necesita para un plugin específico, se agrega aparte, pero los tokens de diseño quedan siempre en `@theme`.
+ 
+Fuentes instaladas vía `@fontsource` (self-hosted, no CDN de Google Fonts):
 ```
-feat(auth): :sparkles: add password visibility toggle to login form
-fix(router): :bug: prevent duplicate fetchUser call on navigation
-config(cors): :wrench: allow credentials from localhost:5173
-hotfix(auth): :ambulance: fix logout using wrong guard
-feat(inventory): :sparkles: add product variant stock adjustment endpoint
-fix(inventory): :bug: refresh model after insert to reflect MySQL column defaults
-fix(inventory): :bug: add missing stock_boxes validation rule to form requests
-feat(inventory): :sparkles: add variant delete with confirm dialog
+npm install @fontsource/inter @fontsource/source-serif-4
 ```
+Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif 4).
+ 
+### Paleta (variables CSS definidas en `@theme`, nunca hex sueltos en componentes)
+ 
+| Token | Hex | Uso |
+|---|---|---|
+| `primary` | `#14293D` | Sidebar, headers, botones primarios, texto sobre fondo claro en marca |
+| `primary-dark` | `#0B1A29` | Hover/active de elementos `primary` |
+| `accent` | `#A67C3D` | Focus rings, indicador de sección/nav activa. Uso **limitado** — no decorativo, no botones grandes de este color |
+| `bg` | `#F7F8FA` | Fondo general de la app |
+| `surface` | `#FFFFFF` | Cards, modales, inputs |
+| `border` | `#E4E7EC` | Bordes de cards, tablas, inputs |
+| `text` | `#1D2939` | Texto principal |
+| `text-muted` | `#667085` | Texto secundario, placeholders, labels |
+| `success` | `#2F6844` | Confirmaciones, estados positivos |
+| `danger` | `#A13D3D` | Errores, estados destructivos |
+ 
+### Tipografía
+ 
+- **UI general** (botones, forms, tablas, nav, body): **Inter**. Es la fuente por defecto para todo excepto lo indicado abajo.
+- **Wordmark / títulos de página** (`<h1>` de cada vista, logo "PV"/"PAVH"): **Source Serif 4**. Uso restringido — nunca en botones, labels, ni texto de tabla. Es el único lugar donde aparece un serif.
+- Tamaño base 16px, escala modesta (no tipografía gigante tipo landing page — esto es una herramienta de trabajo).
+
+### Layout
+ 
+- Sidebar fijo, fondo `primary`, íconos + labels en blanco/gris claro.
+- Topbar blanco, borde inferior `border` (1px, sin sombra).
+- Contenido sobre fondo `bg`, cards en `surface` con borde `border` de 1px — **no usar `box-shadow` pesado**, rompe la seriedad del diseño.
+- Border-radius pequeño: `4px`–`6px` en cards, inputs y botones. Nunca `rounded-full` en botones (se siente demasiado "startup").
+- Indicador de item activo en el sidebar: barra delgada de 2-3px en `accent` al lado izquierdo del item — es el único acento de color vivo permitido fuera de estados (success/danger).
+
+### Componentes base ya definidos
+
+- **Forms** (patrón establecido en `Login.vue`, replicado en `ProductFormView.vue`): card centrada o de ancho completo según contexto, inputs con ícono a la izquierda cuando aplica, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo).
+- **Listas repetibles dentro de un form** (patrón de colores en `ProductFormView.vue`): campos compartidos se capturan una sola vez; el campo que varía (ej. color) se captura como lista repetible con botón "+ Agregar" y botón de quitar por fila (deshabilitado si solo queda 1 fila).
+- **Tablas agrupadas con expansión** (patrón de `InventoryView.vue`): PrimeVue `DataTable` con row-expansion nativo vía slots (`#body`/`#expansion`), agrupación visual hecha con un helper de JS puro (no de PrimeVue) cuando el agrupamiento depende de reglas de negocio específicas (ver `groupVariants.js`).
+- **Confirmación de acciones destructivas**: `ConfirmDialog` de PrimeVue unstyled, con markup propio vía slot `#container` y los tokens de color del sistema de diseño.
+- **Diálogos de acción puntual** (ej. ajuste de stock): `Dialog` de PrimeVue unstyled, mismo criterio visual que `ConfirmDialog`.
+ 
+## Checklist antes de dar por terminada una tarea
+ 
+- [ ] ¿Usa los tokens de color definidos arriba (no hex sueltos)?
+- [ ] ¿Usa Inter para UI y Source Serif 4 solo en títulos de página?
+- [ ] ¿Sigue el patrón de layout (sidebar/topbar/cards sin sombra pesada)?
+- [ ] ¿El commit sigue Conventional Commits + gitmoji en inglés?
+- [ ] ¿No introduce una librería de UI nueva, Repository Pattern, o roles/permisos sin que se haya pedido?
+- [ ] ¿No introduce borrado ni ninguna otra acción destructiva sin que se haya pedido explícitamente?
+- [ ] ¿Usa `localhost` (no `127.0.0.1`) en cualquier URL de config?
+- [ ] (Backend) ¿Tablas/columnas nuevas están en inglés? ¿Catálogos de valores van en tabla propia, no hardcodeados?
+- [ ] (Backend) ¿Los identificadores generados por el sistema quedan excluidos de los Form Requests de entrada?
+- [ ] (Backend) ¿Todo campo nuevo tiene regla de validación en AMBOS Form Requests (Store y Update)?
+- [ ] (Backend) ¿Las validaciones que dependen del modelo bindeado por ruta están en el controlador, no forzadas dentro del Form Request?
+- [ ] (Backend) ¿Documentos con folio (`Quote`/`Sale`) generan su folio server-side con secuencia propia, nunca vía `id` ni aceptado del cliente?
+- [ ] (Backend) ¿Una conversión entre documentos (cotización → venta) reutiliza el endpoint de creación normal en vez de mutar/crear todo en un solo paso?
+- [ ] (Backend) ¿Si hay conversión de unidad entre cantidad vendida y stock (ej. m² vs cajas), se hace explícita en el punto de comparación/descuento, sin asumir 1:1?
+- [ ] (Frontend) ¿Las mutaciones puntuales actualizan el store in-place en vez de refetch completo?
+- [ ] (Frontend) ¿Las acciones destructivas usan `ConfirmDialog` de PrimeVue, no `confirm()` nativo?
