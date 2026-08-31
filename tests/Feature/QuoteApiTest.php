@@ -187,6 +187,35 @@ class QuoteApiTest extends TestCase
             ->assertJsonCount(1, 'data.items');
     }
 
+    public function test_index_with_customer_and_quote_status_eager_loads_both_relations(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->getJson('/api/quotes?with=customer,quoteStatus')
+            ->assertOk()
+            ->assertJsonPath('data.0.customer.name', 'Juan Perez')
+            ->assertJsonPath('data.0.status', 'Borrador');
+    }
+
+    public function test_index_ignores_unknown_with_values(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $this->getJson('/api/quotes?with=customer,notARealRelation')
+            ->assertOk()
+            ->assertJsonPath('data.0.status', 'Borrador');
+    }
+
     public function test_it_soft_deletes_a_quote_and_its_items(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);

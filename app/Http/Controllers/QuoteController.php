@@ -16,8 +16,20 @@ class QuoteController extends Controller
 {
     public function index(Request $request)
     {
+        $allowedRelations = [
+            'items' => 'items.productVariant',
+            'customer' => 'customer',
+            'quoteStatus' => 'quoteStatus',
+        ];
+
+        $with = collect(explode(',', $request->query('with', '')))
+            ->map(fn ($relation) => trim($relation))
+            ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
+            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->all();
+
         $quotes = Quote::query()
-            ->when($request->query('with') === 'items', fn ($query) => $query->with('items.productVariant'))
+            ->when($with !== [], fn ($query) => $query->with($with))
             ->get();
 
         return QuoteResource::collection($quotes);
