@@ -26,12 +26,21 @@ pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios ·
 - Flujo completo verificado con curl y con `tests/Feature/AuthTest.php`
 - Repo Git con commits limpios, ya en remoto
 
-### Backend — Inventario ✅ completo y verificado
-**Capa de datos:**
-- Tablas (nombres en inglés): `categories`, `unit_types`, `suppliers`, `commission_categories`, `products` (padre/línea), `product_variants` (color+medida, unidad real con stock)
-- Modelos con relaciones `belongsTo`/`hasMany`
-- Servicio `app/Services/VariantCodeGenerator`: genera `code` único por variante con formato `[PREFIJO]-[LINEA]-[COLOR]-[MEDIDA]` (ej. `PIS-CREATO-TAU-60X120`), con cascada de resolución de colisión
-- Sembrado con datos reales de proveedor (Interceramic)
+### 1. Inventario — ✅ completo (backend + frontend)
+- Catálogo de productos con estructura padre (línea) / variante (color+medida)
+- Alertas de stock bajo (umbral por variante, vía `minimum_stock`)
+- Alta, edición y borrado (soft delete, con reglas de integridad) de productos y variantes
+- Ajuste de stock real vía acción dedicada, con validación de stock insuficiente
+- **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
+- Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
+
+### 2. Cotizaciones y Ventas — ✅ backend completo, 🚧 frontend pendiente
+- Generar cotización seleccionando productos del catálogo de Inventario
+- Imprimir cotización en tamaño carta/media carta (pendiente, ver módulo 3)
+- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y una Venta puede tener un origen: "directa" o "desde cotización".
+- `GET /api/quotes` soporta `?with=customer,quoteStatus` (whitelist explícita, valores desconocidos se ignoran silenciosamente) — resuelve N+1 detectado en
+QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comma+whitelist, extensión del shortcut usado en `ProductController` (que hace match exacto de string) — no unificado entre ambos controllers todavía, queda como decisión pendiente si se quiere consistencia total. 
+- `QuotesView.vue` + `src/stores/quotes.js`: listado funcional, verificado en navegador contra backend real (3 registros de prueba cubriendo los tres status y el caso sin cliente). `fetchQuotes()` usa `?with=customer,quoteStatus` para evitar el N+1 (antes lazy-loaded implícitamente vía QuoteResource).
 
 **API REST:**
 - Endpoints separados `/api/products` y `/api/product-variants` (más `?with=variants` como atajo de conveniencia), todos bajo `auth:sanctum`
