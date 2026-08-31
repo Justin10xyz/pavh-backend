@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             SupplierSeeder::class,
             CommissionCategorySeeder::class,
             ProductVariantSeeder::class,
+            QuoteStatusSeeder::class,
         ]);
     }
 }

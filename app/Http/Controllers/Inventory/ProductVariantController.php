@@ -66,7 +66,7 @@ class ProductVariantController extends Controller
     {
         $data = $request->validated();
 
-        if ($data['type'] === 'subtract' && $data['quantity'] > $productVariant->stock_boxes) {
+        if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
             return response()->json([
                 'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
             ], 422);
