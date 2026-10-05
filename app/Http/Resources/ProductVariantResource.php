@@ -35,6 +35,10 @@ class ProductVariantResource extends JsonResource
                 'id' => $this->commissionCategory->id,
                 'code' => $this->commissionCategory->code,
             ] : null),
+            'product' => $this->whenLoaded('product', fn () => [
+                'id' => $this->product->id,
+                'name' => $this->product->name,
+            ]),
         ];
     }
 }

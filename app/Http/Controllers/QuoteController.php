@@ -37,7 +37,7 @@ class QuoteController extends Controller
 
     public function show(Quote $quote)
     {
-        $quote->load(['items.productVariant', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.productVariant.product', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
     }
