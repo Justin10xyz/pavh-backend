@@ -8,6 +8,7 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
+use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -43,9 +44,52 @@ class SaleController extends Controller
 
     public function show(Sale $sale)
     {
-        $sale->load(['items.productVariant', 'customer', 'quote']);
+        // withTrashed: una venta ya cerrada se debe poder consultar aunque la
+        // variante o su línea se hayan dado de baja después.
+        $sale->load([
+            'customer',
+            'quote',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+        ]);
 
         return new SaleResource($sale);
+    }
+
+    public function downloadPdf(Sale $sale, DocumentPdfGenerator $pdfGenerator)
+    {
+        // withTrashed: una venta ya cerrada se debe poder reimprimir aunque la
+        // variante o su línea se hayan dado de baja después.
+        $sale->load([
+            'customer',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        $pdf = $pdfGenerator->generate([
+            'document_type' => 'Venta',
+            'folio' => $sale->folio,
+            'date' => $sale->created_at->format('d/m/Y'),
+            'customer' => $sale->customer?->only(['name', 'phone', 'email']),
+            'items' => $sale->items->map(fn ($item) => [
+                'variant_label' => trim(implode(' ', [
+                    $item->productVariant->product->name,
+                    $item->productVariant->color,
+                    $item->productVariant->size,
+                ])),
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'line_total' => (float) $item->line_total,
+            ])->all(),
+            'subtotal' => (float) $sale->subtotal,
+            'total' => (float) $sale->total,
+        ]);
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            "Venta-{$sale->folio}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     public function store(StoreSaleRequest $request, SaleFolioGenerator $folioGenerator)

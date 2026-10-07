@@ -415,4 +415,44 @@ class SaleApiTest extends TestCase
 
         $this->assertCount(1, $customerQueries);
     }
+
+    public function test_it_downloads_a_sale_as_pdf(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'José Núñez']);
+
+        $saleId = $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $response = $this->get("/api/sales/{$saleId}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertDownload('Venta-V-0001.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_it_shows_a_sale_whose_variant_and_product_were_soft_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $saleId = $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100.00],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $variant->delete();
+        $variant->product->delete();
+
+        $this->getJson("/api/sales/{$saleId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant.id', $variant->id)
+            ->assertJsonPath('data.items.0.product_variant.color', 'Taupe')
+            ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato');
+    }
 }
