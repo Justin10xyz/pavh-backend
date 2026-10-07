@@ -1,0 +1,260 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Category;
+use App\Models\Customer;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\Quote;
+use App\Models\QuoteStatus;
+use App\Models\Sale;
+use App\Models\Supplier;
+use App\Models\UnitType;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
+class SaleApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withHeader('Origin', config('sanctum.stateful')[0] ?? 'http://localhost:5173');
+
+        $this->actingAs(User::factory()->create());
+
+        foreach (['Borrador', 'Convertida', 'Cancelada'] as $name) {
+            QuoteStatus::create(['name' => $name]);
+        }
+    }
+
+    private function createVariant(string $color, float $pricePerM2, ?float $m2PerBox = 1.44, int $stockBoxes = 10): ProductVariant
+    {
+        $supplier = Supplier::create(['name' => 'Interceramic']);
+        $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
+        $unitType = UnitType::create(['name' => 'm2']);
+
+        $product = Product::create([
+            'supplier_id' => $supplier->id,
+            'category_id' => $category->id,
+            'unit_type_id' => $unitType->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        return ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => "PIS-CREATO-{$color}-60X120",
+            'color' => $color,
+            'size' => '60x120',
+            'price_per_m2' => $pricePerM2,
+            'price_per_box' => $pricePerM2 * 1.44,
+            'm2_per_box' => $m2PerBox,
+            'stock_boxes' => $stockBoxes,
+        ]);
+    }
+
+    public function test_it_creates_a_direct_sale_and_decrements_stock(): void
+    {
+        // m2_per_box=1.44, quantity=10 m2 -> ceil(10/1.44)=7 cajas descontadas
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $response = $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+            ],
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.folio', 'V-0001')
+            ->assertJsonPath('data.quote_id', null)
+            ->assertJsonPath('data.items.0.quantity', '10.00')
+            ->assertJsonPath('data.items.0.unit_price', '100.00')
+            ->assertJsonPath('data.items.0.line_total', '1000.00')
+            ->assertJsonPath('data.subtotal', '1000.00')
+            ->assertJsonPath('data.total', '1000.00');
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'stock_boxes' => 3, // 10 - 7
+        ]);
+    }
+
+    public function test_it_rejects_sale_with_insufficient_stock_and_rolls_back(): void
+    {
+        // stock=2 cajas, se necesitan ceil(10/1.44)=7 -> insuficiente
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 2);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+            ],
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Stock insuficiente para PIS-CREATO-Taupe-60X120. Disponible: 2 cajas, se requieren 7.');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseCount('sale_items', 0);
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'stock_boxes' => 2,
+        ]);
+    }
+
+    public function test_it_rejects_sale_when_variant_has_no_m2_per_box_conversion(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: null, stockBoxes: 10);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+            ],
+        ])->assertStatus(422);
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'stock_boxes' => 10,
+        ]);
+    }
+
+    public function test_full_quote_to_sale_conversion_flow(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 5],
+            ],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        // El precio de catálogo cambia después de cotizar; convert debe reflejar el precio de HOY, no el congelado en la quote.
+        $variant->update(['price_per_m2' => 120.00]);
+
+        $convertResponse = $this->getJson("/api/quotes/{$quoteId}/convert")->assertOk();
+
+        $convertResponse->assertJsonPath('data.quote_id', $quoteId)
+            ->assertJsonPath('data.customer_id', $customer->id)
+            ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
+            ->assertJsonPath('data.items.0.quantity', '5.00')
+            ->assertJsonPath('data.items.0.unit_price', '120.00');
+
+        $saleResponse = $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'quote_id' => $quoteId,
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 5, 'unit_price' => 120.00],
+            ],
+        ])->assertCreated();
+
+        $saleResponse->assertJsonPath('data.folio', 'V-0001')
+            ->assertJsonPath('data.quote_id', $quoteId)
+            ->assertJsonPath('data.subtotal', '600.00');
+
+        $this->assertDatabaseHas('quotes', [
+            'id' => $quoteId,
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+    }
+
+    public function test_it_rejects_converting_an_already_converted_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
+    }
+
+    public function test_it_rejects_creating_a_sale_from_an_already_converted_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+
+        $this->postJson('/api/sales', [
+            'quote_id' => $quoteId,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_generates_unique_sequential_sale_folios(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 100);
+
+        $first = $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $second = $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $first->assertJsonPath('data.folio', 'V-0001');
+        $second->assertJsonPath('data.folio', 'V-0002');
+    }
+
+    public function test_it_aggregates_stock_check_across_duplicate_lines_of_the_same_variant(): void
+    {
+        // stock=5 cajas. Dos líneas de 4 m2 cada una -> ceil(4/1.44)=3 cajas cada línea;
+        // una validación línea por línea contra el stock total (5) aprobaría ambas por separado,
+        // pero agregadas son 6 cajas > 5 disponibles: debe rechazar. Prueba que la validación
+        // de stock se agrega por variante antes de mutar nada.
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 5);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 4, 'unit_price' => 100],
+                ['product_variant_id' => $variant->id, 'quantity' => 4, 'unit_price' => 100],
+            ],
+        ])->assertStatus(422);
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 5]);
+    }
+
+    public function test_it_shows_a_sale_with_items_and_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $created = $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $this->getJson("/api/sales/{$created->json('data.id')}")
+            ->assertOk()
+            ->assertJsonPath('data.customer.name', 'Juan Perez')
+            ->assertJsonCount(1, 'data.items');
+    }
+}
