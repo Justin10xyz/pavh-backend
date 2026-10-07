@@ -184,6 +184,27 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
     }
 
+    public function test_it_rejects_converting_a_quote_with_soft_deleted_variants(): void
+    {
+        $available = $this->createVariant('Taupe', 100.00);
+        $deleted = $this->createVariant('Gris', 100.00);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $available->id, 'quantity' => 1],
+                ['product_variant_id' => $deleted->id, 'quantity' => 2],
+            ],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        $deleted->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'No se puede convertir la cotización: las siguientes variantes ya no están disponibles: PIS-CREATO-Gris-60X120.');
+    }
+
     public function test_it_rejects_creating_a_sale_from_an_already_converted_quote(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);

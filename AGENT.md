@@ -62,6 +62,7 @@ comma-separated con whitelist explícita (`QuoteController`, ej. `?with=customer
 - **Convención de nombres en inglés aplicada solo al código** (archivos, carpetas, componentes, nombre interno de ruta) — NO al contenido de negocio visible al usuario (labels, placeholders) ni a los paths de URL (esos se quedan en español, ej. `/inventario`, `/cotizaciones`).
 - **Estructura fija de bloques en todo `.vue`** (existentes y futuros): siempre `template` → `script setup` → `style scoped`, en ese orden, sin excepción, aunque un bloque quede vacío.
 - **Tablas de datos y diálogos: PrimeVue 4 (MIT, modo unstyled)** — nunca v5, por su cambio a licenciamiento PrimeUI (requiere licencia o muestra watermark). Estilos vía `:deep()` sobre elementos HTML nativos o markup propio en slots (ej. `#container`), no vía la prop `pt` salvo para piezas sin markup propio en modo unstyled (ej. el `mask`/overlay de un `Dialog`) — las keys internas del `pt` son poco confiables entre versiones.
+- **Componentes reutilizables van en `src/components/widgets/<tipo>/`** (ej. `autocompletes/`, `inputs/`, `selects/`, `buttons/`, `dialogs/`) — un componente se extrae ahí cuando se va a reusar en un módulo nuevo (no de forma retroactiva en módulos ya cerrados, salvo que se toquen por otra razón). Primera extracción: `VariantAutocomplete.vue` y `CustomerSearch.vue`, sacados de `QuoteFormView.vue` para reusarse en POS.
 
 ```vue
 <template>
@@ -154,3 +155,4 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 - [ ] (Frontend) ¿Las mutaciones puntuales actualizan el store in-place en vez de refetch completo?
 - [ ] (Frontend) ¿Las acciones destructivas usan `ConfirmDialog` de PrimeVue, no `confirm()` nativo?
 - [ ] (Frontend) ¿Un guard de negocio del backend tiene su contraparte de UX en el frontend (deshabilitar/redirigir), sin duplicar la validación real?
+- [ ] (Frontend) ¿Un componente reutilizado entre módulos vive en `src/components/widgets/<tipo>/`, no duplicado o inline?
