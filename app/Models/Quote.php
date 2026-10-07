@@ -48,4 +48,19 @@ class Quote extends Model
     {
         return $this->hasMany(QuoteItem::class);
     }
+
+    /**
+     * Solo una cotización en Borrador puede convertirse a venta. Cualquier
+     * otro estado (incluidos los que se agreguen después al catálogo) se
+     * rechaza; devuelve el mensaje de rechazo, o null si se puede convertir.
+     */
+    public function conversionBlockedMessage(): ?string
+    {
+        return match ($this->quoteStatus->name) {
+            'Borrador' => null,
+            'Convertida' => 'Esta cotización ya fue convertida a venta.',
+            'Cancelada' => 'Esta cotización está cancelada y no se puede convertir a venta.',
+            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede convertir a venta.",
+        };
+    }
 }

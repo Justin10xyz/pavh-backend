@@ -105,10 +105,8 @@ class QuoteController extends Controller
      */
     public function convert(Quote $quote)
     {
-        if ($quote->quoteStatus->name === 'Convertida') {
-            return response()->json([
-                'message' => 'Esta cotización ya fue convertida a venta.',
-            ], 422);
+        if ($message = $quote->conversionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
         }
 
         $quote->load('items.productVariant');

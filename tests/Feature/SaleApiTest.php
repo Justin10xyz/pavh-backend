@@ -184,6 +184,25 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
     }
 
+    public function test_it_rejects_converting_a_cancelled_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Cancelada')->first()->id,
+        ]);
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Esta cotización está cancelada y no se puede convertir a venta.');
+    }
+
     public function test_it_rejects_converting_a_quote_with_soft_deleted_variants(): void
     {
         $available = $this->createVariant('Taupe', 100.00);
@@ -226,6 +245,30 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
 
         $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_creating_a_sale_from_a_cancelled_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteResponse = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $quoteId = $quoteResponse->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Cancelada')->first()->id,
+        ]);
+
+        $this->postJson('/api/sales', [
+            'quote_id' => $quoteId,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Esta cotización está cancelada y no se puede convertir a venta.');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
     }
 
     public function test_it_generates_unique_sequential_sale_folios(): void
