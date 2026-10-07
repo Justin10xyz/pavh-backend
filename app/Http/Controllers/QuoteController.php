@@ -8,6 +8,8 @@ use App\Http\Resources\QuoteResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+
+use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -105,13 +107,31 @@ class QuoteController extends Controller
      */
     public function convert(Quote $quote)
     {
-        if ($quote->quoteStatus->name === 'Convertida') {
-            return response()->json([
-                'message' => 'Esta cotización ya fue convertida a venta.',
-            ], 422);
+        if ($message = $quote->conversionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
         }
 
         $quote->load('items.productVariant');
+
+        $unavailableItems = $quote->items->filter(fn ($item) => $item->productVariant === null);
+
+        if ($unavailableItems->isNotEmpty()) {
+            // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
+            $trashedVariants = ProductVariant::withTrashed()
+                ->whereIn('id', $unavailableItems->pluck('product_variant_id'))
+                ->get()
+                ->keyBy('id');
+
+            $labels = $unavailableItems->map(function ($item) use ($trashedVariants) {
+                $variant = $trashedVariants->get($item->product_variant_id);
+
+                return $variant?->code ?? "ID {$item->product_variant_id}";
+            })->unique()->implode(', ');
+
+            return response()->json([
+                'message' => "No se puede convertir la cotización: las siguientes variantes ya no están disponibles: {$labels}.",
+            ], 422);
+        }
 
         return response()->json([
             'data' => [
@@ -125,6 +145,41 @@ class QuoteController extends Controller
                 ]),
             ],
         ]);
+    }
+
+    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator){
+        // withTrashed: una cotización vieja se debe poder reimprimir aunque la
+        // variante o su línea se hayan dado de baja después.
+        $quote->load([
+            'customer',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        $pdf = $pdfGenerator->generate([
+            'document_type' => 'Cotización',
+            'folio' => $quote->folio,
+            'date' => $quote->created_at->format('d/m/Y'),
+            'customer' => $quote->customer?->only(['name', 'phone', 'email']),
+            'items' => $quote->items->map(fn ($item) => [
+                'variant_label' => trim(implode(' ', [
+                    $item->productVariant->product->name,
+                    $item->productVariant->color,
+                    $item->productVariant->size,
+                ])),
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'line_total' => (float) $item->line_total,
+            ])->all(),
+            'subtotal' => (float) $quote->subtotal,
+            'total' => (float) $quote->total,
+        ]);
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            "Cotizacion-{$quote->folio}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     private function syncItems(Quote $quote, array $items): void

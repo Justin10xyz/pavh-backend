@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -46,5 +47,14 @@ class Sale extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    // Ambos límites son inclusivos y comparan solo la fecha (whereDate), así
+    // que to=2026-10-07 incluye las ventas de todo ese día.
+    public function scopeDateRange(Builder $query, ?string $from, ?string $to): Builder
+    {
+        return $query
+            ->when($from, fn (Builder $query) => $query->whereDate('created_at', '>=', $from))
+            ->when($to, fn (Builder $query) => $query->whereDate('created_at', '<=', $to));
     }
 }
