@@ -26,21 +26,12 @@ pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios ·
 - Flujo completo verificado con curl y con `tests/Feature/AuthTest.php`
 - Repo Git con commits limpios, ya en remoto
 
-### 1. Inventario — ✅ completo (backend + frontend)
-- Catálogo de productos con estructura padre (línea) / variante (color+medida)
-- Alertas de stock bajo (umbral por variante, vía `minimum_stock`)
-- Alta, edición y borrado (soft delete, con reglas de integridad) de productos y variantes
-- Ajuste de stock real vía acción dedicada, con validación de stock insuficiente
-- **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
-- Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
-
-### 2. Cotizaciones y Ventas — ✅ backend completo, 🚧 frontend pendiente
-- Generar cotización seleccionando productos del catálogo de Inventario
-- Imprimir cotización en tamaño carta/media carta (pendiente, ver módulo 3)
-- **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y una Venta puede tener un origen: "directa" o "desde cotización".
-- `GET /api/quotes` soporta `?with=customer,quoteStatus` (whitelist explícita, valores desconocidos se ignoran silenciosamente) — resuelve N+1 detectado en
-QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comma+whitelist, extensión del shortcut usado en `ProductController` (que hace match exacto de string) — no unificado entre ambos controllers todavía, queda como decisión pendiente si se quiere consistencia total. 
-- `QuotesView.vue` + `src/stores/quotes.js`: listado funcional, verificado en navegador contra backend real (3 registros de prueba cubriendo los tres status y el caso sin cliente). `fetchQuotes()` usa `?with=customer,quoteStatus` para evitar el N+1 (antes lazy-loaded implícitamente vía QuoteResource).
+### Backend — Inventario ✅ completo y verificado
+**Capa de datos:**
+- Tablas (nombres en inglés): `categories`, `unit_types`, `suppliers`, `commission_categories`, `products` (padre/línea), `product_variants` (color+medida, unidad real con stock)
+- Modelos con relaciones `belongsTo`/`hasMany`
+- Servicio `app/Services/VariantCodeGenerator`: genera `code` único por variante con formato `[PREFIJO]-[LINEA]-[COLOR]-[MEDIDA]` (ej. `PIS-CREATO-TAU-60X120`), con cascada de resolución de colisión
+- Sembrado con datos reales de proveedor (Interceramic)
 
 **API REST:**
 - Endpoints separados `/api/products` y `/api/product-variants` (más `?with=variants` como atajo de conveniencia), todos bajo `auth:sanctum`
@@ -49,6 +40,7 @@ QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comm
 - CRUD completo de producto y variante, incluyendo `DELETE /product-variants/{id}` (soft delete, rechaza con 422 si es la última variante activa del producto)
 - Ajuste de stock como acción dedicada (`PATCH /product-variants/{id}/stock`, `quantity`+`type`), con guard clause que rechaza `subtract` si dejaría el stock en negativo (422 "Stock insuficiente")
 - `SoftDeletes` en `Product`/`ProductVariant` — no se borran físicamente porque pueden quedar referenciados en cotizaciones/ventas futuras
+- `ProductVariantResource` expone `product` (`id`+`name` de la línea) vía `whenLoaded` — agregado para que el detalle de cotización pueda mostrar línea/color/medida sin depender de que Inventario esté cargado en el frontend
 - Suite de tests pasando, verificado manualmente con curl y en navegador
 
 ### Frontend — Inventario ✅ completo, resto del panel 🚧 en progreso
@@ -82,6 +74,7 @@ QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comm
 | `Quote` y `Sale` como entidades separadas (no una tabla con `status`) | Folios independientes por tipo de documento; consistente con "acciones con efecto específico en endpoint dedicado"; reglas de edición distintas (borrador vs. documento ya concretado) |
 | `customers` como tabla simple desde ahora, `customer_id` nullable en `quotes`/`sales` | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; módulo completo de clientes queda diferido |
 | Cantidad en `quote_items`/`sale_items` vive en m² (no cajas); conversión a cajas (`ceil(quantity / m2_per_box)`) ocurre solo al descontar stock, nunca al calcular precio | Consistente con `unit_price = price_per_m2`; evita que `quantity` signifique unidades distintas entre cotización y venta; redondear hacia arriba refleja que no se puede vender/descontar media caja físicamente, sin alterar el monto cobrado |
+| `ProductVariantResource.product` vía `whenLoaded` en vez de resolverlo client-side cruzando datos de Inventario | El detalle de cotización no puede depender de que `inventory.products` ya esté cargado (se puede abrir el link directo); mismo patrón que `commissionCategory` |
 
 ## Dominio del negocio
 
@@ -99,10 +92,26 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 - **Unidad de medida por producto**: vive a nivel del producto padre (`unit_type_id`) — pieza/caja vs. m² u otra medida fraccionable — con factor de conversión (`m2_per_box`) a nivel variante
 - Pendiente (no bloqueante): revisión de diseño visual de la tabla; importador de listas de precios de proveedores; dashboard de ventas por producto; historial de movimientos de stock
 
-### 2. Cotizaciones y Ventas — ✅ backend completo, 🚧 frontend pendiente
+### 2. Cotizaciones — ✅ completo (backend + frontend)
 - Generar cotización seleccionando productos del catálogo de Inventario
 - Imprimir cotización en tamaño carta/media carta (pendiente, ver módulo 3)
 - **Se puede convertir en una Venta (POS) sin recapturar datos, permitiendo ajustar cantidades/precios antes de confirmar** — la cotización es, en esencia, un borrador de venta. Cotización y Venta comparten la misma estructura de líneas de producto/cantidad/precio, y una Venta puede tener un origen: "directa" o "desde cotización".
+- `GET /api/quotes` soporta `?with=customer,quoteStatus` (whitelist explícita, valores desconocidos se ignoran silenciosamente) — resuelve N+1 detectado en
+QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comma+whitelist, extensión del shortcut usado en `ProductController` (que hace match exacto de string) — no unificado entre ambos controllers todavía, queda como decisión pendiente si se quiere consistencia total.
+
+### Frontend — Cotizaciones ✅ completo
+- **Listado** (`QuotesView.vue`) ✅ — `DataTable`, búsqueda client-side por folio/cliente, badge de status con color (`statusClasses()` ahora vive en `src/lib/quoteStatus.js`, compartido con el detalle).
+- **Creación** (`QuoteFormView.vue`) ✅ — cliente opcional, notas, líneas de producto con autocomplete de variante (búsqueda client-side sobre `inventory.fetchProducts()` — no existe endpoint de búsqueda de variantes por texto libre en el backend), fusión automática de variante duplicada, cantidad en m² con equivalente en cajas informativo, precio siempre server-resolved, aviso no bloqueante de stock insuficiente, totales en vivo.
+- **Detalle** (`QuoteDetailView.vue`) ✅ — reemplazó el placeholder. Header con folio/status/fecha, datos generales (cliente o "Sin cliente", notas), tabla de líneas (producto/color/medida vía `product_variant.product`, cantidad en m², cajas equivalentes, precio y subtotal **congelados** — no el precio de hoy), totales. Botón "Editar" habilitado solo si `status === 'Borrador'`; botón "Convertir a venta" deshabilitado hasta que exista el módulo de POS (ver módulo 3).
+- **Edición** (`QuoteFormView.vue`, mismo componente que creación) ✅ — detecta modo edición vía `route.params.id`; si la cotización cargada no está en Borrador, redirige al detalle (el guard real vive en el backend, esto solo evita mostrar un form que el backend rechazaría); puebla `lines` directamente desde `currentQuote.items` (ya trae `product_variant.product` anidado, no depende de que Inventario esté cargado); al guardar llama `PUT` y redirige al detalle en vez de al listado.
+- `stores/quotes.js`: `fetchQuote(id)` y `updateQuote(id, payload)` agregados junto a `fetchQuotes()`/`createQuote()`, mismo patrón `initialized` + mutación in-place.
+- Pendiente (no bloqueante): cancelación de cotización — el status "Cancelada" ya existe en `quote_statuses` y el listado ya lo pinta, pero no hay endpoint ni UI que la dispare todavía.
+- Hay una guía completa del módulo (modelo de datos, flujo end-to-end, endpoints, decisiones) en el doc de Claude "Guía del módulo — Cotizaciones".
+
+### Pendiente transversal
+- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura
+  funcional completa de todos los módulos (decisión de Justin — evitar
+  pulir vistas que aún pueden cambiar de forma).
 
 **Decisión de modelado (resuelta e implementada):** `Quote` y `Sale` son **entidades separadas** (`quotes`/`quote_items` y `sales`/`sale_items`), no una sola tabla con `status`. Razones:
   - Folios independientes por tipo de documento (`COT-0001` vs `V-0001`) — inviable de forma limpia con un solo autoincrement
@@ -121,9 +130,11 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 
 **Clientes:** tabla `customers` simple (`name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). Módulo completo de clientes (edición, historial, etc.) queda diferido — esto es solo el catálogo básico + búsqueda.
 
-### 3. Punto de Venta (POS)
-- Registrar ventas, ya sea directas o convertidas desde una cotización existente
-- Descontar stock de Inventario automáticamente al concretar la venta
+### 3. Punto de Venta (POS) — 🚧 siguiente módulo
+- Registrar ventas, ya sea directas o convertidas desde una cotización existente — el backend de `sales`/`sale_items` y el descuento de stock ya están completos (ver sección de Cotizaciones arriba)
+- **UI de "Convertir a venta"**: consume `GET /api/quotes/{id}/convert` para prellenar y confirma con `POST /api/sales` (`quote_id` en el payload) — el botón ya existe deshabilitado en `QuoteDetailView.vue`, se conecta aquí
+- Listado y creación de venta directa (sin cotización de origen)
+- Descontar stock de Inventario automáticamente al concretar la venta (ya implementado en backend)
 - Imprimir nota de venta en **tamaño carta/media carta** (no ticket térmico — esto descarta impresoras térmicas de 58mm/80mm como requisito, se resuelve con impresión estándar/PDF)
 
 ### Implicaciones técnicas a resolver cuando se construya cada módulo
@@ -138,8 +149,8 @@ Estructura de catálogo confirmada con datos reales de proveedor (Interceramic):
 3. ~~Limpieza de scaffold sin usar~~ ✅
 4. ~~Navegación principal (sidebar + topbar)~~ ✅
 5. ~~Módulo de Inventario~~ ✅ — backend y frontend completos (catálogo, CRUD de producto y variante, ajuste de stock)
-6. **Módulo de Cotizaciones y Ventas** (depende del catálogo de Inventario, ya listo) — backend ✅ completo (`customers`, `quotes`/`quote_items`, `sales`/`sale_items`, conversión, descuento de stock); frontend 🚧 siguiente paso
-7. Módulo de Punto de Venta (impresión de nota de venta; el backend de creación de venta y descuento de stock ya vive en el paso 6, POS es principalmente la UI de venta directa/rápida + impresión)
+6. ~~Módulo de Cotizaciones~~ ✅ — backend y frontend completos (listar, crear, ver detalle, editar). Pendiente no bloqueante: cancelación
+7. **Módulo de Punto de Venta** (el backend de creación de venta y descuento de stock ya vive en el paso 6) — siguiente paso: listado/creación de venta directa, UI de "Convertir a venta" (conecta el botón ya existente en el detalle de cotización), impresión de nota de venta
 8. Roles y permisos
 9. ~~Selección de librería de componentes~~ ✅ — PrimeVue 4 (unstyled)
 

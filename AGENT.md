@@ -10,6 +10,7 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
 - **No asumas librerías nuevas.** No agregues una librería sin que se pida explícitamente, salvo las ya adoptadas (PrimeVue 4 unstyled para tablas/diálogos).
 - **No implementes roles/permisos** todavía, aunque el código lo sugiera como "next step" obvio.
 - **No implementes borrado si no se pidió explícitamente.** Varios módulos evitaron a propósito el borrado hasta un paso dedicado (ej. CRUD de producto sin eliminar hasta CRUD de variante) — no lo adelantes solo porque "tiene sentido" agregarlo.
+- **Un módulo nuevo no empieza hasta que el anterior esté funcionalmente cerrado.** Ej.: la UI de "Convertir a venta" no se construyó junto con el detalle/edición de Cotizaciones — se dejó como botón deshabilitado hasta que exista el módulo de Punto de Venta, para no terminar con una pantalla de Ventas a medias por fuera de su propio módulo.
 - Commits en inglés, Conventional Commits + gitmoji (ver `PROJECT.md` para la sintaxis y ejemplos).
 
 ## Entorno — cosas que rompen si no se respetan
@@ -42,17 +43,20 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
 - **Entidades con ciclo de vida y reglas de edición distintas (borrador vs. documento concretado) van en tablas separadas**, no en una sola tabla con `status` genérico — ver `Quote`/`Sale` en `PROJECT.md`. Se acepta duplicar estructura entre tablas de líneas relacionadas (ej. `quote_items`/`sale_items`) en vez de una tabla polimórfica compartida, consistente con "sin indirección extra".
 - **Guards de negocio reusables entre endpoints (ej. validar/descontar stock) van como método público en el modelo, no duplicados en cada controlador.** Ejemplo: `ProductVariant::hasSufficientStock()`/`decrementStock()`, usados tanto por el ajuste de stock manual como por la creación de ventas — mismo guard, mismo mensaje de error, una sola fuente de verdad.
 - **Cuando una cantidad de línea (`quantity`) está en una unidad de venta distinta a la unidad en la que vive el stock** (ej. `quantity` en m² vía `price_per_m2`, `stock_boxes` en cajas), la conversión se hace explícita en el punto donde se compara/descuenta contra stock — nunca se asume una equivalencia 1:1 silenciosa. Redondear hacia arriba (`ceil`) al convertir a la unidad física de stock (no se puede descontar media caja), pero el monto cobrado (`unit_price`/`line_total`) siempre se calcula sobre la cantidad exacta solicitada, no sobre la cantidad redondeada. Si falta el factor de conversión en el registro (ej. `m2_per_box` null), rechazar la línea con 422 explícito en vez de asumir 1:1.
-- **Shortcut `?with=` para eager loading**: dos variantes coexisten hoy — match exacto de string (`ProductController`, ej. `?with=variants`) y comma-separated con whitelist explícita (`QuoteController`, ej. `?with=customer,quoteStatus`). Usar la variante whitelist para cualquier endpoint nuevo que necesite eager-loadear más de una relación a la vez; valores fuera de whitelist se ignoran silenciosamente, nunca error 422.
-
+- **Shortcut `?with=` para eager loading**: dos variantes coexisten hoy — match exacto de string (`ProductController`, ej. `?with=variants`) y
+comma-separated con whitelist explícita (`QuoteController`, ej. `?with=customer,quoteStatus`). Usar la variante whitelist para cualquier endpoint nuevo que necesite eager-loadear más de una relación a la vez; valores fuera de whitelist se ignoran silenciosamente, nunca error 422.
+- **Un recurso puede exponer una relación anidada solo cuando está cargada, vía `whenLoaded`**, sin forzar su carga por defecto en todos los endpoints que usan ese Resource. Ejemplo: `ProductVariantResource.product` (id+name de la línea) solo aparece cuando el controller cargó explícitamente `.product` (como hace `QuoteController@show` para el detalle de cotización) — otros endpoints que devuelven el mismo Resource sin esa relación cargada no pagan el costo ni rompen.
 
 ## Convenciones de código (frontend)
  
 - Componentes Vue: `PascalCase.vue`
 - Composables/stores: `camelCase.js`, stores de Pinia con nombre descriptivo (`useAuthStore`, no `useStore`)
-- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de datos en cada navegación — replicar este patrón en stores futuros que dependan de datos poco cambiantes (ya replicado en `inventory.js` y `catalogs.js`).
-- **Mutaciones puntuales actualizan el store in-place, sin refetch completo.** Cuando una acción afecta un solo registro (ej. ajustar stock de una variante, eliminar una fila), actualiza solo ese registro dentro del array del store con la respuesta del backend — un refetch completo colapsaría filas/grupos que el usuario ya tenía expandidos en la UI. Patrón ya usado en `updateVariantStock()`.
+- Patrón ya establecido en `auth.js`: flag `initialized` para evitar refetch innecesario de datos en cada navegación — replicar este patrón en stores futuros que dependan de datos poco cambiantes (ya replicado en `inventory.js`, `catalogs.js` y `quotes.js`).
+- **Mutaciones puntuales actualizan el store in-place, sin refetch completo.** Cuando una acción afecta un solo registro (ej. ajustar stock de una variante, eliminar una fila, editar una cotización), actualiza solo ese registro dentro del array del store con la respuesta del backend — un refetch completo colapsaría filas/grupos que el usuario ya tenía expandidos en la UI. Patrón ya usado en `updateVariantStock()` y en `quotes.updateQuote()`.
 - **Acciones con endpoint dedicado se ejecutan de inmediato al confirmarlas, no se difieren hasta el submit de un formulario contenedor** (ej. eliminar una variante existente dentro del form de edición de producto dispara el `DELETE` al momento, no espera al guardar el resto del form) — evita tener que implementar diffing de estado entre lo cargado y lo enviado.
 - **Acciones destructivas requieren confirmación vía `ConfirmDialog` de PrimeVue**, nunca `confirm()` nativo del navegador — rompe la seriedad visual del sistema de diseño. Acciones no destructivas o fácilmente reversibles (ej. ajustar stock) no necesitan este paso extra.
+- **Un formulario reusado entre creación y edición detecta el modo por la presencia de un identificador en la ruta** (ej. `route.params.id` en `QuoteFormView.vue`), en vez de duplicar el componente — mismo template, carga de datos y el verbo HTTP del submit (`POST` vs `PUT`) cambian según el modo.
+- **Un guard de negocio que vive en el backend (ej. "solo editable en Borrador") se replica como check de UX en el frontend, pero nunca como la única validación.** El frontend puede redirigir o deshabilitar un botón para no mostrar una acción que el backend va a rechazar, pero la fuente de verdad sigue siendo el 422 del backend.
 - Layouts en `src/layouts/`, vistas en `src/views/<módulo>/`, componentes reutilizables en `src/components/`.
 - Guards de router centralizados en `src/router/index.js`, no dispersos por vista.
 - **Convención de nombres en inglés aplicada solo al código** (archivos, carpetas, componentes, nombre interno de ruta) — NO al contenido de negocio visible al usuario (labels, placeholders) ni a los paths de URL (esos se quedan en español, ej. `/inventario`, `/cotizaciones`).
@@ -122,9 +126,10 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 
 ### Componentes base ya definidos
 
-- **Forms** (patrón establecido en `Login.vue`, replicado en `ProductFormView.vue`): card centrada o de ancho completo según contexto, inputs con ícono a la izquierda cuando aplica, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo).
-- **Listas repetibles dentro de un form** (patrón de colores en `ProductFormView.vue`): campos compartidos se capturan una sola vez; el campo que varía (ej. color) se captura como lista repetible con botón "+ Agregar" y botón de quitar por fila (deshabilitado si solo queda 1 fila).
+- **Forms** (patrón establecido en `Login.vue`, replicado en `ProductFormView.vue` y `QuoteFormView.vue`): card centrada o de ancho completo según contexto, inputs con ícono a la izquierda cuando aplica, botón primario de color sólido (sin gradientes), estado de error inline (no toast para errores de validación de campo).
+- **Listas repetibles dentro de un form** (patrón de colores en `ProductFormView.vue`, líneas de producto en `QuoteFormView.vue`): campos compartidos se capturan una sola vez; el campo que varía se captura como lista repetible con botón "+ Agregar" y botón de quitar por fila (deshabilitado si solo queda 1 fila).
 - **Tablas agrupadas con expansión** (patrón de `InventoryView.vue`): PrimeVue `DataTable` con row-expansion nativo vía slots (`#body`/`#expansion`), agrupación visual hecha con un helper de JS puro (no de PrimeVue) cuando el agrupamiento depende de reglas de negocio específicas (ver `groupVariants.js`).
+- **Vista de detalle de un documento** (patrón de `QuoteDetailView.vue`): header con folio/identificador + badge de status + fecha, card de "datos generales", card de tabla de líneas con totales al final, acciones a la derecha del header (algunas pueden existir deshabilitadas con tooltip explicando por qué, en espera de un módulo futuro).
 - **Confirmación de acciones destructivas**: `ConfirmDialog` de PrimeVue unstyled, con markup propio vía slot `#container` y los tokens de color del sistema de diseño.
 - **Diálogos de acción puntual** (ej. ajuste de stock): `Dialog` de PrimeVue unstyled, mismo criterio visual que `ConfirmDialog`.
  
@@ -136,6 +141,7 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 - [ ] ¿El commit sigue Conventional Commits + gitmoji en inglés?
 - [ ] ¿No introduce una librería de UI nueva, Repository Pattern, o roles/permisos sin que se haya pedido?
 - [ ] ¿No introduce borrado ni ninguna otra acción destructiva sin que se haya pedido explícitamente?
+- [ ] ¿No empieza un módulo nuevo (ej. Ventas/POS) a medias dentro del trabajo de otro módulo?
 - [ ] ¿Usa `localhost` (no `127.0.0.1`) en cualquier URL de config?
 - [ ] (Backend) ¿Tablas/columnas nuevas están en inglés? ¿Catálogos de valores van en tabla propia, no hardcodeados?
 - [ ] (Backend) ¿Los identificadores generados por el sistema quedan excluidos de los Form Requests de entrada?
@@ -144,5 +150,7 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 - [ ] (Backend) ¿Documentos con folio (`Quote`/`Sale`) generan su folio server-side con secuencia propia, nunca vía `id` ni aceptado del cliente?
 - [ ] (Backend) ¿Una conversión entre documentos (cotización → venta) reutiliza el endpoint de creación normal en vez de mutar/crear todo en un solo paso?
 - [ ] (Backend) ¿Si hay conversión de unidad entre cantidad vendida y stock (ej. m² vs cajas), se hace explícita en el punto de comparación/descuento, sin asumir 1:1?
+- [ ] (Backend) ¿Una relación anidada nueva en un Resource usa `whenLoaded` en vez de cargarse siempre por defecto?
 - [ ] (Frontend) ¿Las mutaciones puntuales actualizan el store in-place en vez de refetch completo?
 - [ ] (Frontend) ¿Las acciones destructivas usan `ConfirmDialog` de PrimeVue, no `confirm()` nativo?
+- [ ] (Frontend) ¿Un guard de negocio del backend tiene su contraparte de UX en el frontend (deshabilitar/redirigir), sin duplicar la validación real?
