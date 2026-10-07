@@ -13,6 +13,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SaleApiTest extends TestCase
@@ -56,6 +57,16 @@ class SaleApiTest extends TestCase
             'm2_per_box' => $m2PerBox,
             'stock_boxes' => $stockBoxes,
         ]);
+    }
+
+    private function createSaleAt(string $folio, string $createdAt, ?Customer $customer = null): Sale
+    {
+        return $this->travelTo($createdAt, fn () => Sale::create([
+            'folio' => $folio,
+            'customer_id' => $customer?->id,
+            'subtotal' => 100,
+            'total' => 100,
+        ]));
     }
 
     public function test_it_creates_a_direct_sale_and_decrements_stock(): void
@@ -320,5 +331,88 @@ class SaleApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.customer.name', 'Juan Perez')
             ->assertJsonCount(1, 'data.items');
+    }
+
+    public function test_index_returns_all_sales_newest_first_without_date_filter(): void
+    {
+        $this->createSaleAt('V-0001', '2026-09-01 10:00:00');
+        $this->createSaleAt('V-0002', '2026-10-05 10:00:00');
+        $this->createSaleAt('V-0003', '2026-09-15 10:00:00');
+
+        $this->getJson('/api/sales')
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0002')
+            ->assertJsonPath('data.1.folio', 'V-0003')
+            ->assertJsonPath('data.2.folio', 'V-0001');
+    }
+
+    public function test_index_filters_by_from_date_only(): void
+    {
+        $this->createSaleAt('V-0001', '2026-09-30 23:59:59');
+        $this->createSaleAt('V-0002', '2026-10-01 00:00:00');
+        $this->createSaleAt('V-0003', '2026-10-05 10:00:00');
+
+        $this->getJson('/api/sales?from=2026-10-01')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0003')
+            ->assertJsonPath('data.1.folio', 'V-0002');
+    }
+
+    public function test_index_filters_by_from_and_to_dates_inclusive(): void
+    {
+        $this->createSaleAt('V-0001', '2026-09-30 23:59:59');
+        $this->createSaleAt('V-0002', '2026-10-01 08:00:00');
+        $this->createSaleAt('V-0003', '2026-10-03 23:59:59');
+        $this->createSaleAt('V-0004', '2026-10-04 00:00:00');
+
+        $this->getJson('/api/sales?from=2026-10-01&to=2026-10-03')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0003')
+            ->assertJsonPath('data.1.folio', 'V-0002');
+    }
+
+    public function test_index_rejects_invalid_date_format(): void
+    {
+        $this->getJson('/api/sales?from=01/10/2026')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('from');
+    }
+
+    public function test_index_with_customer_and_items_eager_loads_both_relations(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, stockBoxes: 20);
+
+        foreach (['Juan Perez', 'Maria Lopez'] as $name) {
+            $this->postJson('/api/sales', [
+                'customer_id' => Customer::create(['name' => $name])->id,
+                'items' => [
+                    ['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100.00],
+                ],
+            ])->assertCreated();
+        }
+
+        DB::enableQueryLog();
+
+        $response = $this->getJson('/api/sales?with=customer,items,notARealRelation')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonCount(1, 'data.0.items')
+            ->assertJsonCount(1, 'data.1.items')
+            ->assertJsonPath('data.0.items.0.product_variant_id', $variant->id);
+
+        $this->assertEqualsCanonicalizing(
+            ['Juan Perez', 'Maria Lopez'],
+            array_column($response->json('data.*.customer'), 'name'),
+        );
+
+        // Con eager loading, una sola consulta a customers para ambas ventas
+        // (lazy loading haría una por venta).
+        $customerQueries = collect(DB::getQueryLog())
+            ->filter(fn ($entry) => str_contains($entry['query'], 'from "customers"'));
+
+        $this->assertCount(1, $customerQueries);
     }
 }

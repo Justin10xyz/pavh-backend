@@ -16,8 +16,26 @@ class SaleController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'to' => ['nullable', 'date_format:Y-m-d'],
+        ]);
+
+        $allowedRelations = [
+            'items' => 'items.productVariant',
+            'customer' => 'customer',
+        ];
+
+        $with = collect(explode(',', $request->query('with', '')))
+            ->map(fn ($relation) => trim($relation))
+            ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
+            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->all();
+
         $sales = Sale::query()
-            ->when($request->query('with') === 'items', fn ($query) => $query->with('items.productVariant'))
+            ->when($with !== [], fn ($query) => $query->with($with))
+            ->dateRange($request->query('from'), $request->query('to'))
+            ->latest()
             ->get();
 
         return SaleResource::collection($sales);
