@@ -39,10 +39,8 @@ class SaleController extends Controller
         if (! empty($data['quote_id'])) {
             $quote = Quote::with('quoteStatus')->findOrFail($data['quote_id']);
 
-            if ($quote->quoteStatus->name === 'Convertida') {
-                return response()->json([
-                    'message' => 'Esta cotización ya fue convertida a venta.',
-                ], 422);
+            if ($message = $quote->conversionBlockedMessage()) {
+                return response()->json(['message' => $message], 422);
             }
         }
 

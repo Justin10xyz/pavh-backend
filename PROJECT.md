@@ -130,12 +130,18 @@ QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comm
 
 **Clientes:** tabla `customers` simple (`name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). Módulo completo de clientes (edición, historial, etc.) queda diferido — esto es solo el catálogo básico + búsqueda.
 
-### 3. Punto de Venta (POS) — 🚧 siguiente módulo
-- Registrar ventas, ya sea directas o convertidas desde una cotización existente — el backend de `sales`/`sale_items` y el descuento de stock ya están completos (ver sección de Cotizaciones arriba)
-- **UI de "Convertir a venta"**: consume `GET /api/quotes/{id}/convert` para prellenar y confirma con `POST /api/sales` (`quote_id` en el payload) — el botón ya existe deshabilitado en `QuoteDetailView.vue`, se conecta aquí
-- Listado y creación de venta directa (sin cotización de origen)
-- Descontar stock de Inventario automáticamente al concretar la venta (ya implementado en backend)
-- Imprimir nota de venta en **tamaño carta/media carta** (no ticket térmico — esto descarta impresoras térmicas de 58mm/80mm como requisito, se resuelve con impresión estándar/PDF)
+### 3. Punto de Venta (POS) — 🚧 en progreso
+
+- Backend de `sales`/`sale_items` completo (ver sección de Cotizaciones) — ya incluye `GET /api/sales`, `GET /api/sales/{id}`, `POST /api/sales`
+- **Venta directa** (`SaleFormView.vue`) ✅ — cliente opcional (`CustomerSearch.vue`, extraído de Cotizaciones), líneas con `VariantAutocomplete.vue` (también extraído), precio editable (a diferencia de Cotizaciones), fusión de variante duplicada, aviso no bloqueante de stock insuficiente (relevante por el sobrepedido, común en este negocio), sincronización in-place del stock de Inventario tras la venta. Al confirmar, resetea el form en lugar de navegar — pensado para flujo de mostrador ("siguiente cliente")
+- **Convertir cotización a venta** ✅ — mismo `SaleFormView.vue`, detecta modo vía `?quote_id=` en la URL, prellena desde `GET /quotes/{id}/convert`, bloquea con mensaje claro si alguna variante de la cotización ya no está disponible (soft-deleted, validado también en backend) o si el `quote_id` no está disponible por caché desactualizada (reintenta un refetch antes de bloquear). Al confirmar, redirige al detalle de la cotización en vez de resetear
+- Botón "Convertir a venta" en `QuoteDetailView.vue` habilitado, visible/activo solo si `status === 'Borrador'`
+- **Backend — rechazo centralizado de conversión inválida**: `Quote::conversionBlockedMessage()` en el modelo, usado por `QuoteController@convert` y `SaleController@store`, rechaza cualquier estado que no sea "Borrador" (no solo "Convertida") — cubre "Cancelada" y cualquier estado futuro sin tener que tocar los controladores de nuevo
+- **Nueva convención de frontend**: componentes reutilizables entre módulos viven en `src/components/widgets/<tipo>/` (ej. `autocompletes/`) — ver `AGENT.md`
+- `PosView.vue` es un hub mínimo con un solo botón "Nueva venta" — se ampliará cuando exista el listado
+- Pendiente: listado de ventas (`SalesView.vue`), impresión de nota de venta (decisión pendiente: PDF server-side vs. `window.print()` frontend)
+- Bug conocido no bloqueante (Cotizaciones, detectado durante este trabajo): el `<form v-else>` en `QuoteFormView.vue` depende de `generalError`, oculta todo el form en cualquier error de submit hasta recargar
+- Bug conocido no bloqueante: el listado cacheado de cotizaciones (`quotes.quotes` en el store) no refleja el nuevo estado "Convertida" tras convertir desde el detalle, hasta recargar el listado — el detalle sí refresca correctamente
 
 ### Implicaciones técnicas a resolver cuando se construya cada módulo
 - ~~`Cotizacion` y `Venta` comparten estructura de líneas — evaluar si `Venta` es una entidad separada...~~ ✅ resuelto — ver spec de datos en la sección de Cotizaciones arriba. Las líneas (`quote_items`/`sale_items`) referencian `product_variants` directamente
