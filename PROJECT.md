@@ -143,6 +143,9 @@ QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comm
 - Bug conocido no bloqueante (Cotizaciones, detectado durante este trabajo): el `<form v-else>` en `QuoteFormView.vue` depende de `generalError`, oculta todo el form en cualquier error de submit hasta recargar
 - Bug conocido no bloqueante: el listado cacheado de cotizaciones (`quotes.quotes` en el store) no refleja el nuevo estado "Convertida" tras convertir desde el detalle, hasta recargar el listado — el detalle sí refresca correctamente
 
+### Pendiente antes de desplegar a producción
+- **Migración de zona horaria**: `config/app.php` cambió de `UTC` a `America/Mexico_City` (necesario para que los filtros de fecha de ventas y el PDF usen el día local correctamente). Cualquier dato cargado en producción *antes* de este cambio tiene `created_at`/`updated_at`/`deleted_at` en UTC sin marcar como tal — al desplegar, se necesita una migración que reste 6 horas a esas columnas en las tablas afectadas, o los registros viejos se van a ver desfasados.
+
 ### Implicaciones técnicas a resolver cuando se construya cada módulo
 - ~~`Cotizacion` y `Venta` comparten estructura de líneas — evaluar si `Venta` es una entidad separada...~~ ✅ resuelto — ver spec de datos en la sección de Cotizaciones arriba. Las líneas (`quote_items`/`sale_items`) referencian `product_variants` directamente
 - Impresión: generar PDF carta/media carta (Laravel + librería PDF, ej. dompdf) — pendiente de decidir en detalle cuando se llegue a este módulo
