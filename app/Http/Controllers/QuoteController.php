@@ -113,6 +113,26 @@ class QuoteController extends Controller
 
         $quote->load('items.productVariant');
 
+        $unavailableItems = $quote->items->filter(fn ($item) => $item->productVariant === null);
+
+        if ($unavailableItems->isNotEmpty()) {
+            // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
+            $trashedVariants = ProductVariant::withTrashed()
+                ->whereIn('id', $unavailableItems->pluck('product_variant_id'))
+                ->get()
+                ->keyBy('id');
+
+            $labels = $unavailableItems->map(function ($item) use ($trashedVariants) {
+                $variant = $trashedVariants->get($item->product_variant_id);
+
+                return $variant?->code ?? "ID {$item->product_variant_id}";
+            })->unique()->implode(', ');
+
+            return response()->json([
+                'message' => "No se puede convertir la cotización: las siguientes variantes ya no están disponibles: {$labels}.",
+            ], 422);
+        }
+
         return response()->json([
             'data' => [
                 'quote_id' => $quote->id,
