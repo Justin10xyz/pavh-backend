@@ -8,6 +8,8 @@ use App\Http\Resources\QuoteResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+
+use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -143,6 +145,41 @@ class QuoteController extends Controller
                 ]),
             ],
         ]);
+    }
+
+    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator){
+        // withTrashed: una cotización vieja se debe poder reimprimir aunque la
+        // variante o su línea se hayan dado de baja después.
+        $quote->load([
+            'customer',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        $pdf = $pdfGenerator->generate([
+            'document_type' => 'Cotización',
+            'folio' => $quote->folio,
+            'date' => $quote->created_at->format('d/m/Y'),
+            'customer' => $quote->customer?->only(['name', 'phone', 'email']),
+            'items' => $quote->items->map(fn ($item) => [
+                'variant_label' => trim(implode(' ', [
+                    $item->productVariant->product->name,
+                    $item->productVariant->color,
+                    $item->productVariant->size,
+                ])),
+                'quantity' => (float) $item->quantity,
+                'unit_price' => (float) $item->unit_price,
+                'line_total' => (float) $item->line_total,
+            ])->all(),
+            'subtotal' => (float) $quote->subtotal,
+            'total' => (float) $quote->total,
+        ]);
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            "Cotizacion-{$quote->folio}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     private function syncItems(Quote $quote, array $items): void
