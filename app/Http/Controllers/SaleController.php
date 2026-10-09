@@ -20,6 +20,7 @@ class SaleController extends Controller
         $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
             'to' => ['nullable', 'date_format:Y-m-d'],
+            'customer_id' => ['nullable', 'integer'],
         ]);
 
         $allowedRelations = [
@@ -36,6 +37,7 @@ class SaleController extends Controller
         $sales = Sale::query()
             ->when($with !== [], fn ($query) => $query->with($with))
             ->dateRange($request->query('from'), $request->query('to'))
+            ->forCustomer($request->integer('customer_id') ?: null)
             ->latest()
             ->get();
 

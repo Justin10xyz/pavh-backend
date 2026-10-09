@@ -333,6 +333,27 @@ class SaleApiTest extends TestCase
             ->assertJsonCount(1, 'data.items');
     }
 
+    public function test_it_shows_a_sale_whose_customer_was_soft_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $created = $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        $customer->delete();
+
+        $this->getJson("/api/sales/{$created->json('data.id')}")
+            ->assertOk()
+            ->assertJsonPath('data.customer.name', 'Juan Perez');
+
+        $this->getJson('/api/sales?with=customer')
+            ->assertOk()
+            ->assertJsonPath('data.0.customer.name', 'Juan Perez');
+    }
+
     public function test_index_returns_all_sales_newest_first_without_date_filter(): void
     {
         $this->createSaleAt('V-0001', '2026-09-01 10:00:00');
@@ -379,6 +400,57 @@ class SaleApiTest extends TestCase
         $this->getJson('/api/sales?from=01/10/2026')
             ->assertStatus(422)
             ->assertJsonValidationErrors('from');
+    }
+
+    public function test_index_filters_by_customer(): void
+    {
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $maria = Customer::create(['name' => 'Maria Lopez']);
+
+        $this->createSaleAt('V-0001', '2026-10-01 10:00:00', $juan);
+        $this->createSaleAt('V-0002', '2026-10-02 10:00:00', $maria);
+        $this->createSaleAt('V-0003', '2026-10-03 10:00:00', $juan);
+        $this->createSaleAt('V-0004', '2026-10-04 10:00:00');
+
+        $this->getJson("/api/sales?customer_id={$juan->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0003')
+            ->assertJsonPath('data.1.folio', 'V-0001');
+    }
+
+    public function test_index_combines_customer_and_date_filters(): void
+    {
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $maria = Customer::create(['name' => 'Maria Lopez']);
+
+        $this->createSaleAt('V-0001', '2026-09-30 10:00:00', $juan);
+        $this->createSaleAt('V-0002', '2026-10-02 10:00:00', $juan);
+        $this->createSaleAt('V-0003', '2026-10-02 10:00:00', $maria);
+
+        $this->getJson("/api/sales?customer_id={$juan->id}&from=2026-10-01")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0002');
+    }
+
+    public function test_index_filters_by_soft_deleted_customer(): void
+    {
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $this->createSaleAt('V-0001', '2026-10-01 10:00:00', $juan);
+        $juan->delete();
+
+        $this->getJson("/api/sales?customer_id={$juan->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.folio', 'V-0001');
+    }
+
+    public function test_index_rejects_non_integer_customer_id(): void
+    {
+        $this->getJson('/api/sales?customer_id=abc')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('customer_id');
     }
 
     public function test_index_with_customer_and_items_eager_loads_both_relations(): void

@@ -29,7 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
 
-    Route::apiResource('customers', CustomerController::class)->except(['destroy']);
+    Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);
+    Route::apiResource('customers', CustomerController::class);
 
     Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
