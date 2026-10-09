@@ -31,4 +31,38 @@ class CategoryApiTest extends TestCase
             ->assertJsonFragment(['name' => 'Pisos'])
             ->assertJsonFragment(['name' => 'Azulejos']);
     }
+
+    public function test_it_creates_a_category(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'SLA'])
+            ->assertCreated()
+            ->assertJsonFragment(['name' => 'Slabs']);
+
+        $this->assertDatabaseHas('categories', ['name' => 'Slabs', 'code_prefix' => 'SLA']);
+    }
+
+    public function test_it_requires_name_and_code_prefix_to_create_a_category(): void
+    {
+        $this->postJson('/api/categories', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'code_prefix']);
+    }
+
+    public function test_it_rejects_a_duplicate_category_name(): void
+    {
+        Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->postJson('/api/categories', ['name' => 'Pisos', 'code_prefix' => 'OTRO'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name']);
+    }
+
+    public function test_it_rejects_a_duplicate_category_code_prefix(): void
+    {
+        Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->postJson('/api/categories', ['name' => 'Otra Categoria', 'code_prefix' => 'PI'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code_prefix']);
+    }
 }
