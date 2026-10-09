@@ -28,15 +28,15 @@ pavh-frontend/   Vue 3 + Vite · Pinia · Vue Router · Tailwind CSS · Axios ·
 
 Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo, y todo lo que falta está consolidado en "Pendientes".
 
-| # | Módulo | Backend | Frontend | Notas |
-|---|--------|:---:|:---:|-------|
-| — | Autenticación | ✅ | ✅ | — |
-| 1 | Inventario | ✅ | ✅ | 4 pendientes no bloqueantes |
-| 2 | Cotizaciones | ✅ | ✅ | cancelación pendiente + 2 bugs conocidos |
-| 3 | Punto de Venta (POS) | ✅ | ✅ | — |
-| 4 | Dashboard | ✅ | ✅ | — |
-| 5 | Clientes (módulo dedicado) | — | — | 🚧 **En definición de alcance** — hoy solo existe el catálogo básico usado por Cotizaciones/Ventas |
-| — | Pase de UX/UI transversal | — | — | Puede iniciar cuando se decida — los 4 módulos funcionales ya están cerrados |
+| #   | Módulo                     | Backend | Frontend | Notas                                                                                              |
+| --- | -------------------------- | :-----: | :------: | -------------------------------------------------------------------------------------------------- |
+| —   | Autenticación              |   ✅    |    ✅    | —                                                                                                  |
+| 1   | Inventario                 |   ✅    |    ✅    | 4 pendientes no bloqueantes                                                                        |
+| 2   | Cotizaciones               |   ✅    |    ✅    | cancelación pendiente + 2 bugs conocidos                                                           |
+| 3   | Punto de Venta (POS)       |   ✅    |    ✅    | —                                                                                                  |
+| 4   | Dashboard                  |   ✅    |    ✅    | —                                                                                                  |
+| 5   | Clientes (módulo dedicado) |   ✅    |    ✅    | —                                                                                                  |
+| —   | Pase de UX/UI transversal  |    —    |    —     | Puede iniciar cuando se decida — los 5 módulos funcionales ya están cerrados                       |
 
 ## Módulos
 
@@ -72,7 +72,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - `src/layouts/AppLayout.vue` y `AuthLayout.vue`, resueltos dinámicamente vía `route.meta.layout`
 - `src/views/login/Login.vue` funcional de punta a punta
 - `src/components/layout/AppSidebar.vue` y `AppTopbar.vue` implementados (sistema de diseño aplicado, item activo, título dinámico)
-- `src/router/` reestructurado por módulo (`auth/`, `dashboard/`, `inventory/`, `quotes/`, `pos/`)
+- `src/router/` reestructurado por módulo (`auth/`, `dashboard/`, `inventory/`, `quotes/`, `pos/`, `customers/`)
 - **`InventoryView.vue`**: catálogo agrupado (PrimeVue `DataTable` con row-expansion), buscador + filtro de categoría + toggle "solo stock bajo" (100% client-side), botón "Editar" a nivel de grupo por tamaño, ícono de ajuste de stock con `Dialog` de PrimeVue
 - **`ProductFormView.vue`**: crea/edita producto junto con sus variantes en un solo form — campos técnicos compartidos + lista repetible de colores (cada uno con stock inicial/mínimo); eliminar un color existente dispara `DELETE` inmediato con `ConfirmDialog` de PrimeVue
 - **`src/stores/inventory.js`** y **`src/stores/catalogs.js`** (Pinia, patrón `initialized`); mutaciones puntuales (ajuste de stock, borrado de variante) actualizan el store in-place sin refetch completo
@@ -94,15 +94,17 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 **Backend:**
 
-- **Clientes**: tabla `customers` simple (`name`, `phone`, `email`, sin `SoftDeletes` por ahora), no texto libre. CRUD sin `destroy` (no pedido), con búsqueda simple (`GET /api/customers?search=`) vía `scopeSearch()`. `customer_id` es **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente). Módulo completo de clientes (listado, edición, historial, etc.) queda diferido — esto es solo el catálogo básico + búsqueda (ver "Estado de módulos" arriba).
+- **Clientes**: desde que el módulo dedicado de Clientes existe (ver módulo 5), `quotes` y `sales` consumen la misma tabla `customers` — ya con `SoftDeletes`, búsqueda vía `scopeSearch()`, y borrado disponible. `customer_id` sigue siendo **nullable** en `quotes` y `sales` (se permite cotización/venta rápida sin capturar cliente)
 - `quotes`/`quote_items`: folio server-side (`QuoteFolioGenerator`, formato `COT-0001`, `withTrashed()`), `unit_price` **siempre** resuelto del `price_per_m2` actual de la variante (ignora cualquier precio que mande el cliente), `subtotal`/`total` calculados server-side (`total = subtotal`, sin impuestos por ahora), edición (`PUT`, reemplaza todas las líneas) permitida **solo** mientras `status = "Borrador"` (guard clause en el controlador, 422 si no)
-- `GET /api/quotes` soporta `?with=customer,quoteStatus` (whitelist explícita, valores desconocidos se ignoran silenciosamente) — resuelve N+1 detectado en QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comma+whitelist, extensión del shortcut usado en `ProductController` (que hace match exacto de string) — no unificado entre ambos controllers todavía
-- `sales`/`sale_items`: folio independiente (`SaleFolioGenerator`, formato `V-0001`). A diferencia de `quotes`, `unit_price` **sí** viene del payload del frontend (el flujo de conversión permite ajustar precio antes de confirmar). Sin `PUT`/`DELETE` (no pedido)
+- `GET /api/quotes` soporta `?with=customer,quoteStatus` (whitelist explícita, valores desconocidos se ignoran silenciosamente) — resuelve N+1 detectado en QuoteResource (11 queries → 3 queries en listado de 5 registros). Patrón comma+whitelist, extensión del shortcut usado en `ProductController` (que hace match exacto de string) — no unificado entre ambos controllers todavía. También ordena por `->latest()` (agregado al construir el historial de cliente — antes salía en orden de base de datos, inconsistente con `GET /api/sales`, que ya usaba `latest()`)
+- Soporta `?customer_id=` vía `Quote::scopeForCustomer()` (mismo patrón que `scopeDateRange`), usado por el historial del detalle de cliente — no excluye clientes borrados
+- `sales`/`sale_items`: folio independiente (`SaleFolioGenerator`, formato `V-0001`). A diferencia de `quotes`, `unit_price` **sí** viene del payload del frontend (el flujo de conversión permite ajustar precio antes de confirmar). Sin `PUT`/`DELETE` (no pedido). `GET /api/sales` también soporta `?customer_id=` vía `Sale::scopeForCustomer()`
 - `GET /api/quotes/{id}/convert`: **solo lectura**, prellenar el form de nueva venta con las líneas de la cotización y el `price_per_m2` **actual** de cada variante (no el precio congelado en la cotización — se le muestra al usuario el precio de hoy). Rechaza 422 si la cotización no está en estado "Borrador" (ver `Quote::conversionBlockedMessage()` abajo), y también rechaza 422 si alguna línea referencia una variante soft-deleted (usa `withTrashed()` solo para nombrarla por `code` en el mensaje, nunca para dejarla pasar)
 - `POST /api/sales`: valida stock suficiente (agregado por variante, cubre el caso de líneas duplicadas de la misma variante) **antes** de mutar nada, descuenta stock dentro de una transacción, y si trae `quote_id` marca esa cotización como "Convertida" automáticamente. Rechaza 422 vía el mismo `Quote::conversionBlockedMessage()` si el `quote_id` referenciado no está en "Borrador"
 - **`Quote::conversionBlockedMessage()`** (método en el modelo): única fuente de verdad sobre si una cotización puede convertirse, usada tanto por `QuoteController@convert` como por `SaleController@store`. Rechaza cualquier estado que no sea "Borrador" (no solo "Convertida" — cubre "Cancelada" y cualquier estado futuro sin tocar los controladores de nuevo)
 - **Conversión de unidades (m² ↔ cajas):** `quote_items.quantity`/`sale_items.quantity` viven en m² (consistente con que `unit_price` = `price_per_m2`), pero `stock_boxes` vive en cajas. Al crear una venta, se convierte con `ceil(quantity / m2_per_box)` por línea, agregando por variante antes de comparar contra stock disponible. Si `m2_per_box` es `null` en la variante, la línea se rechaza con 422 explícito — nunca se asume conversión 1:1. El dinero (`line_total`/`subtotal`/`total`) se calcula siempre sobre la cantidad exacta en m², independiente del redondeo hacia arriba usado para el descuento de stock
 - `ProductVariant::hasSufficientStock()` / `decrementStock()`: extraídos como métodos reusables, usados tanto por el endpoint de ajuste de stock existente como por la creación de ventas — evita duplicar el guard de "Stock insuficiente"
+- Las relaciones `customer()` en `Quote` y `Sale` usan `withTrashed()` (centralizado en el modelo, no en cada `load()`) — así una cotización o venta con cliente dado de baja sigue mostrando su nombre en `index`, `show`, `store`/`update`, `convert` y los PDFs, sin tener que acordarse de agregarlo en cada lugar que carga la relación
 
 **Frontend:**
 
@@ -118,7 +120,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 **Backend:**
 
-- `sales`/`sale_items` completo: `GET /api/sales` (con `?with=customer,items` vía whitelist, filtro de rango de fecha `from`/`to` vía `Sale::scopeDateRange()`, orden por `created_at` descendente), `GET /api/sales/{id}` (carga `items.productVariant`, `items.productVariant.product`, `customer`, `quote`, todo con `withTrashed()` para poder ver/reimprimir una venta aunque la variante o el producto ya se hayan dado de baja), `POST /api/sales`
+- `sales`/`sale_items` completo: `GET /api/sales` (con `?with=customer,items` vía whitelist, filtro de rango de fecha `from`/`to` vía `Sale::scopeDateRange()`, filtro `?customer_id=` vía `Sale::scopeForCustomer()`, orden por `created_at` descendente), `GET /api/sales/{id}` (carga `items.productVariant`, `items.productVariant.product`, `customer`, `quote`, todo con `withTrashed()` para poder ver/reimprimir una venta aunque la variante, el producto o el cliente ya se hayan dado de baja), `POST /api/sales`
 - `GET /api/sales/{id}/pdf`: genera y descarga el PDF de la nota de venta (ver `DocumentPdfGenerator` abajo)
 
 **Frontend:**
@@ -149,6 +151,31 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - `ActiveQuotesWidget.vue` conectado a `dashboard.activeQuotes` (`status === 'Borrador'`)
 - `src/lib/formatCurrency.js` extraído para los widgets (no toca el `formatCurrency` ya existente en vistas cerradas como `SalesView.vue`)
 
+### 5. Clientes — ✅ completo (backend + frontend)
+
+- Módulo dedicado construido sobre la tabla `customers` que ya existía como catálogo básico de apoyo para Cotizaciones/Ventas (`CustomerSearch.vue`) — se le agregó `SoftDeletes`, borrado, listado propio, detalle con historial, y create/edit dedicados.
+
+**Backend:**
+
+- `SoftDeletes` agregado a `customers` vía migración nueva (`add_deleted_at_to_customers_table`) — la tabla ya estaba migrada, no se tocó la migración original
+- `DELETE /api/customers/{id}`: soft delete, mismo patrón que `Product`/`ProductVariant`. **No bloquea el borrado en ningún caso**, ni siquiera si el cliente tiene cotizaciones o ventas asociadas — decisión explícita (ver "Decisiones clave")
+- `GET /api/customers/{id}/delete-summary`: endpoint de solo lectura que devuelve `quotes_count`/`sales_count` (excluyendo registros ya borrados), consumido por el frontend **antes** de confirmar el borrado, para mostrarlo en el diálogo de confirmación. Mismo criterio que `GET /quotes/{id}/convert` (solo lectura para preparar una acción, la acción real va por su propio endpoint)
+- `Quote::scopeForCustomer()` y `Sale::scopeForCustomer()`: scopes nuevos (mismo patrón que `scopeDateRange`) que alimentan `?customer_id=` en `GET /api/quotes` y `GET /api/sales`, usados por el historial del detalle de cliente. No excluyen clientes borrados — el historial de un cliente dado de baja se sigue pudiendo consultar
+- Las relaciones `customer()` en `Quote` y `Sale` usan `withTrashed()`, centralizado en el modelo (ver módulo 2) — cubre automáticamente `index`, `show`, `store`/`update`, `convert` y los PDFs sin repetirlo en cada `load()`
+- `GET /api/quotes` ganó `->latest()` (antes no tenía orden explícito) al construir el historial de cliente, para que salga igual de ordenado que `GET /api/sales`, que ya lo tenía
+- `CustomerResource` confirmado como suficiente para listado y detalle tal cual (expone `id`, `name`, `phone`, `email`, `created_at`); no se agregaron conteos (`quotes_count`/`sales_count`) al resource porque no se piden en el listado — el conteo solo se usa puntual en `delete-summary`
+- `exists:customers,id` en `StoreQuoteRequest`/`UpdateQuoteRequest`/`StoreSaleRequest` sigue sin excluir clientes borrados (`->withoutTrashed()` no aplicado) — **pendiente no bloqueante** (ver "Pendientes"), mismo caso ya existente con `product_variants`
+
+**Frontend:**
+
+- **Listado** (`CustomersView.vue`, ruta `/clientes`) — mismo patrón visual que `SalesView.vue` (sin expansión), columnas Nombre/Teléfono/Correo/Alta, búsqueda server-side con debounce de 300ms sobre `scopeSearch()`. Durante una búsqueda nueva la tabla actual se queda visible y atenuada (`opacity-60`, `aria-busy`) en vez de parpadear; "Cargando clientes…" solo aparece en la carga inicial. El nombre de cada fila enlaza al detalle
+- **`src/stores/customers.js`** (Pinia) — `fetchCustomers({ search })` sin patrón `initialized` (cada término de búsqueda es una consulta distinta, igual que `sales.js`), con contador de petición para descartar respuestas tardías. `fetchCustomer`, `createCustomer`, `updateCustomer`, `deleteCustomer` agregados con mutación in-place (inserción alfabética en `createCustomer`, consistente con el orden que ya da el backend)
+- **Detalle** (`CustomerDetailView.vue`) — datos generales (nombre, teléfono, correo, fecha de alta) vía `fetchCustomer`; debajo, historial de cotizaciones y ventas asociadas, pedido directo por axios con `?customer_id=` (no vía `quotes.js`/`sales.js`, mismo criterio que `dashboard.js`, para no heredar su gate de caché), cada sección con su propio loading/error independiente y contador de petición. Botones "Editar" y "Eliminar" en el header
+- **Formulario** (`CustomerFormView.vue`) — crea/edita en el mismo componente, detecta modo vía `route.params.id` (mismo patrón que `ProductFormView.vue`); campos Nombre (requerido), Teléfono/Correo (opcionales); botón "Guardar" deshabilitado si falla la precarga en modo edición. Redirige al detalle en ambos modos tras guardar
+- **Borrado (Opción B — informativo, no bloqueante)**: `src/composables/useCustomerDelete.js` centraliza el flujo (llamar `delete-summary` → mostrar `ConfirmDialog` con los conteos → confirmar → `deleteCustomer`), usado tanto desde el listado como desde el detalle. El texto del diálogo menciona cuántas cotizaciones/ventas tiene el cliente cuando aplica, y deja borrar de todas formas; si la consulta de conteo falla, el diálogo se abre igual avisando que no se pudo verificar el historial. Desde el detalle, al borrar se limpia `currentCustomer` y se redirige a `/clientes`
+- Rutas (`src/router/customers/customers.routes.js`): `customers.index` (`/clientes`), `customers.show` (`/clientes/:id`), `customers.create` (`/clientes/nuevo`), `customers.edit` (`/clientes/:id/editar`)
+- Entrada "Clientes" (ícono `ti-users`) agregada a `AppSidebar.vue`
+
 ## Decisiones clave y su razón
 
 | Decisión                                                                                                                                                                                                               | Razón                                                                                                                                                                                                                                                         |
@@ -163,7 +190,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 | Código de variante generado server-side                                                                                                                                                                                | Nunca se acepta desde el cliente, evita colisiones y manipulación; el código del proveedor se guarda solo como referencia libre (`supplier_code`)                                                                                                             |
 | Validaciones de negocio dependientes del modelo en el controlador, no en el Form Request                                                                                                                               | Ningún Form Request del proyecto tiene acceso al modelo bindeado por ruta; forzarlo ahí sería inconsistente con el patrón ya establecido                                                                                                                      |
 | `Quote` y `Sale` como entidades separadas (no una tabla con `status`)                                                                                                                                                  | Folios independientes por tipo de documento; consistente con "acciones con efecto específico en endpoint dedicado"; reglas de edición distintas (borrador vs. documento ya concretado)                                                                        |
-| `customers` como tabla simple desde ahora, `customer_id` nullable en `quotes`/`sales`                                                                                                                                  | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; módulo completo de clientes queda diferido                                                                                                          |
+| `customers` como tabla simple desde el inicio, `customer_id` nullable en `quotes`/`sales`                                                                                                                              | Clientes recurrentes evitan recapturar datos; opcional para permitir venta/cotización rápida sin cliente; el módulo completo de clientes se construyó después, sobre la misma tabla                                                                          |
 | Cantidad en `quote_items`/`sale_items` vive en m² (no cajas); conversión a cajas (`ceil(quantity / m2_per_box)`) ocurre solo al descontar stock, nunca al calcular precio                                              | Consistente con `unit_price = price_per_m2`; evita que `quantity` signifique unidades distintas entre cotización y venta; redondear hacia arriba refleja que no se puede vender/descontar media caja físicamente, sin alterar el monto cobrado                |
 | `ProductVariantResource.product` vía `whenLoaded` en vez de resolverlo client-side cruzando datos de Inventario                                                                                                        | El detalle de cotización no puede depender de que `inventory.products` ya esté cargado (se puede abrir el link directo); mismo patrón que `commissionCategory`                                                                                                |
 | Rechazo de conversión centralizado en `Quote::conversionBlockedMessage()`, rechaza cualquier estado que no sea "Borrador"                                                                                              | Evita que agregar un estado futuro a `quote_statuses` obligue a tocar de nuevo `QuoteController@convert` y `SaleController@store`; antes solo se rechazaba "Convertida", dejando pasar "Cancelada" sin querer                                                 |
@@ -173,6 +200,9 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 | `dashboard.js` no usa el patrón `initialized`, hace sus propios `GET /sales`/`/quotes` en paralelo en vez de reusar `sales.fetchSales()`/`quotes.fetchQuotes()`                                                        | Datos del dashboard deben refrescarse en cada visita, no cachearse; reusar esas acciones habría escrito en los stores de Ventas/Cotizaciones (listados de otras vistas) y heredado su gate de caché/contador de petición, pensados para su propio caso de uso |
 | Widgets de `HomeView.vue` (`SalesSummaryCards`, `DashboardShortcuts`, `LowStockWidget`, `ActiveQuotesWidget`) en `src/views/dashboard/components/`, no en `src/components/widgets/`                                    | Solo el Dashboard los usa hoy; `AGENT.md` reserva `widgets/` para componentes reusados entre módulos — se mueven ahí si surge un segundo consumidor real                                                                                                      |
 | `dashboard.js` usa `Promise.allSettled()` con loading/error separado por widget (`salesLoading`/`salesError`, `lowStockLoading`/`lowStockError`, `activeQuotesLoading`/`activeQuotesError`), no un loading/error único | Con `Promise.all()` y estado compartido, el fallo de un widget (ej. Inventario) ocultaba o bloqueaba los otros dos que sí habían cargado (ej. Ventas); cada sección ahora falla y se recupera de forma independiente                                          |
+| Borrado de cliente (`DELETE /api/customers/{id}`) nunca bloquea, ni con historial — en vez de un guard duro tipo "última variante activa", el frontend muestra los conteos de `delete-summary` en el `ConfirmDialog` antes de confirmar | Con `SoftDeletes` + `withTrashed()` en la relación `customer()`, el borrado ya es seguro y reversible — una cotización/venta con cliente borrado sigue mostrando su nombre; un bloqueo duro habría sido una restricción sin ganancia real de integridad, solo fricción |
+| `withTrashed()` en la relación `customer()` se puso en los modelos `Quote`/`Sale`, no repetido en cada `load()` de los controladores                                                                                   | Una sola fuente de verdad que cubre automáticamente `index`, `show`, `store`/`update`, `convert` y los PDFs — consistente con el criterio ya usado en `Quote::conversionBlockedMessage()`                                                                      |
+| `GET /api/quotes` ganó `->latest()`                                                                                                                                                                                     | Sin orden explícito salía en orden de base de datos, inconsistente con `GET /api/sales` (que ya usaba `latest()`) y con lo que necesita el historial de cliente mostrado de más reciente a más antiguo                                                        |
 
 ## Pendientes
 
@@ -191,19 +221,19 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - Bug: en `QuoteFormView.vue`, el `<form v-else>` depende de `generalError` — cualquier error de submit (incluso uno trivial como "Agrega al menos un producto") oculta todo el formulario hasta recargar la página. Detectado durante la extracción de `VariantAutocomplete`/`CustomerSearch` para POS, no corregido ahí para no reabrir el módulo de Cotizaciones sin motivo
 - Bug: el listado cacheado de cotizaciones (`quotes.quotes` en el store) no refleja el nuevo estado "Convertida" tras convertir desde el detalle, hasta recargar el listado — el detalle sí refresca correctamente
 
+**Clientes:**
+
+- `exists:customers,id` en `StoreQuoteRequest`/`UpdateQuoteRequest`/`StoreSaleRequest` no excluye clientes borrados (`Rule::exists('customers', 'id')->withoutTrashed()` no aplicado) — en la práctica el riesgo es bajo porque `CustomerSearch.vue` ya solo ofrece clientes no borrados (los excluye `GET /api/customers`), así que solo sería alcanzable vía API directa. Mismo caso ya existente y tampoco resuelto con `product_variants`
+
 **Transversal:**
 
 - Bug: la lógica de cálculo de rango de fecha (hoy/semana/mes, semana empezando en lunes, en hora local) está duplicada entre `SalesView.vue` y `src/stores/dashboard.js` — detectado al construir el store del Dashboard, no corregido ahí para no reabrir `SalesView.vue` (módulo de POS ya cerrado) sin motivo. Candidato a extraerse a `src/lib/` (ej. `dateRanges.js`) cuando aparezca un tercer consumidor, o junto con el pase de UX/UI
 - Bug: `formatCurrency`/`Intl.NumberFormat` está duplicado entre `SalesView.vue` (y otras vistas cerradas) y `src/lib/formatCurrency.js` (usado por los widgets del Dashboard) — mismo criterio que el punto anterior, no se tocaron las vistas cerradas para consolidarlo
-- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). Los 4 módulos funcionales ya están cerrados — este pase puede empezar cuando se decida
+- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). Los 5 módulos funcionales ya están cerrados — este pase puede empezar cuando se decida
 
 ### Antes de desplegar a producción
 
 - **Migración de zona horaria**: `config/app.php` cambió de `UTC` a `America/Mexico_City` (necesario para que los filtros de fecha de ventas y el PDF usen el día local correctamente). Cualquier dato cargado en producción _antes_ de este cambio tiene `created_at`/`updated_at`/`deleted_at` en UTC sin marcar como tal — al desplegar, se necesita una migración que reste 6 horas a esas columnas en las tablas afectadas, o los registros viejos se van a ver desfasados
-
-### En definición
-
-- **Módulo de Clientes (dedicado)** — hoy solo existe el catálogo básico (`customers`: CRUD sin `destroy`, búsqueda) usado como widget de apoyo (`CustomerSearch.vue`) dentro de Cotizaciones/Ventas. No hay listado, detalle, edición ni historial de cliente como módulo propio. **Se va a construir — alcance en definición** (ver "Roadmap")
 
 ## Roadmap
 
@@ -215,7 +245,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 6. ~~Módulo de Cotizaciones~~ ✅ — backend y frontend completos (listar, crear, ver detalle, editar, PDF). Pendiente no bloqueante: cancelación
 7. ~~Módulo de Punto de Venta~~ ✅ — venta directa, conversión desde cotización, listado con filtros de fecha, detalle con PDF descargable/compartible
 8. ~~Dashboard real~~ ✅ — store de datos, resumen de ventas, stock bajo y cotizaciones activas, todo conectado
-9. **Módulo de Clientes (dedicado)** — 🚧 en definición de alcance
+9. ~~Módulo de Clientes (dedicado)~~ ✅ — listado, detalle con historial de cotizaciones/ventas, crear/editar, borrado informativo (Opción B)
 10. Pase de UX/UI transversal — pendiente, sin fecha
 
 Roles y permisos **no está en el roadmap** — se decidió no implementarlo.
@@ -247,4 +277,14 @@ feat(dashboard): :sparkles: add HomeView layout with placeholder dashboard widge
 fix(dashboard): :bug: use Promise.allSettled with per-widget loading/error state
 feat(dashboard): :sparkles: connect sales summary widget to dashboard store
 feat(dashboard): :sparkles: connect low stock and active quotes widgets to dashboard store
+feat(customers): :sparkles: add SoftDeletes to customers table
+feat(customers): :sparkles: add customer delete endpoint with delete-summary counts
+feat(customers): :sparkles: add customer_id filter scope to quotes and sales
+fix(sales): :bug: keep customer visible on quotes and sales after soft delete
+feat(customers): :sparkles: add CustomersView listing with debounced search
+feat(customers): :sparkles: add customer store actions (fetch, create, update, delete)
+feat(customers): :sparkles: add CustomerDetailView with quotes and sales history
+feat(customers): :sparkles: add CustomerFormView for create and edit
+feat(customers): :sparkles: add non-blocking delete confirmation with history counts
+fix(quotes): :bug: order quotes listing by newest first
 ```

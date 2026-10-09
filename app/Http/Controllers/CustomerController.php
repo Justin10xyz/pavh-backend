@@ -38,4 +38,27 @@ class CustomerController extends Controller
 
         return new CustomerResource($customer);
     }
+
+    public function destroy(Customer $customer)
+    {
+        $customer->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Payload de solo lectura para el ConfirmDialog de borrado. Es informativo:
+     * DELETE /api/customers/{customer} no se bloquea aunque haya registros asociados.
+     */
+    public function deleteSummary(Customer $customer)
+    {
+        $customer->loadCount(['quotes', 'sales']);
+
+        return response()->json([
+            'data' => [
+                'quotes_count' => $customer->quotes_count,
+                'sales_count' => $customer->sales_count,
+            ],
+        ]);
+    }
 }

@@ -187,6 +187,27 @@ class QuoteApiTest extends TestCase
             ->assertJsonCount(1, 'data.items');
     }
 
+    public function test_it_shows_a_quote_whose_customer_was_soft_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $created = $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $customer->delete();
+
+        $this->getJson("/api/quotes/{$created->json('data.id')}")
+            ->assertOk()
+            ->assertJsonPath('data.customer.name', 'Juan Perez');
+
+        $this->getJson('/api/quotes?with=customer')
+            ->assertOk()
+            ->assertJsonPath('data.0.customer.name', 'Juan Perez');
+    }
+
     public function test_index_with_customer_and_quote_status_eager_loads_both_relations(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);
@@ -201,6 +222,69 @@ class QuoteApiTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.customer.name', 'Juan Perez')
             ->assertJsonPath('data.0.status', 'Borrador');
+    }
+
+    public function test_index_returns_quotes_newest_first(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $ids = [];
+        foreach (['2026-09-01 10:00:00', '2026-10-05 10:00:00', '2026-09-15 10:00:00'] as $createdAt) {
+            $ids[] = $this->travelTo($createdAt, fn () => $this->postJson('/api/quotes', [
+                'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            ])->assertCreated()->json('data.id'));
+        }
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.0.id', $ids[1])
+            ->assertJsonPath('data.1.id', $ids[2])
+            ->assertJsonPath('data.2.id', $ids[0]);
+    }
+
+    public function test_index_filters_by_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $maria = Customer::create(['name' => 'Maria Lopez']);
+
+        foreach ([$juan, $maria, $juan, null] as $customer) {
+            $this->postJson('/api/quotes', [
+                'customer_id' => $customer?->id,
+                'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            ])->assertCreated();
+        }
+
+        $this->getJson("/api/quotes?customer_id={$juan->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.customer_id', $juan->id)
+            ->assertJsonPath('data.1.customer_id', $juan->id);
+    }
+
+    public function test_index_filters_by_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $juan = Customer::create(['name' => 'Juan Perez']);
+
+        $this->postJson('/api/quotes', [
+            'customer_id' => $juan->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated();
+
+        $juan->delete();
+
+        $this->getJson("/api/quotes?customer_id={$juan->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+    }
+
+    public function test_index_rejects_non_integer_customer_id(): void
+    {
+        $this->getJson('/api/quotes?customer_id=abc')
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('customer_id');
     }
 
     public function test_index_ignores_unknown_with_values(): void

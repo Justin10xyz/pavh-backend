@@ -18,6 +18,10 @@ class QuoteController extends Controller
 {
     public function index(Request $request)
     {
+        $request->validate([
+            'customer_id' => ['nullable', 'integer'],
+        ]);
+
         $allowedRelations = [
             'items' => 'items.productVariant',
             'customer' => 'customer',
@@ -32,6 +36,8 @@ class QuoteController extends Controller
 
         $quotes = Quote::query()
             ->when($with !== [], fn ($query) => $query->with($with))
+            ->forCustomer($request->integer('customer_id') ?: null)
+            ->latest()
             ->get();
 
         return QuoteResource::collection($quotes);

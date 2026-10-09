@@ -6,10 +6,13 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable(['name', 'phone', 'email'])]
 class Customer extends Model
 {
+    use SoftDeletes;
+
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);
