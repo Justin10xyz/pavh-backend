@@ -40,4 +40,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
 
     Route::post('/categories', [CategoryController::class, 'store']);
+    Route::put('/categories/{category}', [CategoryController::class, 'update']);
 });
