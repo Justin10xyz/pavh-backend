@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\AdjustStockRequest;
-use App\Http\Requests\StoreProductVariantRequest;
-use App\Http\Requests\UpdateProductVariantRequest;
-use App\Http\Resources\ProductVariantResource;
+use App\Http\Requests\Inventory\AdjustStockRequest;
+use App\Http\Requests\Inventory\StoreProductVariantRequest;
+use App\Http\Requests\Inventory\UpdateProductVariantRequest;
+use App\Http\Resources\Inventory\ProductVariantResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\VariantCodeGenerator;

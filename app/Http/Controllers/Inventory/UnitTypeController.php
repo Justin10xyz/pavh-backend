@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\UnitTypeResource;
+use App\Http\Resources\Inventory\UnitTypeResource;
 use App\Models\UnitType;
 
 class UnitTypeController extends Controller

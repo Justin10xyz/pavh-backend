@@ -1,10 +1,11 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Quote;
 
-use App\Http\Requests\StoreQuoteRequest;
-use App\Http\Requests\UpdateQuoteRequest;
-use App\Http\Resources\QuoteResource;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Quote\StoreQuoteRequest;
+use App\Http\Requests\Quote\UpdateQuoteRequest;
+use App\Http\Resources\Quote\QuoteResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;

@@ -1,15 +1,15 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
 use App\Http\Controllers\Inventory\ProductController;
 use App\Http\Controllers\Inventory\ProductVariantController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
-use App\Http\Controllers\QuoteController;
-use App\Http\Controllers\SaleController;
+use App\Http\Controllers\Quote\QuoteController;
+use App\Http\Controllers\Sale\SaleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
