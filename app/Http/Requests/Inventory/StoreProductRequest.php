@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Inventory;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateProductRequest extends FormRequest
+class StoreProductRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,11 +23,11 @@ class UpdateProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['sometimes', 'string'],
-            'supplier_id' => ['sometimes', 'integer', 'exists:suppliers,id'],
-            'category_id' => ['sometimes', 'integer', 'exists:categories,id'],
-            'unit_type_id' => ['sometimes', 'integer', 'exists:unit_types,id'],
-            'purchase_unit' => ['sometimes', 'string'],
+            'name' => ['required', 'string'],
+            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'unit_type_id' => ['required', 'integer', 'exists:unit_types,id'],
+            'purchase_unit' => ['required', 'string'],
         ];
     }
 }

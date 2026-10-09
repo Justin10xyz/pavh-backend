@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Http\Resources\Inventory;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class CommissionCategoryResource extends JsonResource
+class CategoryResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
@@ -16,9 +16,7 @@ class CommissionCategoryResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'code' => $this->code,
-            'percentage' => $this->percentage,
-            'notes' => $this->notes,
+            'name' => $this->name,
         ];
     }
 }

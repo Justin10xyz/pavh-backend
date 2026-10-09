@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Quote;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreSaleRequest extends FormRequest
+class UpdateQuoteRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -18,21 +18,19 @@ class StoreSaleRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * A diferencia de quotes, aquí unit_price SÍ viene del cliente (permite
-     * ajustar el precio al convertir una cotización) — folio sigue sin regla,
-     * se resuelve server-side vía SaleFolioGenerator.
+     * Un PUT reemplaza todas las líneas de la cotización, así que items sigue
+     * siendo obligatorio (no "sometimes") aunque customer_id/notes sí lo sean.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'quote_id' => ['nullable', 'integer', 'exists:quotes,id'],
+            'customer_id' => ['sometimes', 'nullable', 'integer', 'exists:customers,id'],
+            'notes' => ['sometimes', 'nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
-            'items.*.unit_price' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 }

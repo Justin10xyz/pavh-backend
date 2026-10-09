@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests;
+namespace App\Http\Requests\Sale;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreQuoteRequest extends FormRequest
+class StoreSaleRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -18,10 +18,9 @@ class StoreQuoteRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * folio y unit_price se resuelven server-side (folio en QuoteFolioGenerator,
-     * unit_price desde el precio actual de la variante) — deliberadamente no
-     * tienen regla aquí para que cualquier valor enviado por el cliente se
-     * descarte al llamar a validated().
+     * A diferencia de quotes, aquí unit_price SÍ viene del cliente (permite
+     * ajustar el precio al convertir una cotización) — folio sigue sin regla,
+     * se resuelve server-side vía SaleFolioGenerator.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -29,10 +28,11 @@ class StoreQuoteRequest extends FormRequest
     {
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'notes' => ['nullable', 'string'],
+            'quote_id' => ['nullable', 'integer', 'exists:quotes,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.unit_price' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 }

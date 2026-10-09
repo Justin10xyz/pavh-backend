@@ -1,9 +1,10 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers\Sale;
 
-use App\Http\Requests\StoreSaleRequest;
-use App\Http\Resources\SaleResource;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Sale\StoreSaleRequest;
+use App\Http\Resources\Sale\SaleResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;

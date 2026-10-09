@@ -1,11 +1,12 @@
 <?php
 
-namespace App\Http\Resources;
+namespace App\Http\Resources\Sale;
 
+use App\Http\Resources\Inventory\ProductVariantResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-class QuoteItemResource extends JsonResource
+class SaleItemResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
