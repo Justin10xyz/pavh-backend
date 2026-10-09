@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\StoreCategoryRequest;
+use App\Http\Requests\Inventory\UpdateCategoryRequest;
 use App\Http\Resources\Inventory\CategoryResource;
 use App\Models\Category;
 
@@ -19,5 +20,12 @@ class CategoryController extends Controller
         $category = Category::create($request->validated());
 
         return (new CategoryResource($category))->response()->setStatusCode(201);
+    }
+
+    public function update(UpdateCategoryRequest $request, Category $category)
+    {
+        $category->update($request->validated());
+
+        return new CategoryResource($category);
     }
 }
