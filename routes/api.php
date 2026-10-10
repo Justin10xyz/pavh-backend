@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Customer\CustomerController;
+use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
 use App\Http\Controllers\Inventory\ProductController;
@@ -45,6 +46,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
+
+    Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::put('/categories/{category}', [CategoryController::class, 'update']);
