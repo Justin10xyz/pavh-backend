@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -63,13 +64,13 @@ class ProductVariant extends Model
         });
     }
 
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class);
+    }
+
     public function hasSufficientStock(int $boxes): bool
     {
         return $boxes <= $this->stock_boxes;
-    }
-
-    public function decrementStock(int $boxes): void
-    {
-        $this->decrement('stock_boxes', $boxes);
     }
 }

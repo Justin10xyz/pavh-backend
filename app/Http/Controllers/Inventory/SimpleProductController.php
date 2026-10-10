@@ -7,8 +7,11 @@ use App\Http\Requests\Inventory\AdjustStockRequest;
 use App\Http\Requests\Inventory\StoreSimpleProductRequest;
 use App\Http\Requests\Inventory\UpdateSimpleProductRequest;
 use App\Http\Resources\Inventory\SimpleProductResource;
+use App\Http\Resources\Inventory\StockMovementResource;
 use App\Models\Category;
 use App\Models\SimpleProduct;
+use App\Models\StockMovement;
+use Illuminate\Support\Facades\DB;
 
 class SimpleProductController extends Controller
 {
@@ -55,21 +58,42 @@ class SimpleProductController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Historial completo, sin paginar (mismo criterio que los demás listados).
+     * La venta se carga con withTrashed() para conservar el folio aunque la
+     * venta se haya dado de baja.
+     */
+    public function stockMovements(SimpleProduct $simpleProduct)
+    {
+        $movements = $simpleProduct->stockMovements()
+            ->with(['sale' => fn ($query) => $query->withTrashed()])
+            ->latest()
+            ->latest('id')
+            ->get();
+
+        return StockMovementResource::collection($movements);
+    }
+
     public function adjustStock(AdjustStockRequest $request, SimpleProduct $simpleProduct)
     {
         $data = $request->validated();
 
-        if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
-            return response()->json([
-                'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",
-            ], 422);
-        }
+        // Se relee con lockForUpdate() dentro de la transacción: el chequeo de
+        // stock suficiente y el resulting_stock del historial deben ver el
+        // stock real, no el de un ajuste/venta concurrente que aún no termina.
+        return DB::transaction(function () use ($data, $simpleProduct) {
+            $simpleProduct = SimpleProduct::lockForUpdate()->findOrFail($simpleProduct->id);
 
-        $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
+            if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
+                return response()->json([
+                    'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",
+                ], 422);
+            }
 
-        $simpleProduct->increment('stock_quantity', $delta);
+            StockMovement::record($simpleProduct, $data['type'], $data['quantity'], 'manual');
 
-        return new SimpleProductResource($simpleProduct);
+            return new SimpleProductResource($simpleProduct);
+        });
     }
 
     private function wrongCategoryTypeResponse()

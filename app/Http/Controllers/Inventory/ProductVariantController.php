@@ -7,10 +7,13 @@ use App\Http\Requests\Inventory\AdjustStockRequest;
 use App\Http\Requests\Inventory\StoreProductVariantRequest;
 use App\Http\Requests\Inventory\UpdateProductVariantRequest;
 use App\Http\Resources\Inventory\ProductVariantResource;
+use App\Http\Resources\Inventory\StockMovementResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use App\Services\VariantCodeGenerator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductVariantController extends Controller
 {
@@ -62,20 +65,41 @@ class ProductVariantController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Historial completo, sin paginar (mismo criterio que los demás listados).
+     * La venta se carga con withTrashed() para conservar el folio aunque la
+     * venta se haya dado de baja.
+     */
+    public function stockMovements(ProductVariant $productVariant)
+    {
+        $movements = $productVariant->stockMovements()
+            ->with(['sale' => fn ($query) => $query->withTrashed()])
+            ->latest()
+            ->latest('id')
+            ->get();
+
+        return StockMovementResource::collection($movements);
+    }
+
     public function adjustStock(AdjustStockRequest $request, ProductVariant $productVariant)
     {
         $data = $request->validated();
 
-        if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
-            return response()->json([
-                'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
-            ], 422);
-        }
+        // Se relee con lockForUpdate() dentro de la transacción: el chequeo de
+        // stock suficiente y el resulting_stock del historial deben ver el
+        // stock real, no el de un ajuste/venta concurrente que aún no termina.
+        return DB::transaction(function () use ($data, $productVariant) {
+            $productVariant = ProductVariant::lockForUpdate()->findOrFail($productVariant->id);
 
-        $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
+            if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
+                return response()->json([
+                    'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
+                ], 422);
+            }
 
-        $productVariant->increment('stock_boxes', $delta);
+            StockMovement::record($productVariant, $data['type'], $data['quantity'], 'manual');
 
-        return new ProductVariantResource($productVariant);
+            return new ProductVariantResource($productVariant);
+        });
     }
 }

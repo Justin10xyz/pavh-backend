@@ -16,11 +16,12 @@ use App\Models\User;
 use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\InspectsQueryLocks;
 use Tests\TestCase;
 
 class SaleApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use InspectsQueryLocks, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -61,7 +62,6 @@ class SaleApiTest extends TestCase
         ]);
     }
 
-
     private function createSimpleProduct(float $price = 189.50, int $stockQuantity = 20): SimpleProduct
     {
         $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
@@ -73,6 +73,7 @@ class SaleApiTest extends TestCase
             'stock_quantity' => $stockQuantity,
         ]);
     }
+
     private function createSaleAt(string $folio, string $createdAt, ?Customer $customer = null): Sale
     {
         return $this->travelTo($createdAt, fn () => Sale::create([
@@ -270,6 +271,64 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
 
         $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_sale_from_a_quote_locks_the_quote_before_checking_and_converting_it(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->postJson('/api/sales', [
+            'quote_id' => $quoteId,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertCreated();
+
+        // conversionBlockedMessage() lee el estado (quote_statuses) de la
+        // cotización ya bloqueada; el lock va antes que el de los productos
+        // y antes de marcarla como Convertida.
+        $quoteLockIndex = $this->lockedReadIndex('quotes');
+        $statusReadIndex = $this->queryIndex('from "quote_statuses"');
+
+        $this->assertNotNull($quoteLockIndex, 'No se leyó la cotización con lockForUpdate().');
+        $this->assertNotNull($statusReadIndex);
+        $this->assertLessThan($statusReadIndex, $quoteLockIndex);
+        $this->assertLessThan($this->lockedReadIndex('product_variants'), $quoteLockIndex);
+        $this->assertLockedBeforeUpdate('quotes');
+    }
+
+    public function test_rejection_of_an_already_converted_quote_comes_from_the_locked_read(): void
+    {
+        // Simula lo que ve la segunda de dos ventas concurrentes: al obtener
+        // el lock, la primera ya dejó la cotización en Convertida.
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->postJson('/api/sales', [
+            'quote_id' => $quoteId,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertStatus(422)
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
+
+        $quoteLockIndex = $this->lockedReadIndex('quotes');
+
+        $this->assertNotNull($quoteLockIndex, 'No se leyó la cotización con lockForUpdate().');
+        $this->assertLessThan($this->queryIndex('from "quote_statuses"'), $quoteLockIndex);
+        $this->assertNull($this->queryIndex('insert into "sales"'));
+        $this->assertDatabaseCount('stock_movements', 0);
     }
 
     public function test_it_rejects_creating_a_sale_from_a_cancelled_quote(): void
