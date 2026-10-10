@@ -67,6 +67,20 @@ class Quote extends Model
         };
     }
 
+    /**
+     * Mismo criterio que conversionBlockedMessage(): solo Borrador se puede
+     * cancelar y cualquier otro estado se rechaza.
+     */
+    public function cancellationBlockedMessage(): ?string
+    {
+        return match ($this->quoteStatus->name) {
+            'Borrador' => null,
+            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede cancelar.',
+            'Cancelada' => 'Esta cotización ya está cancelada.',
+            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede cancelar.",
+        };
+    }
+
     // customer_id nulo no filtra (igual que dateRange con límites nulos). No
     // excluye clientes dados de baja: su historial se sigue pudiendo consultar.
     public function scopeForCustomer(Builder $query, ?int $customerId): Builder
