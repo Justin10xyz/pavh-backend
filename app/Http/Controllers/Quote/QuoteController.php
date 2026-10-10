@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Quote\StoreQuoteRequest;
 use App\Http\Requests\Quote\UpdateQuoteRequest;
 use App\Http\Resources\Quote\QuoteResource;
+use App\Models\Customer;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
@@ -96,6 +97,18 @@ class QuoteController extends Controller
         }
 
         $data = $request->validated();
+
+        // Solo se rechaza un cliente borrado si es un cambio; conservar el
+        // cliente actual aunque ya esté borrado no bloquea la edición.
+        $customerId = $data['customer_id'] ?? null;
+
+        if ($customerId !== null
+            && (int) $customerId !== (int) $quote->customer_id
+            && Customer::onlyTrashed()->whereKey($customerId)->exists()) {
+            return response()->json([
+                'message' => 'El cliente seleccionado ya no está disponible.',
+            ], 422);
+        }
 
         if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
             return response()->json(['message' => $message], 422);

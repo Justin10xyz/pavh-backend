@@ -22,12 +22,16 @@ class UpdateQuoteRequest extends FormRequest
      * Un PUT reemplaza todas las líneas de la cotización, así que items sigue
      * siendo obligatorio (no "sometimes") aunque customer_id/notes sí lo sean.
      *
+     * customer_id acepta clientes borrados a propósito: re-enviar el cliente
+     * actual (ya borrado) no debe bloquear la edición. El rechazo de un cliente
+     * borrado *nuevo* depende del modelo y vive en QuoteController@update.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'customer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
+            'customer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('customers', 'id')],
             'notes' => ['sometimes', 'nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id', 'integer', 'exists:product_variants,id'],
