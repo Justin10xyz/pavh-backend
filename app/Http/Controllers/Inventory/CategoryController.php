@@ -17,14 +17,21 @@ class CategoryController extends Controller
 
     public function store(StoreCategoryRequest $request)
     {
-        $category = Category::create($request->validated());
+        $category = Category::create($request->validated())->refresh();
 
         return (new CategoryResource($category))->response()->setStatusCode(201);
     }
 
     public function update(UpdateCategoryRequest $request, Category $category)
     {
-        $category->update($request->validated());
+        $data = $request->validated();
+
+        if (isset($data['product_form_type'])
+            && $message = $category->productFormTypeChangeBlockedMessage($data['product_form_type'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $category->update($data);
 
         return new CategoryResource($category);
     }
