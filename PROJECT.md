@@ -111,6 +111,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - **Conversión de unidades (m² ↔ cajas):** `quote_items.quantity`/`sale_items.quantity` viven en m² (consistente con que `unit_price` = `price_per_m2`), pero `stock_boxes` vive en cajas. Al crear una venta, se convierte con `ceil(quantity / m2_per_box)` por línea, agregando por variante antes de comparar contra stock disponible. Si `m2_per_box` es `null` en la variante, la línea se rechaza con 422 explícito — nunca se asume conversión 1:1. El dinero (`line_total`/`subtotal`/`total`) se calcula siempre sobre la cantidad exacta en m², independiente del redondeo hacia arriba usado para el descuento de stock
 - `ProductVariant::hasSufficientStock()` / `decrementStock()`: extraídos como métodos reusables, usados tanto por el endpoint de ajuste de stock existente como por la creación de ventas — evita duplicar el guard de "Stock insuficiente"
 - Las relaciones `customer()` en `Quote` y `Sale` usan `withTrashed()` (centralizado en el modelo, no en cada `load()`) — así una cotización o venta con cliente dado de baja sigue mostrando su nombre en `index`, `show`, `store`/`update`, `convert` y los PDFs, sin tener que acordarse de agregarlo en cada lugar que carga la relación
+- **Integración de `simple_products`**: `quote_items`/`sale_items` ganaron `simple_product_id` nullable (arco exclusivo con `product_variant_id`, validado en los Form Requests vía `required_without`/`prohibits` — no en el controlador, porque es validación de forma, no depende del modelo bindeado). `unit_price` de líneas simples se resuelve del `price` actual de `SimpleProduct`, mismo criterio que `price_per_m2`. `GET /quotes/{id}/convert` detecta por separado variantes y productos simples dados de baja, nombrando cada uno en el mensaje de rechazo. PDFs (`downloadPdf` de Quote y Sale) usan el `name` del producto simple como etiqueta de línea, sin tocar `DocumentPdfGenerator`
 
 **Frontend:**
 
@@ -128,6 +129,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 - `sales`/`sale_items` completo: `GET /api/sales` (con `?with=customer,items` vía whitelist, filtro de rango de fecha `from`/`to` vía `Sale::scopeDateRange()`, filtro `?customer_id=` vía `Sale::scopeForCustomer()`, orden por `created_at` descendente), `GET /api/sales/{id}` (carga `items.productVariant`, `items.productVariant.product`, `customer`, `quote`, todo con `withTrashed()` para poder ver/reimprimir una venta aunque la variante, el producto o el cliente ya se hayan dado de baja), `POST /api/sales`
 - `GET /api/sales/{id}/pdf`: genera y descarga el PDF de la nota de venta (ver `DocumentPdfGenerator` abajo)
+- **Stock de líneas de producto simple en `POST /sales`**: se valida y descuenta junto con el de variantes, en la misma transacción, agregando por producto si hay líneas duplicadas. Sin conversión de unidad (a diferencia de variantes, `quantity` es ya la unidad física) — una cantidad fraccionaria en una línea simple se rechaza con 422 explícito, para no truncar silenciosamente cantidad cobrada vs. descontada
 
 **Frontend:**
 
@@ -224,7 +226,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - Importador de listas de precios de proveedores
 - Dashboard de ventas por producto
 - Historial de movimientos de stock
-- Integración de `simple_products` a Cotizaciones/Ventas (`quote_items`/`sale_items`) — diseño acordado (FK nullable `simple_product_id` junto a `product_variant_id`, arco exclusivo validado en controlador), no iniciado
+- ~~Integración de `simple_products` a Cotizaciones/Ventas~~ ✅ — backend completo (arco exclusivo, precio, stock, PDFs). Pendiente: frontend (autocomplete de líneas, selección de producto simple en `QuoteFormView.vue`/`SaleFormView.vue`)
 
 **Cotizaciones:**
 
