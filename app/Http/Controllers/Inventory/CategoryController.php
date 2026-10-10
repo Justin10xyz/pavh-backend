@@ -24,7 +24,14 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, Category $category)
     {
-        $category->update($request->validated());
+        $data = $request->validated();
+
+        if (isset($data['product_form_type'])
+            && $message = $category->productFormTypeChangeBlockedMessage($data['product_form_type'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $category->update($data);
 
         return new CategoryResource($category);
     }
