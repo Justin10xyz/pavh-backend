@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
+use App\Models\SimpleProduct;
 use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
 use Illuminate\Http\Request;
@@ -25,14 +26,14 @@ class SaleController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => 'items.productVariant',
+            'items' => ['items.productVariant', 'items.simpleProduct'],
             'customer' => 'customer',
         ];
 
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
             ->all();
 
         $sales = Sale::query()
@@ -54,6 +55,7 @@ class SaleController extends Controller
             'quote',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
         return new SaleResource($sale);
@@ -67,6 +69,7 @@ class SaleController extends Controller
             'customer',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
         $pdf = $pdfGenerator->generate([
@@ -75,11 +78,16 @@ class SaleController extends Controller
             'date' => $sale->created_at->format('d/m/Y'),
             'customer' => $sale->customer?->only(['name', 'phone', 'email']),
             'items' => $sale->items->map(fn ($item) => [
-                'variant_label' => trim(implode(' ', [
-                    $item->productVariant->product->name,
-                    $item->productVariant->color,
-                    $item->productVariant->size,
-                ])),
+                // Producto simple: solo su nombre (no tiene línea/color/medida).
+                'variant_label' => $item->simpleProduct
+                    ? $item->simpleProduct->name
+                    : trim(implode(' ', [
+                        $item->productVariant->product->name,
+                        $item->productVariant->color,
+                        $item->productVariant->size,
+                    ])),
+                // Variantes se capturan en m², productos simples en unidades.
+                'unit' => $item->simple_product_id ? 'uds' : 'm2',
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,
@@ -114,10 +122,28 @@ class SaleController extends Controller
         // arriba porque no se puede descontar una fracción de caja física.
         // El dinero (line_total) se calcula sobre la cantidad exacta en m²,
         // nunca sobre las cajas redondeadas.
+        //
+        // Los productos simples no tienen conversión: quantity ya está en la
+        // misma unidad física que stock_quantity.
         $variants = [];
         $boxesNeededByVariant = [];
+        $simpleProducts = [];
+        $quantityNeededBySimpleProduct = [];
 
         foreach ($data['items'] as $item) {
+            if (! empty($item['simple_product_id'])) {
+                $simpleProductId = $item['simple_product_id'];
+                $simpleProduct = $simpleProducts[$simpleProductId] ??= SimpleProduct::findOrFail($simpleProductId);
+
+                if ($message = $simpleProduct->fractionalQuantityMessage($item['quantity'])) {
+                    return response()->json(['message' => $message], 422);
+                }
+
+                $quantityNeededBySimpleProduct[$simpleProductId] = ($quantityNeededBySimpleProduct[$simpleProductId] ?? 0) + (int) $item['quantity'];
+
+                continue;
+            }
+
             $variantId = $item['product_variant_id'];
             $variant = $variants[$variantId] ??= ProductVariant::findOrFail($variantId);
 
@@ -142,7 +168,17 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $quote) {
+        foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+            $simpleProduct = $simpleProducts[$simpleProductId];
+
+            if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
+                return response()->json([
+                    'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
+                ], 422);
+            }
+        }
+
+        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $simpleProducts, $quantityNeededBySimpleProduct, $quote) {
             $sale = Sale::create([
                 'folio' => $folioGenerator->generate(),
                 'quote_id' => $data['quote_id'] ?? null,
@@ -158,7 +194,8 @@ class SaleController extends Controller
                 $lineTotal = round($item['quantity'] * $item['unit_price'], 2);
 
                 $sale->items()->create([
-                    'product_variant_id' => $item['product_variant_id'],
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
+                    'simple_product_id' => $item['simple_product_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'line_total' => $lineTotal,
@@ -169,6 +206,10 @@ class SaleController extends Controller
 
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
                 $variants[$variantId]->decrementStock($boxesNeeded);
+            }
+
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                $simpleProducts[$simpleProductId]->decrementStock($quantityNeeded);
             }
 
             // TODO: tax si aplica en el futuro
@@ -186,7 +227,7 @@ class SaleController extends Controller
             return $sale;
         });
 
-        $sale->load(['items.productVariant', 'customer', 'quote']);
+        $sale->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quote']);
 
         return new SaleResource($sale);
     }

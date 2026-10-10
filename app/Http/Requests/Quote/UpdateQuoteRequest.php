@@ -29,7 +29,8 @@ class UpdateQuoteRequest extends FormRequest
             'customer_id' => ['sometimes', 'nullable', 'integer', 'exists:customers,id'],
             'notes' => ['sometimes', 'nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.product_variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id', 'integer', 'exists:product_variants,id'],
+            'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'integer', 'exists:simple_products,id'],
             'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
         ];
     }

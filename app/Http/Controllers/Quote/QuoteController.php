@@ -9,6 +9,7 @@ use App\Http\Resources\Quote\QuoteResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+use App\Models\SimpleProduct;
 
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
@@ -24,7 +25,7 @@ class QuoteController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => 'items.productVariant',
+            'items' => ['items.productVariant', 'items.simpleProduct'],
             'customer' => 'customer',
             'quoteStatus' => 'quoteStatus',
         ];
@@ -32,7 +33,7 @@ class QuoteController extends Controller
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
             ->all();
 
         $quotes = Quote::query()
@@ -46,7 +47,13 @@ class QuoteController extends Controller
 
     public function show(Quote $quote)
     {
-        $quote->load(['items.productVariant', 'items.productVariant.product', 'customer', 'quoteStatus']);
+        $quote->load([
+            'items.productVariant',
+            'items.productVariant.product',
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
+            'customer',
+            'quoteStatus',
+        ]);
 
         return new QuoteResource($quote);
     }
@@ -54,6 +61,10 @@ class QuoteController extends Controller
     public function store(StoreQuoteRequest $request, QuoteFolioGenerator $folioGenerator)
     {
         $data = $request->validated();
+
+        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+            return response()->json(['message' => $message], 422);
+        }
 
         $quote = DB::transaction(function () use ($data, $request, $folioGenerator) {
             $draftStatus = QuoteStatus::where('name', 'Borrador')->firstOrFail();
@@ -71,7 +82,7 @@ class QuoteController extends Controller
             return $quote;
         });
 
-        $quote->load(['items.productVariant', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
     }
@@ -86,6 +97,10 @@ class QuoteController extends Controller
 
         $data = $request->validated();
 
+        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
         DB::transaction(function () use ($quote, $data) {
             $quote->update($data);
 
@@ -94,7 +109,7 @@ class QuoteController extends Controller
             $this->syncItems($quote, $data['items']);
         });
 
-        $quote->load(['items.productVariant', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
     }
@@ -118,25 +133,52 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        $quote->load('items.productVariant');
+        $quote->load(['items.productVariant', 'items.simpleProduct']);
 
-        $unavailableItems = $quote->items->filter(fn ($item) => $item->productVariant === null);
+        $unavailableVariantItems = $quote->items->filter(
+            fn ($item) => $item->product_variant_id !== null && $item->productVariant === null
+        );
+        $unavailableSimpleProductItems = $quote->items->filter(
+            fn ($item) => $item->simple_product_id !== null && $item->simpleProduct === null
+        );
 
-        if ($unavailableItems->isNotEmpty()) {
-            // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
-            $trashedVariants = ProductVariant::withTrashed()
-                ->whereIn('id', $unavailableItems->pluck('product_variant_id'))
-                ->get()
-                ->keyBy('id');
+        if ($unavailableVariantItems->isNotEmpty() || $unavailableSimpleProductItems->isNotEmpty()) {
+            $reasons = [];
 
-            $labels = $unavailableItems->map(function ($item) use ($trashedVariants) {
-                $variant = $trashedVariants->get($item->product_variant_id);
+            if ($unavailableVariantItems->isNotEmpty()) {
+                // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
+                $trashedVariants = ProductVariant::withTrashed()
+                    ->whereIn('id', $unavailableVariantItems->pluck('product_variant_id'))
+                    ->get()
+                    ->keyBy('id');
 
-                return $variant?->code ?? "ID {$item->product_variant_id}";
-            })->unique()->implode(', ');
+                $labels = $unavailableVariantItems->map(function ($item) use ($trashedVariants) {
+                    $variant = $trashedVariants->get($item->product_variant_id);
+
+                    return $variant?->code ?? "ID {$item->product_variant_id}";
+                })->unique()->implode(', ');
+
+                $reasons[] = "las siguientes variantes ya no están disponibles: {$labels}";
+            }
+
+            if ($unavailableSimpleProductItems->isNotEmpty()) {
+                // withTrashed() solo para poder nombrar el producto en el mensaje; la conversión no continúa.
+                $trashedSimpleProducts = SimpleProduct::withTrashed()
+                    ->whereIn('id', $unavailableSimpleProductItems->pluck('simple_product_id'))
+                    ->get()
+                    ->keyBy('id');
+
+                $labels = $unavailableSimpleProductItems->map(function ($item) use ($trashedSimpleProducts) {
+                    $simpleProduct = $trashedSimpleProducts->get($item->simple_product_id);
+
+                    return $simpleProduct?->name ?? "ID {$item->simple_product_id}";
+                })->unique()->implode(', ');
+
+                $reasons[] = "los siguientes productos ya no están disponibles: {$labels}";
+            }
 
             return response()->json([
-                'message' => "No se puede convertir la cotización: las siguientes variantes ya no están disponibles: {$labels}.",
+                'message' => 'No se puede convertir la cotización: '.implode('; ', $reasons).'.',
             ], 422);
         }
 
@@ -147,8 +189,9 @@ class QuoteController extends Controller
                 'notes' => $quote->notes,
                 'items' => $quote->items->map(fn ($item) => [
                     'product_variant_id' => $item->product_variant_id,
+                    'simple_product_id' => $item->simple_product_id,
                     'quantity' => $item->quantity,
-                    'unit_price' => $item->productVariant->price_per_m2,
+                    'unit_price' => $item->simpleProduct?->price ?? $item->productVariant->price_per_m2,
                 ]),
             ],
         ]);
@@ -161,6 +204,7 @@ class QuoteController extends Controller
             'customer',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
         $pdf = $pdfGenerator->generate([
@@ -169,11 +213,16 @@ class QuoteController extends Controller
             'date' => $quote->created_at->format('d/m/Y'),
             'customer' => $quote->customer?->only(['name', 'phone', 'email']),
             'items' => $quote->items->map(fn ($item) => [
-                'variant_label' => trim(implode(' ', [
-                    $item->productVariant->product->name,
-                    $item->productVariant->color,
-                    $item->productVariant->size,
-                ])),
+                // Producto simple: solo su nombre (no tiene línea/color/medida).
+                'variant_label' => $item->simpleProduct
+                    ? $item->simpleProduct->name
+                    : trim(implode(' ', [
+                        $item->productVariant->product->name,
+                        $item->productVariant->color,
+                        $item->productVariant->size,
+                    ])),
+                // Variantes se capturan en m², productos simples en unidades.
+                'unit' => $item->simple_product_id ? 'uds' : 'm2',
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,
@@ -189,17 +238,45 @@ class QuoteController extends Controller
         );
     }
 
+    /**
+     * Va antes de la transacción (no dentro de syncItems) para rechazar sin
+     * haber creado la cotización ni borrado las líneas existentes en update.
+     */
+    private function fractionalSimpleProductQuantityMessage(array $items): ?string
+    {
+        foreach ($items as $item) {
+            if (empty($item['simple_product_id'])) {
+                continue;
+            }
+
+            $message = SimpleProduct::findOrFail($item['simple_product_id'])
+                ->fractionalQuantityMessage($item['quantity']);
+
+            if ($message) {
+                return $message;
+            }
+        }
+
+        return null;
+    }
+
     private function syncItems(Quote $quote, array $items): void
     {
         $subtotal = 0;
 
         foreach ($items as $item) {
-            $variant = ProductVariant::findOrFail($item['product_variant_id']);
-            $unitPrice = $variant->price_per_m2;
+            // Precio siempre resuelto del catálogo actual, nunca del cliente.
+            if (! empty($item['simple_product_id'])) {
+                $unitPrice = SimpleProduct::findOrFail($item['simple_product_id'])->price;
+            } else {
+                $unitPrice = ProductVariant::findOrFail($item['product_variant_id'])->price_per_m2;
+            }
+
             $lineTotal = round($item['quantity'] * $unitPrice, 2);
 
             $quote->items()->create([
-                'product_variant_id' => $variant->id,
+                'product_variant_id' => $item['product_variant_id'] ?? null,
+                'simple_product_id' => $item['simple_product_id'] ?? null,
                 'quantity' => $item['quantity'],
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,

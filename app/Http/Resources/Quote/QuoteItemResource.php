@@ -18,7 +18,13 @@ class QuoteItemResource extends JsonResource
         return [
             'id' => $this->id,
             'product_variant_id' => $this->product_variant_id,
-            'product_variant' => new ProductVariantResource($this->productVariant),
+            'product_variant' => $this->productVariant ? new ProductVariantResource($this->productVariant) : null,
+            'simple_product_id' => $this->simple_product_id,
+            'simple_product' => $this->whenLoaded('simpleProduct', fn () => $this->simpleProduct ? [
+                'id' => $this->simpleProduct->id,
+                'name' => $this->simpleProduct->name,
+                'price' => $this->simpleProduct->price,
+            ] : null),
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price,
             'line_total' => $this->line_total,

@@ -84,6 +84,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - **`StockAdjustDialog.vue` generalizado** (antes específico de variantes): recibe endpoint/campo/etiqueta por props, emite `stock-updated`; quien lo abre actualiza su propio store. Reusado por `InventoryView.vue` (variantes) y `SimpleProductsSection.vue` (productos simples)
 - **`InventoryView.vue`** ganó selector de sección ("Catálogo de pisos" / "Otros productos", mismo patrón de botones que `SalesView.vue`). `SimpleProductsSection.vue` (listado plano, sin expansión) con filtros propios vía `InventoryFilters.vue` extendido (`searchPlaceholder`/`showLowStockFilter` opcionales)
 - Rutas: `inventory.simpleProducts.create`/`inventory.simpleProducts.edit` (`/inventario/otros-productos/nuevo`, `/inventario/otros-productos/:id/editar`). Nota: rutas de Pisos (`products.create`/`products.edit`) no llevan el prefijo `inventory.` — inconsistencia preexistente, no corregida en este trabajo
+- **`ProductAutocomplete.vue`** (renombrado de `VariantAutocomplete.vue` vía `git mv`, conserva historial): busca variantes y productos simples cuando el consumidor pasa `include-simple-products` (default `false`, para no afectar otros usos existentes). Emite `type: 'variant' | 'simple'` en el evento `select`
 
 ### 2. Cotizaciones — ✅ completo (backend + frontend)
 
@@ -111,16 +112,20 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - **Conversión de unidades (m² ↔ cajas):** `quote_items.quantity`/`sale_items.quantity` viven en m² (consistente con que `unit_price` = `price_per_m2`), pero `stock_boxes` vive en cajas. Al crear una venta, se convierte con `ceil(quantity / m2_per_box)` por línea, agregando por variante antes de comparar contra stock disponible. Si `m2_per_box` es `null` en la variante, la línea se rechaza con 422 explícito — nunca se asume conversión 1:1. El dinero (`line_total`/`subtotal`/`total`) se calcula siempre sobre la cantidad exacta en m², independiente del redondeo hacia arriba usado para el descuento de stock
 - `ProductVariant::hasSufficientStock()` / `decrementStock()`: extraídos como métodos reusables, usados tanto por el endpoint de ajuste de stock existente como por la creación de ventas — evita duplicar el guard de "Stock insuficiente"
 - Las relaciones `customer()` en `Quote` y `Sale` usan `withTrashed()` (centralizado en el modelo, no en cada `load()`) — así una cotización o venta con cliente dado de baja sigue mostrando su nombre en `index`, `show`, `store`/`update`, `convert` y los PDFs, sin tener que acordarse de agregarlo en cada lugar que carga la relación
+- **Integración de `simple_products`**: `quote_items`/`sale_items` ganaron `simple_product_id` nullable (arco exclusivo con `product_variant_id`, validado en los Form Requests vía `required_without`/`prohibits` — es validación de forma de entrada, no depende del modelo bindeado, a diferencia de otros guards de este proyecto). `unit_price` de líneas simples se resuelve del `price` actual de `SimpleProduct`, mismo criterio que `price_per_m2`. Cantidad fraccionaria en línea de producto simple se rechaza con 422 en ambos documentos (`SimpleProduct::fractionalQuantityMessage()`, una sola fuente de verdad llamada por `QuoteController` y `SaleController`, mismo patrón que `conversionBlockedMessage()`). `GET /quotes/{id}/convert` detecta por separado variantes y productos simples dados de baja, nombrando cada uno en el mensaje de rechazo
 
 **Frontend:**
 
 - **Listado** (`QuotesView.vue`) — `DataTable`, búsqueda client-side por folio/cliente, badge de status con color (`statusClasses()` vive en `src/lib/quoteStatus.js`, compartido con el detalle)
-- **Creación** (`QuoteFormView.vue`) — cliente opcional, notas, líneas de producto con autocomplete de variante (`VariantAutocomplete.vue`, extraído a `src/components/widgets/autocompletes/` durante el trabajo de POS — búsqueda client-side sobre `inventory.fetchProducts()`, no existe endpoint de búsqueda de variantes por texto libre en el backend), fusión automática de variante duplicada, cantidad en m² con equivalente en cajas informativo, precio siempre server-resolved, aviso no bloqueante de stock insuficiente, totales en vivo. Selección de cliente vía `CustomerSearch.vue` (también extraído a widgets)
+- **Creación** (`QuoteFormView.vue`) — cliente opcional, notas, líneas de producto con autocomplete de variante (`ProductAutocomplete.vue`, extraído a `src/components/widgets/autocompletes/` durante el trabajo de POS — búsqueda client-side sobre `inventory.fetchProducts()`, no existe endpoint de búsqueda de variantes por texto libre en el backend), fusión automática de variante duplicada, cantidad en m² con equivalente en cajas informativo, precio siempre server-resolved, aviso no bloqueante de stock insuficiente, totales en vivo. Selección de cliente vía `CustomerSearch.vue` (también extraído a widgets)
 - **Detalle** (`QuoteDetailView.vue`) — header con folio/status/fecha, datos generales (cliente o "Sin cliente", notas), tabla de líneas (producto/color/medida vía `product_variant.product`, cantidad en m², cajas equivalentes, precio y subtotal **congelados** — no el precio de hoy), totales. Botón "Editar" habilitado solo si `status === 'Borrador'`; botón "Convertir a venta" habilitado con el mismo criterio, navega a `pos.sales.create?quote_id=` (ver módulo 3)
 - **Edición** (`QuoteFormView.vue`, mismo componente que creación) — detecta modo edición vía `route.params.id`; si la cotización cargada no está en Borrador, redirige al detalle (el guard real vive en el backend, esto solo evita mostrar un form que el backend rechazaría); puebla `lines` directamente desde `currentQuote.items` (ya trae `product_variant.product` anidado, no depende de que Inventario esté cargado); al guardar llama `PUT` y redirige al detalle en vez de al listado
 - `stores/quotes.js`: `fetchQuote(id)` y `updateQuote(id, payload)` agregados junto a `fetchQuotes()`/`createQuote()`, mismo patrón `initialized` + mutación in-place
 - **PDF**: `QuoteController@downloadPdf` (`GET /api/quotes/{quote}/pdf`) reutiliza `DocumentPdfGenerator` sin cambios, misma estructura neutral que Venta. Botones "Descargar PDF"/"Compartir" en `QuoteDetailView.vue`, mismo criterio que `SaleDetailView.vue` (`navigator.canShare`, precarga del PDF al cargar la vista por el mismo motivo de Safari)
 - **Lógica de descarga/compartir PDF extraída a composable**: `SaleDetailView.vue` y `QuoteDetailView.vue` compartían código idéntico (detección de `canShareFiles`, caché de la promesa del PDF, `downloadPdf`/`sharePdf`). Extraído a `src/composables/useDocumentPdf.js` — patrón a reutilizar si aparece un tercer consumidor de PDF en el futuro
+- **`QuoteFormView.vue`/`SaleFormView.vue`**: líneas de producto simple junto a variantes en el mismo documento, arco exclusivo reflejado en el modelo de línea, fusión de duplicados solo entre líneas del mismo tipo, cantidad en unidades enteras sin equivalente de cajas. Precio informativo en Cotización, editable en Venta (mismo criterio ya usado con variantes). Conversión de cotización resuelve cada línea contra su store correspondiente (`inventory.products` o `simpleProducts`), cargando solo el que haga falta según las líneas presentes
+- **`QuoteDetailView.vue`/`SaleDetailView.vue`**: tabla de líneas muestra correctamente ambos tipos (nombre sin línea/color/medida para producto simple, "—" en la columna Cajas)
+- Tras confirmar una venta, `SaleFormView.vue` sincroniza in-place el stock de `simpleProducts` además del de `inventory`, mismo criterio ya usado con variantes
 
 ### 3. Punto de Venta (POS) — ✅ completo (backend + frontend)
 
@@ -128,22 +133,27 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 - `sales`/`sale_items` completo: `GET /api/sales` (con `?with=customer,items` vía whitelist, filtro de rango de fecha `from`/`to` vía `Sale::scopeDateRange()`, filtro `?customer_id=` vía `Sale::scopeForCustomer()`, orden por `created_at` descendente), `GET /api/sales/{id}` (carga `items.productVariant`, `items.productVariant.product`, `customer`, `quote`, todo con `withTrashed()` para poder ver/reimprimir una venta aunque la variante, el producto o el cliente ya se hayan dado de baja), `POST /api/sales`
 - `GET /api/sales/{id}/pdf`: genera y descarga el PDF de la nota de venta (ver `DocumentPdfGenerator` abajo)
+- **Stock de líneas de producto simple en `POST /sales`**: se valida y descuenta junto con el de variantes, en la misma transacción, agregando por producto si hay líneas duplicadas. Sin conversión de unidad (a diferencia de variantes, `quantity` es ya la unidad física) — una cantidad fraccionaria en una línea simple se rechaza con 422 explícito, para no truncar silenciosamente cantidad cobrada vs. descontada
 
 **Frontend:**
 
-- **Venta directa** (`SaleFormView.vue`) — cliente opcional (`CustomerSearch.vue`), líneas con `VariantAutocomplete.vue`, precio editable (a diferencia de Cotizaciones), fusión de variante duplicada, aviso no bloqueante de stock insuficiente (relevante por el sobrepedido, común en este negocio), sincronización in-place del stock de Inventario tras la venta (recalculado en el frontend con el mismo criterio de `ceil(quantity / m2_per_box)` que usa el backend, ya que `SaleResource` no regresa el stock restante). Al confirmar, resetea el form en lugar de navegar — pensado para flujo de mostrador ("siguiente cliente")
+- **Venta directa** (`SaleFormView.vue`) — cliente opcional (`CustomerSearch.vue`), líneas con `ProductAutocomplete.vue`, precio editable (a diferencia de Cotizaciones), fusión de variante duplicada, aviso no bloqueante de stock insuficiente (relevante por el sobrepedido, común en este negocio), sincronización in-place del stock de Inventario tras la venta (recalculado en el frontend con el mismo criterio de `ceil(quantity / m2_per_box)` que usa el backend, ya que `SaleResource` no regresa el stock restante). Al confirmar, resetea el form en lugar de navegar — pensado para flujo de mostrador ("siguiente cliente")
 - **Convertir cotización a venta** — mismo `SaleFormView.vue`, detecta modo vía `?quote_id=` en la URL, prellena desde `GET /quotes/{id}/convert` (resolviendo cada `product_variant_id` contra `inventory.products`, con un reintento de `fetchProducts()` antes de bloquear si la variante no aparece en caché), bloquea con mensaje claro y formulario oculto si la cotización no está en "Borrador" o si alguna variante ya no está disponible. Al confirmar, redirige al detalle de la cotización en vez de resetear
 - Botón "Convertir a venta" en `QuoteDetailView.vue` habilitado, visible/activo solo si `status === 'Borrador'`
 - **Listado de ventas** (`SalesView.vue`) — `DataTable` con folio/cliente/fecha/total, filtros rápidos de fecha ("Todas"/"Hoy"/"Esta semana"/"Este mes", resueltos en backend vía `from`/`to`), búsqueda adicional client-side por folio/cliente sobre el resultado ya cargado. `stores/sales.js` con `fetchSales(params)`: **no** usa el patrón `initialized` como gate (cada cambio de filtro de fecha es una consulta legítima distinta), pero sí incluye un contador de petición para descartar respuestas tardías si el filtro cambia antes de que responda una anterior
 - **Detalle de venta** (`SaleDetailView.vue`) — de solo lectura (sin edición ni borrado). Header con folio/fecha, datos generales (cliente o "Sin cliente"), tabla de líneas con totales. Botón "Descargar PDF" (llama a `GET /api/sales/{id}/pdf`) y botón "Compartir" vía Web Share API cuando el navegador soporta compartir archivos (`navigator.canShare`) — oculto si no hay soporte, en vez de mostrar un botón que fallaría. En móvil, el PDF se genera al cargar la vista (no al tocar "Compartir") porque Safari rechaza compartir si el primer tap tiene que esperar al servidor
 - `PosView.vue` es un hub mínimo con dos accesos: "Nueva venta" y "Ver ventas"
 - **Convención de frontend**: componentes reutilizables entre módulos viven en `src/components/widgets/<tipo>/` (ej. `autocompletes/`) — ver `AGENT.md`
+- **`QuoteFormView.vue`/`SaleFormView.vue`**: líneas de producto simple junto a variantes en el mismo documento, arco exclusivo reflejado en el modelo de línea, fusión de duplicados solo entre líneas del mismo tipo, cantidad en unidades enteras sin equivalente de cajas. Precio informativo en Cotización, editable en Venta (mismo criterio ya usado con variantes). Conversión de cotización resuelve cada línea contra su store correspondiente (`inventory.products` o `simpleProducts`), cargando solo el que haga falta según las líneas presentes
+- **`QuoteDetailView.vue`/`SaleDetailView.vue`**: tabla de líneas muestra correctamente ambos tipos (nombre sin línea/color/medida para producto simple, "—" en la columna Cajas)
+- Tras confirmar una venta, `SaleFormView.vue` sincroniza in-place el stock de `simpleProducts` además del de `inventory`, mismo criterio ya usado con variantes
 
 **Generación de PDF (`DocumentPdfGenerator`):**
 
 - Servicio genérico en `app/Services/DocumentPdfGenerator.php`, pensado para reusarse entre `Sale` y `Quote` — recibe una estructura de datos neutral (`document_type`, `folio`, `date`, `customer`, `items`, `subtotal`, `total`), nunca un modelo Eloquent directamente. Cada controlador arma su propia estructura desde su modelo
 - Usa `barryvdh/laravel-dompdf`. Tamaño de página: **media carta por default** (consistente con el tamaño de nota que el cliente ya usa a mano), configurable como parámetro del servicio — sujeto a confirmarse con el cliente más adelante, cambiarlo no requiere tocar la plantilla
 - Plantilla Blade (`resources/views/pdf/document.blade.php`) usa los tokens de color y tipografía de `AGENT.md`. **Gotcha de dompdf**: no lee `.woff2`, solo `.woff`, y descarta silenciosamente cualquier `@font-face` con `format()` distinto de `'truetype'` — las fuentes de `@fontsource` se copiaron a `.woff` en `resources/fonts/` y el `src` en la plantilla va sin `format('woff')` explícito (ver comentario en la plantilla, dejado ahí para que nadie lo "corrija")
+- **PDFs con líneas mixtas**: cada línea lleva su propia `unit` (`m2`|`uds`) en la estructura neutral que arma cada controlador; la plantilla Blade muestra cantidad y encabezado según la unidad de cada línea, sin asumir m² para todo el documento. `DocumentPdfGenerator.php` no se tocó
 
 ### 4. Dashboard — ✅ completo (backend + frontend)
 
@@ -213,6 +223,9 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 | `simple_products` como tabla paralela, no columnas nullable dentro de `products`/`product_variants`                                                                                                                                     | Evita columnas sin sentido para el caso simple (PEI, ETT, m2_per_box); consistente con "sin indirección extra"                                                                                                                                                         |
 | Cambio de `product_form_type` bloqueado si la categoría ya tiene productos del tipo saliente                                                                                                                                            | Evita productos huérfanos de un formulario que ya no les aplica; mismo patrón que `Quote::conversionBlockedMessage()`                                                                                                                                                  |
 | `StockAdjustDialog.vue` generalizado vía props en vez de duplicado para `SimpleProduct`                                                                                                                                                 | Segundo consumidor real del mismo patrón ya usado en variantes                                                                                                                                                                                                         |
+| Arco exclusivo (`product_variant_id`/`simple_product_id` nullable, nunca ambos) validado en los Form Requests, no en el controlador                                                                                                    | Es validación de forma de entrada entre dos campos del mismo payload, no depende de consultar el modelo bindeado — a diferencia de los guards que sí dependen de eso                                                                                                   |
+| `SimpleProduct::fractionalQuantityMessage()` como única fuente de verdad, llamada por Quote y Sale                                                                                                                                      | Evita que la regla y el mensaje se desalineen entre los dos documentos; mismo patrón que `conversionBlockedMessage()`                                                                                                                                                  |
+| `ProductAutocomplete.vue` busca ambos tipos solo si el consumidor pasa `include-simple-products`                                                                                                                                        | Evita que otros usos existentes del componente reciban productos simples sin saberlo y los manden como `product_variant_id` por error                                                                                                                                 |
 
 ## Pendientes
 
@@ -224,12 +237,12 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - Importador de listas de precios de proveedores
 - Dashboard de ventas por producto
 - Historial de movimientos de stock
-- Integración de `simple_products` a Cotizaciones/Ventas (`quote_items`/`sale_items`) — diseño acordado (FK nullable `simple_product_id` junto a `product_variant_id`, arco exclusivo validado en controlador), no iniciado
+- ~~Integración de `simple_products` a Cotizaciones/Ventas~~ ✅ — completo end-to-end (backend, frontend, PDFs, probado manualmente y con test de flujo completo)
 
 **Cotizaciones:**
 
 - Cancelación de cotización — el status "Cancelada" ya existe en `quote_statuses` y el listado ya lo pinta, pero no hay endpoint ni UI que la dispare todavía
-- Bug: en `QuoteFormView.vue`, el `<form v-else>` depende de `generalError` — cualquier error de submit (incluso uno trivial como "Agrega al menos un producto") oculta todo el formulario hasta recargar la página. Detectado durante la extracción de `VariantAutocomplete`/`CustomerSearch` para POS, no corregido ahí para no reabrir el módulo de Cotizaciones sin motivo
+- Bug: en `QuoteFormView.vue`, el `<form v-else>` depende de `generalError` — cualquier error de submit (incluso uno trivial como "Agrega al menos un producto") oculta todo el formulario hasta recargar la página. Detectado durante la extracción de `ProductAutocomplete`/`CustomerSearch` para POS, no corregido ahí para no reabrir el módulo de Cotizaciones sin motivo
 - Bug: el listado cacheado de cotizaciones (`quotes.quotes` en el store) no refleja el nuevo estado "Convertida" tras convertir desde el detalle, hasta recargar el listado — el detalle sí refresca correctamente
 
 **Clientes:**
@@ -298,4 +311,24 @@ feat(customers): :sparkles: add CustomerDetailView with quotes and sales history
 feat(customers): :sparkles: add CustomerFormView for create and edit
 feat(customers): :sparkles: add non-blocking delete confirmation with history counts
 fix(quotes): :bug: order quotes listing by newest first
+feat(inventory): :sparkles: add product_form_type field to categories
+feat(settings): :sparkles: add product form type selector to category dialog
+feat(inventory): :sparkles: add simple products CRUD for non-variant categories
+feat(inventory): :sparkles: add dedicated stock adjustment endpoint for simple products
+fix(inventory): :bug: cover zero quantity in stock adjustment validation tests
+feat(inventory): :sparkles: add SimpleProductFormView and simple products store
+feat(inventory): :sparkles: block category form type change when products exist
+feat(inventory): :sparkles: add Otros productos section with filters and stock adjustment
+feat(inventory): :sparkles: connect simple product routes
+feat(sales): :sparkles: support simple product lines in quote and sale items
+feat(quotes): :sparkles: resolve simple product price server-side and support conversion
+feat(sales): :sparkles: validate and deduct stock for simple product lines
+fix(sales): :bug: render simple product line labels in quote and sale PDFs
+feat(widgets): :sparkles: rename VariantAutocomplete to ProductAutocomplete and support simple product search
+feat(quotes): :sparkles: support simple product lines in quote form
+feat(pos): :sparkles: support simple product lines in sale form and quote conversion
+fix(quotes): :bug: display simple product lines correctly in quote and sale detail views
+test(sales): :white_check_mark: add end-to-end test for mixed quote-to-sale flow
+fix(sales): :bug: show correct unit per line in quote and sale PDFs
+fix(quotes): :bug: reject fractional quantity on simple product lines
 ```
