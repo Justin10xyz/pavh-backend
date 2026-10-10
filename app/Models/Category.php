@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['name', 'code_prefix'])]
+#[Fillable(['name', 'code_prefix', 'product_form_type'])]
 class Category extends Model
 {
     public function products(): HasMany

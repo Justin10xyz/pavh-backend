@@ -19,6 +19,7 @@ class UpdateCategoryRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('categories', 'name')->ignore($category->id)],
             'code_prefix' => ['required', 'string', 'max:255', Rule::unique('categories', 'code_prefix')->ignore($category->id)],
+            'product_form_type' => ['sometimes', 'string', Rule::in(['variant', 'simple'])],
         ];
     }
 }

@@ -96,4 +96,47 @@ class CategoryApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['code_prefix']);
     }
+
+    public function test_it_defaults_product_form_type_to_variant_on_create(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'SLA'])
+            ->assertCreated()
+            ->assertJsonPath('data.product_form_type', 'variant');
+    }
+
+    public function test_it_creates_a_category_with_simple_product_form_type(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple'])
+            ->assertCreated()
+            ->assertJsonPath('data.product_form_type', 'simple');
+
+        $this->assertDatabaseHas('categories', ['name' => 'Materiales', 'product_form_type' => 'simple']);
+    }
+
+    public function test_it_rejects_an_invalid_product_form_type_on_create(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'otro'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_form_type']);
+    }
+
+    public function test_it_updates_the_product_form_type_of_a_category(): void
+    {
+        $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT']);
+
+        $this->putJson("/api/categories/{$category->id}", ['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple'])
+            ->assertOk()
+            ->assertJsonPath('data.product_form_type', 'simple');
+
+        $this->assertDatabaseHas('categories', ['id' => $category->id, 'product_form_type' => 'simple']);
+    }
+
+    public function test_it_rejects_an_invalid_product_form_type_on_update(): void
+    {
+        $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT']);
+
+        $this->putJson("/api/categories/{$category->id}", ['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'otro'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['product_form_type']);
+    }
 }
