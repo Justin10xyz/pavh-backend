@@ -27,9 +27,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/unit-types', [UnitTypeController::class, 'index']);
 
+    Route::get('/product-variants/{productVariant}/stock-movements', [ProductVariantController::class, 'stockMovements']);
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
 
+    Route::get('/simple-products/{simpleProduct}/stock-movements', [SimpleProductController::class, 'stockMovements']);
     Route::patch('/simple-products/{simpleProduct}/stock', [SimpleProductController::class, 'adjustStock']);
     Route::apiResource('simple-products', SimpleProductController::class);
 

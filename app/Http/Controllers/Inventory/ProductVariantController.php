@@ -7,6 +7,7 @@ use App\Http\Requests\Inventory\AdjustStockRequest;
 use App\Http\Requests\Inventory\StoreProductVariantRequest;
 use App\Http\Requests\Inventory\UpdateProductVariantRequest;
 use App\Http\Resources\Inventory\ProductVariantResource;
+use App\Http\Resources\Inventory\StockMovementResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
@@ -62,6 +63,22 @@ class ProductVariantController extends Controller
         $productVariant->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Historial completo, sin paginar (mismo criterio que los demás listados).
+     * La venta se carga con withTrashed() para conservar el folio aunque la
+     * venta se haya dado de baja.
+     */
+    public function stockMovements(ProductVariant $productVariant)
+    {
+        $movements = $productVariant->stockMovements()
+            ->with(['sale' => fn ($query) => $query->withTrashed()])
+            ->latest()
+            ->latest('id')
+            ->get();
+
+        return StockMovementResource::collection($movements);
     }
 
     public function adjustStock(AdjustStockRequest $request, ProductVariant $productVariant)

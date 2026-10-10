@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Sale;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -28,7 +29,7 @@ class StockMovementTest extends TestCase
         $this->actingAs(User::factory()->create());
     }
 
-    private function createVariant(?float $m2PerBox = 1.44, int $stockBoxes = 10): ProductVariant
+    private function createVariant(?float $m2PerBox = 1.44, int $stockBoxes = 10, string $code = 'PIS-CREATO-TAU-60X120'): ProductVariant
     {
         $supplier = Supplier::create(['name' => 'Interceramic']);
         $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
@@ -44,7 +45,7 @@ class StockMovementTest extends TestCase
 
         return ProductVariant::create([
             'product_id' => $product->id,
-            'code' => 'PIS-CREATO-TAU-60X120',
+            'code' => $code,
             'color' => 'Taupe',
             'size' => '60x120',
             'price_per_m2' => 100.00,
@@ -170,6 +171,73 @@ class StockMovementTest extends TestCase
         ])->assertUnprocessable();
 
         $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_it_lists_a_variant_history_newest_first_with_the_sale_folio(): void
+    {
+        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
+        $otherVariant = $this->createVariant(stockBoxes: 10, code: 'PIS-CREATO-GRI-60X120');
+
+        $this->travelTo(now()->subHours(2));
+        $this->patchJson("/api/product-variants/{$variant->id}/stock", ['quantity' => 5, 'type' => 'add'])->assertOk();
+
+        $this->travelBack();
+        $this->travelTo(now()->subHour());
+        $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00]],
+        ])->assertCreated();
+
+        $this->travelBack();
+        $this->patchJson("/api/product-variants/{$otherVariant->id}/stock", ['quantity' => 1, 'type' => 'add'])->assertOk();
+
+        $this->getJson("/api/product-variants/{$variant->id}/stock-movements")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.type', 'subtract')
+            ->assertJsonPath('data.0.source', 'sale')
+            ->assertJsonPath('data.0.quantity', 7)
+            ->assertJsonPath('data.0.resulting_stock', 8)
+            ->assertJsonPath('data.0.sale_folio', 'V-0001')
+            ->assertJsonPath('data.1.type', 'add')
+            ->assertJsonPath('data.1.source', 'manual')
+            ->assertJsonPath('data.1.quantity', 5)
+            ->assertJsonPath('data.1.resulting_stock', 15)
+            ->assertJsonPath('data.1.sale_folio', null);
+    }
+
+    public function test_it_lists_a_simple_product_history(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['quantity' => 3, 'type' => 'subtract'])->assertOk();
+        $this->postJson('/api/sales', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50]],
+        ])->assertCreated();
+
+        // Mismo segundo: el desempate por id mantiene el más reciente primero.
+        $this->getJson("/api/simple-products/{$simpleProduct->id}/stock-movements")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.source', 'sale')
+            ->assertJsonPath('data.0.resulting_stock', 13)
+            ->assertJsonPath('data.0.sale_folio', 'V-0001')
+            ->assertJsonPath('data.1.source', 'manual')
+            ->assertJsonPath('data.1.resulting_stock', 17);
+    }
+
+    public function test_history_keeps_the_folio_of_a_soft_deleted_sale(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
+
+        $saleId = $this->postJson('/api/sales', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50]],
+        ])->assertCreated()->json('data.id');
+
+        Sale::find($saleId)->delete();
+
+        $this->getJson("/api/simple-products/{$simpleProduct->id}/stock-movements")
+            ->assertOk()
+            ->assertJsonPath('data.0.sale_folio', 'V-0001');
     }
 
     public function test_manual_variant_adjustment_locks_the_row_before_mutating(): void
