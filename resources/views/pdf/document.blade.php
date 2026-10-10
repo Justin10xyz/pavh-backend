@@ -177,12 +177,12 @@
         @endif
     </div>
 
-    {{-- Cantidades en m²: tanto ventas como cotizaciones capturan cantidad en m² --}}
+    {{-- Cada línea trae su unidad: m² (variantes) o unidades (productos simples) --}}
     <table class="items">
         <thead>
             <tr>
                 <th>Producto</th>
-                <th class="text-right">Cant. (m²)</th>
+                <th class="text-right">Cant.</th>
                 <th class="text-right">Precio</th>
                 <th class="text-right">Subtotal</th>
             </tr>
@@ -191,7 +191,13 @@
             @foreach ($document['items'] as $item)
                 <tr>
                     <td>{{ $item['variant_label'] }}</td>
-                    <td class="text-right">{{ number_format($item['quantity'], 2) }}</td>
+                    <td class="text-right">
+                        @if ($item['unit'] === 'uds')
+                            {{ rtrim(rtrim(number_format($item['quantity'], 2), '0'), '.') }} uds.
+                        @else
+                            {{ number_format($item['quantity'], 2) }} m²
+                        @endif
+                    </td>
                     <td class="text-right">${{ number_format($item['unit_price'], 2) }}</td>
                     <td class="text-right">${{ number_format($item['line_total'], 2) }}</td>
                 </tr>

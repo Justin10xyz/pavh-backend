@@ -13,6 +13,7 @@ use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -777,5 +778,33 @@ class SaleApiTest extends TestCase
             ->assertDownload('Venta-V-0001.pdf');
 
         $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_sale_pdf_passes_each_line_unit_to_the_template(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $saleId = $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $captured = null;
+        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $document) use (&$captured) {
+                $captured = $document;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/sales/{$saleId}/pdf")->assertOk();
+
+        $this->assertSame('m2', $captured['items'][0]['unit']);
+        $this->assertSame('uds', $captured['items'][1]['unit']);
+        $this->assertSame('Pegazulejo gris 20kg', $captured['items'][1]['variant_label']);
     }
 }

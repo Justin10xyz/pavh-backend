@@ -86,6 +86,8 @@ class SaleController extends Controller
                         $item->productVariant->color,
                         $item->productVariant->size,
                     ])),
+                // Variantes se capturan en m², productos simples en unidades.
+                'unit' => $item->simple_product_id ? 'uds' : 'm2',
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,

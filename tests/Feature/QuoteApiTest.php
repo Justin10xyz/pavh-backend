@@ -12,6 +12,7 @@ use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -483,5 +484,42 @@ class QuoteApiTest extends TestCase
             ->assertDownload('Cotizacion-COT-0001.pdf');
 
         $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_quote_pdf_shows_each_line_quantity_with_its_own_unit(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2.5],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        // Captura la estructura neutral que arma el controlador (el PDF real
+        // viene comprimido por dompdf y no hay parser de PDF en el proyecto).
+        $captured = null;
+        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $document) use (&$captured) {
+                $captured = $document;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/quotes/{$quoteId}/pdf")->assertOk();
+
+        $this->assertSame('m2', $captured['items'][0]['unit']);
+        $this->assertSame('uds', $captured['items'][1]['unit']);
+
+        // La plantilla real, con esa misma estructura.
+        $html = view('pdf.document', ['document' => $captured])->render();
+
+        $this->assertStringNotContainsString('Cant. (m²)', $html);
+        $this->assertStringContainsString('>Cant.</th>', $html);
+        $this->assertMatchesRegularExpression('/2\.50 m²/u', $html);
+        $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
     }
 }
