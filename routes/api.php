@@ -6,6 +6,7 @@ use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
 use App\Http\Controllers\Inventory\ProductController;
 use App\Http\Controllers\Inventory\ProductVariantController;
+use App\Http\Controllers\Inventory\SimpleProductController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
 use App\Http\Controllers\Quote\QuoteController;
@@ -28,6 +29,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
+
+    Route::apiResource('simple-products', SimpleProductController::class);
 
     Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);
     Route::apiResource('customers', CustomerController::class);

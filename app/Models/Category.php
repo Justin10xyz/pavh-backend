@@ -13,4 +13,14 @@ class Category extends Model
     {
         return $this->hasMany(Product::class);
     }
+
+    public function simpleProducts(): HasMany
+    {
+        return $this->hasMany(SimpleProduct::class);
+    }
+
+    public function usesSimpleProductForm(): bool
+    {
+        return $this->product_form_type === 'simple';
+    }
 }
