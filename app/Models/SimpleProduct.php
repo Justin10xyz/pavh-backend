@@ -29,4 +29,14 @@ class SimpleProduct extends Model
     {
         return $this->belongsTo(Category::class);
     }
+
+    public function hasSufficientStock(int $quantity): bool
+    {
+        return $quantity <= $this->stock_quantity;
+    }
+
+    public function decrementStock(int $quantity): void
+    {
+        $this->decrement('stock_quantity', $quantity);
+    }
 }

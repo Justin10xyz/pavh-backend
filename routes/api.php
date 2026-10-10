@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
 
+    Route::patch('/simple-products/{simpleProduct}/stock', [SimpleProductController::class, 'adjustStock']);
     Route::apiResource('simple-products', SimpleProductController::class);
 
     Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);

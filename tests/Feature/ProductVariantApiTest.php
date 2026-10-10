@@ -158,6 +158,42 @@ class ProductVariantApiTest extends TestCase
         ]);
     }
 
+    public function test_stock_request_rejects_non_positive_quantity(): void
+    {
+        $supplier = Supplier::create(['name' => 'Interceramic']);
+        $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
+        $unitType = UnitType::create(['name' => 'm2']);
+
+        $product = Product::create([
+            'supplier_id' => $supplier->id,
+            'category_id' => $category->id,
+            'unit_type_id' => $unitType->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $variant = ProductVariant::create([
+            'product_id' => $product->id,
+            'code' => 'PIS-CREATO-TAU-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'stock_boxes' => 5,
+        ]);
+
+        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add']] as $payload) {
+            $this->patchJson("/api/product-variants/{$variant->id}/stock", $payload)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['quantity']);
+        }
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $variant->id,
+            'stock_boxes' => 5,
+        ]);
+    }
+
     public function test_destroy_deletes_variant_when_product_has_others(): void
     {
         $supplier = Supplier::create(['name' => 'Interceramic']);

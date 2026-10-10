@@ -193,4 +193,65 @@ class SimpleProductApiTest extends TestCase
         $this->getJson("/api/simple-products/{$simpleProduct->id}")
             ->assertNotFound();
     }
+
+    public function test_it_adds_stock_to_a_simple_product(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", [
+            'quantity' => 8,
+            'type' => 'add',
+        ])->assertOk()
+            ->assertJsonPath('data.stock_quantity', 20);
+
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 20]);
+    }
+
+    public function test_it_subtracts_stock_from_a_simple_product(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", [
+            'quantity' => 12,
+            'type' => 'subtract',
+        ])->assertOk()
+            ->assertJsonPath('data.stock_quantity', 0);
+
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 0]);
+    }
+
+    public function test_it_rejects_subtracting_more_stock_than_available(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", [
+            'quantity' => 13,
+            'type' => 'subtract',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Stock insuficiente. Disponible: 12 unidades.');
+
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 12]);
+    }
+
+    public function test_it_validates_the_stock_adjustment_payload(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['type' => 'remove'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['quantity', 'type']);
+    }
+
+    public function test_it_rejects_a_non_positive_stock_adjustment_quantity(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add']] as $payload) {
+            $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", $payload)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['quantity']);
+        }
+
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 12]);
+    }
 }

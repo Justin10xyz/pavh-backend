@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Inventory\AdjustStockRequest;
 use App\Http\Requests\Inventory\StoreSimpleProductRequest;
 use App\Http\Requests\Inventory\UpdateSimpleProductRequest;
 use App\Http\Resources\Inventory\SimpleProductResource;
@@ -52,6 +53,23 @@ class SimpleProductController extends Controller
         $simpleProduct->delete();
 
         return response()->noContent();
+    }
+
+    public function adjustStock(AdjustStockRequest $request, SimpleProduct $simpleProduct)
+    {
+        $data = $request->validated();
+
+        if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
+            return response()->json([
+                'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",
+            ], 422);
+        }
+
+        $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
+
+        $simpleProduct->increment('stock_quantity', $delta);
+
+        return new SimpleProductResource($simpleProduct);
     }
 
     private function wrongCategoryTypeResponse()

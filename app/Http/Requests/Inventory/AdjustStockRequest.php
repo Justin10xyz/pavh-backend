@@ -23,7 +23,7 @@ class AdjustStockRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'quantity' => ['required', 'integer'],
+            'quantity' => ['required', 'integer', 'min:1'],
             'type' => ['required', 'string', 'in:add,subtract'],
         ];
     }
