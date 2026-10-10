@@ -558,4 +558,59 @@ class QuoteApiTest extends TestCase
         $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 2, 'line_total' => 379.00]);
         $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'total' => 379.00]);
     }
+
+    public function test_it_cancels_a_quote_in_draft_status(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 3]],
+        ])->assertCreated()->json('data.id');
+
+        $cancelledStatus = QuoteStatus::where('name', 'Cancelada')->first();
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.id', $quoteId)
+            ->assertJsonPath('data.quote_status_id', $cancelledStatus->id)
+            ->assertJsonPath('data.status', 'Cancelada');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $cancelledStatus->id]);
+        // Solo cambia el estado: las líneas siguen intactas y no se crea ninguna venta.
+        $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 3]);
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_cancelling_a_converted_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $convertedStatus = QuoteStatus::where('name', 'Convertida')->first();
+        Quote::find($quoteId)->update(['quote_status_id' => $convertedStatus->id]);
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta y no se puede cancelar.');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $convertedStatus->id]);
+    }
+
+    public function test_it_rejects_cancelling_an_already_cancelled_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")->assertOk();
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya está cancelada.');
+    }
 }

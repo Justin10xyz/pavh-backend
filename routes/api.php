@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
+    Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);
     Route::apiResource('quotes', QuoteController::class);
 
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);

@@ -123,6 +123,24 @@ class QuoteController extends Controller
     }
 
     /**
+     * Solo cambia el estado; no toca stock ni ventas.
+     */
+    public function cancel(Quote $quote)
+    {
+        if ($message = $quote->cancellationBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $cancelledStatus = QuoteStatus::where('name', 'Cancelada')->firstOrFail();
+
+        $quote->update(['quote_status_id' => $cancelledStatus->id]);
+
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+
+        return new QuoteResource($quote);
+    }
+
+    /**
      * Payload de solo lectura para prellenar el form de nueva venta. No muta
      * nada — la conversión real ocurre al confirmar POST /api/sales con
      * quote_id, que marca la cotización como Convertida.
