@@ -10,6 +10,7 @@ use App\Http\Resources\Inventory\SimpleProductResource;
 use App\Models\Category;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
+use Illuminate\Support\Facades\DB;
 
 class SimpleProductController extends Controller
 {
@@ -60,15 +61,22 @@ class SimpleProductController extends Controller
     {
         $data = $request->validated();
 
-        if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
-            return response()->json([
-                'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",
-            ], 422);
-        }
+        // Se relee con lockForUpdate() dentro de la transacción: el chequeo de
+        // stock suficiente y el resulting_stock del historial deben ver el
+        // stock real, no el de un ajuste/venta concurrente que aún no termina.
+        return DB::transaction(function () use ($data, $simpleProduct) {
+            $simpleProduct = SimpleProduct::lockForUpdate()->findOrFail($simpleProduct->id);
 
-        StockMovement::record($simpleProduct, $data['type'], $data['quantity'], 'manual');
+            if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
+                return response()->json([
+                    'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",
+                ], 422);
+            }
 
-        return new SimpleProductResource($simpleProduct);
+            StockMovement::record($simpleProduct, $data['type'], $data['quantity'], 'manual');
+
+            return new SimpleProductResource($simpleProduct);
+        });
     }
 
     private function wrongCategoryTypeResponse()

@@ -159,27 +159,39 @@ class SaleController extends Controller
             $boxesNeededByVariant[$variantId] = ($boxesNeededByVariant[$variantId] ?? 0) + $boxesNeeded;
         }
 
-        foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
-            $variant = $variants[$variantId];
+        // El chequeo de stock suficiente y el descuento leen cada producto con
+        // lockForUpdate() dentro de la misma transacción: dos ventas
+        // concurrentes sobre el mismo producto se serializan aquí, así que no
+        // pueden ambas pasar la validación y dejar el stock negativo. Se
+        // bloquea en orden de id para que dos ventas con los mismos productos
+        // no se crucen en deadlock.
+        $result = DB::transaction(function () use ($data, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct, $quote) {
+            ksort($boxesNeededByVariant);
+            ksort($quantityNeededBySimpleProduct);
 
-            if (! $variant->hasSufficientStock($boxesNeeded)) {
-                return response()->json([
-                    'message' => "Stock insuficiente para {$variant->code}. Disponible: {$variant->stock_boxes} cajas, se requieren {$boxesNeeded}.",
-                ], 422);
+            $variants = [];
+            $simpleProducts = [];
+
+            foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
+                $variant = $variants[$variantId] = ProductVariant::lockForUpdate()->findOrFail($variantId);
+
+                if (! $variant->hasSufficientStock($boxesNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$variant->code}. Disponible: {$variant->stock_boxes} cajas, se requieren {$boxesNeeded}.",
+                    ], 422);
+                }
             }
-        }
 
-        foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
-            $simpleProduct = $simpleProducts[$simpleProductId];
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                $simpleProduct = $simpleProducts[$simpleProductId] = SimpleProduct::lockForUpdate()->findOrFail($simpleProductId);
 
-            if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
-                return response()->json([
-                    'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
-                ], 422);
+                if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
+                    ], 422);
+                }
             }
-        }
 
-        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $simpleProducts, $quantityNeededBySimpleProduct, $quote) {
             $sale = Sale::create([
                 'folio' => $folioGenerator->generate(),
                 'quote_id' => $data['quote_id'] ?? null,
@@ -227,6 +239,13 @@ class SaleController extends Controller
 
             return $sale;
         });
+
+        // Stock insuficiente: la transacción terminó sin escribir nada.
+        if (! $result instanceof Sale) {
+            return $result;
+        }
+
+        $sale = $result;
 
         $sale->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quote']);
 

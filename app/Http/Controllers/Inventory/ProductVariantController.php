@@ -12,6 +12,7 @@ use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Services\VariantCodeGenerator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class ProductVariantController extends Controller
 {
@@ -67,14 +68,21 @@ class ProductVariantController extends Controller
     {
         $data = $request->validated();
 
-        if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
-            return response()->json([
-                'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
-            ], 422);
-        }
+        // Se relee con lockForUpdate() dentro de la transacción: el chequeo de
+        // stock suficiente y el resulting_stock del historial deben ver el
+        // stock real, no el de un ajuste/venta concurrente que aún no termina.
+        return DB::transaction(function () use ($data, $productVariant) {
+            $productVariant = ProductVariant::lockForUpdate()->findOrFail($productVariant->id);
 
-        StockMovement::record($productVariant, $data['type'], $data['quantity'], 'manual');
+            if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
+                return response()->json([
+                    'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
+                ], 422);
+            }
 
-        return new ProductVariantResource($productVariant);
+            StockMovement::record($productVariant, $data['type'], $data['quantity'], 'manual');
+
+            return new ProductVariantResource($productVariant);
+        });
     }
 }

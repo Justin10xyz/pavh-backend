@@ -11,7 +11,9 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use LogicException;
+use Tests\Support\LockVisibleSQLiteGrammar;
 use Tests\TestCase;
 
 class StockMovementTest extends TestCase
@@ -168,6 +170,102 @@ class StockMovementTest extends TestCase
             ],
         ])->assertUnprocessable();
 
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    /**
+     * Activa el query log con un grammar que deja visible lockForUpdate() en
+     * el SQL (ver LockVisibleSQLiteGrammar).
+     */
+    private function logQueriesWithVisibleLocks(): void
+    {
+        $connection = DB::connection();
+        $connection->setQueryGrammar(new LockVisibleSQLiteGrammar($connection));
+        $connection->enableQueryLog();
+    }
+
+    /**
+     * Posición en el query log de la primera consulta que cumple ambos
+     * fragmentos, o null si no hay ninguna.
+     */
+    private function queryIndex(string $fragment, ?string $alsoContaining = null): ?int
+    {
+        foreach (DB::getQueryLog() as $index => $entry) {
+            if (str_contains($entry['query'], $fragment) && ($alsoContaining === null || str_contains($entry['query'], $alsoContaining))) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    private function assertLockedBeforeUpdate(string $table): void
+    {
+        $lockIndex = $this->queryIndex("from \"{$table}\"", LockVisibleSQLiteGrammar::MARKER);
+        $updateIndex = $this->queryIndex("update \"{$table}\"");
+
+        $this->assertNotNull($lockIndex, "No se leyó {$table} con lockForUpdate().");
+        $this->assertNotNull($updateIndex, "No se actualizó el stock de {$table}.");
+        $this->assertLessThan($updateIndex, $lockIndex, "El lock sobre {$table} debe tomarse antes de mutar el stock.");
+    }
+
+    public function test_manual_variant_adjustment_locks_the_row_before_mutating(): void
+    {
+        $variant = $this->createVariant(stockBoxes: 10);
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->patchJson("/api/product-variants/{$variant->id}/stock", ['quantity' => 3, 'type' => 'subtract'])->assertOk();
+
+        $this->assertLockedBeforeUpdate('product_variants');
+    }
+
+    public function test_manual_simple_product_adjustment_locks_the_row_before_mutating(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 10);
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['quantity' => 3, 'type' => 'subtract'])->assertOk();
+
+        $this->assertLockedBeforeUpdate('simple_products');
+    }
+
+    public function test_sale_locks_every_product_before_mutating_stock(): void
+    {
+        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated();
+
+        $this->assertLockedBeforeUpdate('product_variants');
+        $this->assertLockedBeforeUpdate('simple_products');
+    }
+
+    public function test_insufficient_stock_check_on_a_sale_runs_against_the_locked_row(): void
+    {
+        // stock=2 cajas, se necesitan ceil(10/1.44)=7. El rechazo debe salir
+        // de la lectura bloqueada dentro de la transacción, no de una lectura
+        // previa sin lock que una venta concurrente podría dejar obsoleta.
+        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 2);
+
+        $this->logQueriesWithVisibleLocks();
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+            ],
+        ])->assertUnprocessable();
+
+        $this->assertNotNull($this->queryIndex('from "product_variants"', LockVisibleSQLiteGrammar::MARKER));
+        $this->assertNull($this->queryIndex('insert into "sales"'));
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
