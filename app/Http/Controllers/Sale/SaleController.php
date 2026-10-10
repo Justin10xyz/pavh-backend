@@ -135,11 +135,8 @@ class SaleController extends Controller
                 $simpleProductId = $item['simple_product_id'];
                 $simpleProduct = $simpleProducts[$simpleProductId] ??= SimpleProduct::findOrFail($simpleProductId);
 
-                // stock_quantity es entero; una cantidad fraccionaria no se puede descontar.
-                if (floor((float) $item['quantity']) != (float) $item['quantity']) {
-                    return response()->json([
-                        'message' => "La cantidad de {$simpleProduct->name} debe ser un número entero de unidades.",
-                    ], 422);
+                if ($message = $simpleProduct->fractionalQuantityMessage($item['quantity'])) {
+                    return response()->json(['message' => $message], 422);
                 }
 
                 $quantityNeededBySimpleProduct[$simpleProductId] = ($quantityNeededBySimpleProduct[$simpleProductId] ?? 0) + (int) $item['quantity'];

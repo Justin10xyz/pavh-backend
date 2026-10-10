@@ -14,7 +14,13 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   'folio' => string,
  *   'date' => string, // ya formateada para mostrarse
  *   'customer' => ['name' => string, 'phone' => ?string, 'email' => ?string] | null,
- *   'items' => [['variant_label' => string, 'quantity' => float, 'unit_price' => float, 'line_total' => float], ...],
+ *   'items' => [[
+ *     'variant_label' => string, // variante: "línea color medida"; producto simple: su nombre
+ *     'unit' => 'm2' | 'uds',    // variante en m², producto simple en unidades
+ *     'quantity' => float,
+ *     'unit_price' => float,
+ *     'line_total' => float,
+ *   ], ...],
  *   'subtotal' => float,
  *   'total' => float,
  * ]

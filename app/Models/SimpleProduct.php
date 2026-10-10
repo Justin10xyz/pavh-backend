@@ -33,6 +33,20 @@ class SimpleProduct extends Model
         return $this->belongsTo(Category::class);
     }
 
+    /**
+     * stock_quantity es entero: una cantidad fraccionaria no se puede vender
+     * ni descontar. Devuelve el mensaje de rechazo o null si es válida. Usado
+     * por cotizaciones y ventas — una sola fuente de verdad.
+     */
+    public function fractionalQuantityMessage(float|string $quantity): ?string
+    {
+        if (floor((float) $quantity) == (float) $quantity) {
+            return null;
+        }
+
+        return "La cantidad de {$this->name} debe ser un número entero de unidades.";
+    }
+
     public function hasSufficientStock(int $quantity): bool
     {
         return $quantity <= $this->stock_quantity;

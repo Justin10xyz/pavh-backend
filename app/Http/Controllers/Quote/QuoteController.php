@@ -62,6 +62,10 @@ class QuoteController extends Controller
     {
         $data = $request->validated();
 
+        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
         $quote = DB::transaction(function () use ($data, $request, $folioGenerator) {
             $draftStatus = QuoteStatus::where('name', 'Borrador')->firstOrFail();
 
@@ -92,6 +96,10 @@ class QuoteController extends Controller
         }
 
         $data = $request->validated();
+
+        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+            return response()->json(['message' => $message], 422);
+        }
 
         DB::transaction(function () use ($quote, $data) {
             $quote->update($data);
@@ -228,6 +236,28 @@ class QuoteController extends Controller
             "Cotizacion-{$quote->folio}.pdf",
             ['Content-Type' => 'application/pdf'],
         );
+    }
+
+    /**
+     * Va antes de la transacción (no dentro de syncItems) para rechazar sin
+     * haber creado la cotización ni borrado las líneas existentes en update.
+     */
+    private function fractionalSimpleProductQuantityMessage(array $items): ?string
+    {
+        foreach ($items as $item) {
+            if (empty($item['simple_product_id'])) {
+                continue;
+            }
+
+            $message = SimpleProduct::findOrFail($item['simple_product_id'])
+                ->fractionalQuantityMessage($item['quantity']);
+
+            if ($message) {
+                return $message;
+            }
+        }
+
+        return null;
     }
 
     private function syncItems(Quote $quote, array $items): void

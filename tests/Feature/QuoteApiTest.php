@@ -522,4 +522,40 @@ class QuoteApiTest extends TestCase
         $this->assertMatchesRegularExpression('/2\.50 m²/u', $html);
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
     }
+
+    public function test_it_rejects_a_quote_with_fractional_quantity_on_a_simple_product_line(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2.5],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2.5],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'La cantidad de Pegazulejo gris 20kg debe ser un número entero de unidades.');
+
+        $this->assertDatabaseCount('quotes', 0);
+        $this->assertDatabaseCount('quote_items', 0);
+    }
+
+    public function test_it_rejects_updating_a_quote_with_fractional_quantity_on_a_simple_product_line(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(price: 189.50);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2]],
+        ])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2.5]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'La cantidad de Pegazulejo gris 20kg debe ser un número entero de unidades.');
+
+        // La cotización y sus líneas quedan tal cual estaban.
+        $this->assertDatabaseCount('quote_items', 1);
+        $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 2, 'line_total' => 379.00]);
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'total' => 379.00]);
+    }
 }
