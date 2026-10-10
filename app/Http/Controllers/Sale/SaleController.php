@@ -108,16 +108,6 @@ class SaleController extends Controller
     {
         $data = $request->validated();
 
-        $quote = null;
-
-        if (! empty($data['quote_id'])) {
-            $quote = Quote::with('quoteStatus')->findOrFail($data['quote_id']);
-
-            if ($message = $quote->conversionBlockedMessage()) {
-                return response()->json(['message' => $message], 422);
-            }
-        }
-
         // La cantidad de cada línea está en m², pero el stock vive en cajas
         // (stock_boxes) — convertimos con m2_per_box y redondeamos hacia
         // arriba porque no se puede descontar una fracción de caja física.
@@ -165,7 +155,22 @@ class SaleController extends Controller
         // pueden ambas pasar la validación y dejar el stock negativo. Se
         // bloquea en orden de id para que dos ventas con los mismos productos
         // no se crucen en deadlock.
-        $result = DB::transaction(function () use ($data, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct, $quote) {
+        //
+        // La cotización se bloquea igual y antes que los productos (orden
+        // fijo: cotización, variantes, productos simples): si dos ventas
+        // llegan con el mismo quote_id, la segunda espera a la primera y
+        // encuentra la cotización ya en "Convertida".
+        $result = DB::transaction(function () use ($data, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct) {
+            $quote = null;
+
+            if (! empty($data['quote_id'])) {
+                $quote = Quote::lockForUpdate()->findOrFail($data['quote_id']);
+
+                if ($message = $quote->conversionBlockedMessage()) {
+                    return response()->json(['message' => $message], 422);
+                }
+            }
+
             ksort($boxesNeededByVariant);
             ksort($quantityNeededBySimpleProduct);
 
@@ -240,7 +245,8 @@ class SaleController extends Controller
             return $sale;
         });
 
-        // Stock insuficiente: la transacción terminó sin escribir nada.
+        // Cotización no convertible o stock insuficiente: la transacción
+        // terminó sin escribir nada.
         if (! $result instanceof Sale) {
             return $result;
         }

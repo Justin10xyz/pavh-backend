@@ -11,14 +11,13 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use LogicException;
-use Tests\Support\LockVisibleSQLiteGrammar;
+use Tests\Support\InspectsQueryLocks;
 use Tests\TestCase;
 
 class StockMovementTest extends TestCase
 {
-    use RefreshDatabase;
+    use InspectsQueryLocks, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -173,42 +172,6 @@ class StockMovementTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
-    /**
-     * Activa el query log con un grammar que deja visible lockForUpdate() en
-     * el SQL (ver LockVisibleSQLiteGrammar).
-     */
-    private function logQueriesWithVisibleLocks(): void
-    {
-        $connection = DB::connection();
-        $connection->setQueryGrammar(new LockVisibleSQLiteGrammar($connection));
-        $connection->enableQueryLog();
-    }
-
-    /**
-     * Posición en el query log de la primera consulta que cumple ambos
-     * fragmentos, o null si no hay ninguna.
-     */
-    private function queryIndex(string $fragment, ?string $alsoContaining = null): ?int
-    {
-        foreach (DB::getQueryLog() as $index => $entry) {
-            if (str_contains($entry['query'], $fragment) && ($alsoContaining === null || str_contains($entry['query'], $alsoContaining))) {
-                return $index;
-            }
-        }
-
-        return null;
-    }
-
-    private function assertLockedBeforeUpdate(string $table): void
-    {
-        $lockIndex = $this->queryIndex("from \"{$table}\"", LockVisibleSQLiteGrammar::MARKER);
-        $updateIndex = $this->queryIndex("update \"{$table}\"");
-
-        $this->assertNotNull($lockIndex, "No se leyó {$table} con lockForUpdate().");
-        $this->assertNotNull($updateIndex, "No se actualizó el stock de {$table}.");
-        $this->assertLessThan($updateIndex, $lockIndex, "El lock sobre {$table} debe tomarse antes de mutar el stock.");
-    }
-
     public function test_manual_variant_adjustment_locks_the_row_before_mutating(): void
     {
         $variant = $this->createVariant(stockBoxes: 10);
@@ -264,7 +227,7 @@ class StockMovementTest extends TestCase
             ],
         ])->assertUnprocessable();
 
-        $this->assertNotNull($this->queryIndex('from "product_variants"', LockVisibleSQLiteGrammar::MARKER));
+        $this->assertNotNull($this->lockedReadIndex('product_variants'));
         $this->assertNull($this->queryIndex('insert into "sales"'));
         $this->assertDatabaseCount('stock_movements', 0);
     }
