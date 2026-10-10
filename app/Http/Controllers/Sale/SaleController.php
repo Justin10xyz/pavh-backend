@@ -25,14 +25,14 @@ class SaleController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => 'items.productVariant',
+            'items' => ['items.productVariant', 'items.simpleProduct'],
             'customer' => 'customer',
         ];
 
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
             ->all();
 
         $sales = Sale::query()
@@ -54,6 +54,7 @@ class SaleController extends Controller
             'quote',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
         return new SaleResource($sale);
@@ -118,6 +119,11 @@ class SaleController extends Controller
         $boxesNeededByVariant = [];
 
         foreach ($data['items'] as $item) {
+            // TODO: validar/descontar stock de líneas de producto simple (siguiente paso).
+            if (! empty($item['simple_product_id'])) {
+                continue;
+            }
+
             $variantId = $item['product_variant_id'];
             $variant = $variants[$variantId] ??= ProductVariant::findOrFail($variantId);
 
@@ -158,7 +164,8 @@ class SaleController extends Controller
                 $lineTotal = round($item['quantity'] * $item['unit_price'], 2);
 
                 $sale->items()->create([
-                    'product_variant_id' => $item['product_variant_id'],
+                    'product_variant_id' => $item['product_variant_id'] ?? null,
+                    'simple_product_id' => $item['simple_product_id'] ?? null,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
                     'line_total' => $lineTotal,
@@ -186,7 +193,7 @@ class SaleController extends Controller
             return $sale;
         });
 
-        $sale->load(['items.productVariant', 'customer', 'quote']);
+        $sale->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quote']);
 
         return new SaleResource($sale);
     }

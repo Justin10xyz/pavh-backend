@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
+use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
@@ -59,6 +60,18 @@ class SaleApiTest extends TestCase
         ]);
     }
 
+
+    private function createSimpleProduct(float $price = 189.50, int $stockQuantity = 20): SimpleProduct
+    {
+        $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
+
+        return SimpleProduct::create([
+            'category_id' => $category->id,
+            'name' => 'Pegazulejo gris 20kg',
+            'price' => $price,
+            'stock_quantity' => $stockQuantity,
+        ]);
+    }
     private function createSaleAt(string $folio, string $createdAt, ?Customer $customer = null): Sale
     {
         return $this->travelTo($createdAt, fn () => Sale::create([
@@ -526,5 +539,62 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('data.items.0.product_variant.id', $variant->id)
             ->assertJsonPath('data.items.0.product_variant.color', 'Taupe')
             ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato');
+    }
+
+    public function test_it_creates_a_sale_with_a_simple_product_line(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $response = $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.items.1.product_variant_id', null)
+            ->assertJsonPath('data.items.1.product_variant', null)
+            ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg')
+            ->assertJsonPath('data.items.1.simple_product.price', '189.50');
+
+        $this->assertDatabaseHas('sale_items', [
+            'sale_id' => $response->json('data.id'),
+            'product_variant_id' => null,
+            'simple_product_id' => $simpleProduct->id,
+        ]);
+
+        // La línea de variante sigue descontando stock igual que antes.
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 3]);
+
+        $this->getJson("/api/sales/{$response->json('data.id')}")
+            ->assertOk()
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg');
+    }
+
+    public function test_it_rejects_a_sale_line_with_both_variant_and_simple_product(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'simple_product_id' => $simpleProduct->id, 'quantity' => 1, 'unit_price' => 100.00],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id']);
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_a_sale_line_without_variant_or_simple_product(): void
+    {
+        $this->postJson('/api/sales', [
+            'items' => [['quantity' => 1, 'unit_price' => 100.00]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.0.simple_product_id']);
+
+        $this->assertDatabaseCount('sales', 0);
     }
 }

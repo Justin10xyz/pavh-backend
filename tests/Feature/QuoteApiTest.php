@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
@@ -55,6 +56,18 @@ class QuoteApiTest extends TestCase
         ]);
     }
 
+
+    private function createSimpleProduct(float $price = 189.50, int $stockQuantity = 20): SimpleProduct
+    {
+        $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
+
+        return SimpleProduct::create([
+            'category_id' => $category->id,
+            'name' => 'Pegazulejo gris 20kg',
+            'price' => $price,
+            'stock_quantity' => $stockQuantity,
+        ]);
+    }
     public function test_it_creates_a_quote_ignoring_client_sent_unit_price(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);
@@ -314,5 +327,93 @@ class QuoteApiTest extends TestCase
 
         $this->assertSoftDeleted('quotes', ['id' => $quoteId]);
         $this->assertDatabaseCount('quote_items', 0);
+    }
+
+    public function test_it_creates_a_quote_with_a_simple_product_line(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $response = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
+            ],
+        ])->assertCreated();
+
+        $response->assertJsonPath('data.items.0.product_variant_id', $variant->id)
+            ->assertJsonPath('data.items.0.simple_product_id', null)
+            ->assertJsonPath('data.items.1.product_variant_id', null)
+            ->assertJsonPath('data.items.1.product_variant', null)
+            ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
+            ->assertJsonPath('data.items.1.simple_product.id', $simpleProduct->id)
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg')
+            ->assertJsonPath('data.items.1.simple_product.price', '189.50');
+
+        $this->assertDatabaseHas('quote_items', [
+            'quote_id' => $response->json('data.id'),
+            'product_variant_id' => null,
+            'simple_product_id' => $simpleProduct->id,
+        ]);
+
+        $this->getJson("/api/quotes/{$response->json('data.id')}")
+            ->assertOk()
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg');
+    }
+
+    public function test_it_updates_a_quote_with_a_simple_product_line(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 4]],
+        ])->assertOk()
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.simple_product.id', $simpleProduct->id);
+    }
+
+    public function test_it_rejects_a_quote_line_with_both_variant_and_simple_product(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'simple_product_id' => $simpleProduct->id, 'quantity' => 1],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id']);
+
+        $this->assertDatabaseCount('quotes', 0);
+    }
+
+    public function test_it_rejects_a_quote_line_without_variant_or_simple_product(): void
+    {
+        $this->postJson('/api/quotes', [
+            'items' => [['quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.0.simple_product_id']);
+
+        $this->assertDatabaseCount('quotes', 0);
+    }
+
+    public function test_it_rejects_both_ids_on_quote_update(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+        ])->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['product_variant_id' => $variant->id, 'simple_product_id' => $simpleProduct->id, 'quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id']);
     }
 }

@@ -24,7 +24,7 @@ class QuoteController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => 'items.productVariant',
+            'items' => ['items.productVariant', 'items.simpleProduct'],
             'customer' => 'customer',
             'quoteStatus' => 'quoteStatus',
         ];
@@ -32,7 +32,7 @@ class QuoteController extends Controller
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->map(fn ($relation) => $allowedRelations[$relation])
+            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
             ->all();
 
         $quotes = Quote::query()
@@ -46,7 +46,13 @@ class QuoteController extends Controller
 
     public function show(Quote $quote)
     {
-        $quote->load(['items.productVariant', 'items.productVariant.product', 'customer', 'quoteStatus']);
+        $quote->load([
+            'items.productVariant',
+            'items.productVariant.product',
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
+            'customer',
+            'quoteStatus',
+        ]);
 
         return new QuoteResource($quote);
     }
@@ -71,7 +77,7 @@ class QuoteController extends Controller
             return $quote;
         });
 
-        $quote->load(['items.productVariant', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
     }
@@ -94,7 +100,7 @@ class QuoteController extends Controller
             $this->syncItems($quote, $data['items']);
         });
 
-        $quote->load(['items.productVariant', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
     }
@@ -194,6 +200,19 @@ class QuoteController extends Controller
         $subtotal = 0;
 
         foreach ($items as $item) {
+            if (! empty($item['simple_product_id'])) {
+                // TODO: resolver unit_price desde SimpleProduct (siguiente paso).
+                // Por ahora la línea se guarda con precio 0 y no suma al total.
+                $quote->items()->create([
+                    'simple_product_id' => $item['simple_product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => 0,
+                    'line_total' => 0,
+                ]);
+
+                continue;
+            }
+
             $variant = ProductVariant::findOrFail($item['product_variant_id']);
             $unitPrice = $variant->price_per_m2;
             $lineTotal = round($item['quantity'] * $unitPrice, 2);
