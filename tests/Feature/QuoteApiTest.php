@@ -461,4 +461,27 @@ class QuoteApiTest extends TestCase
             ->assertJsonPath('data.subtotal', '400.00')
             ->assertJsonPath('data.total', '400.00');
     }
+
+    public function test_it_downloads_a_quote_with_a_simple_product_line_as_pdf(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        // Soft-deleted después de cotizar: el documento se debe poder seguir reimprimiendo.
+        $simpleProduct->delete();
+
+        $response = $this->get("/api/quotes/{$quoteId}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertDownload('Cotizacion-COT-0001.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
 }

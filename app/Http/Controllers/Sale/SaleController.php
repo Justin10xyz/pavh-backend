@@ -69,6 +69,7 @@ class SaleController extends Controller
             'customer',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
         $pdf = $pdfGenerator->generate([
@@ -77,11 +78,14 @@ class SaleController extends Controller
             'date' => $sale->created_at->format('d/m/Y'),
             'customer' => $sale->customer?->only(['name', 'phone', 'email']),
             'items' => $sale->items->map(fn ($item) => [
-                'variant_label' => trim(implode(' ', [
-                    $item->productVariant->product->name,
-                    $item->productVariant->color,
-                    $item->productVariant->size,
-                ])),
+                // Producto simple: solo su nombre (no tiene línea/color/medida).
+                'variant_label' => $item->simpleProduct
+                    ? $item->simpleProduct->name
+                    : trim(implode(' ', [
+                        $item->productVariant->product->name,
+                        $item->productVariant->color,
+                        $item->productVariant->size,
+                    ])),
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,

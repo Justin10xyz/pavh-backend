@@ -755,4 +755,27 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseCount('sales', 0);
         $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 20]);
     }
+
+    public function test_it_downloads_a_sale_with_a_simple_product_line_as_pdf(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $saleId = $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        // Soft-deleted después de la venta: el documento se debe poder seguir reimprimiendo.
+        $simpleProduct->delete();
+
+        $response = $this->get("/api/sales/{$saleId}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertDownload('Venta-V-0001.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
 }
