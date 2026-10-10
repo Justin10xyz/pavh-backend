@@ -9,6 +9,7 @@ use App\Http\Requests\Inventory\UpdateSimpleProductRequest;
 use App\Http\Resources\Inventory\SimpleProductResource;
 use App\Models\Category;
 use App\Models\SimpleProduct;
+use App\Models\StockMovement;
 
 class SimpleProductController extends Controller
 {
@@ -65,9 +66,7 @@ class SimpleProductController extends Controller
             ], 422);
         }
 
-        $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
-
-        $simpleProduct->increment('stock_quantity', $delta);
+        StockMovement::record($simpleProduct, $data['type'], $data['quantity'], 'manual');
 
         return new SimpleProductResource($simpleProduct);
     }

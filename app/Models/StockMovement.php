@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 
 #[Fillable([
     'product_variant_id',
@@ -17,6 +19,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class StockMovement extends Model
 {
+    public const TYPES = ['add', 'subtract'];
+
+    public const SOURCES = ['manual', 'sale'];
+
     protected function casts(): array
     {
         return [
@@ -38,5 +44,64 @@ class StockMovement extends Model
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    /**
+     * Único punto que muta stock_boxes/stock_quantity: aplica el movimiento
+     * y registra su historial en la misma transacción, así no puede existir
+     * un cambio de stock sin su fila correspondiente. La validación de stock
+     * suficiente es responsabilidad del llamador.
+     *
+     * La tabla no restringe el arco exclusivo (variante O producto simple) a
+     * nivel de base de datos, así que esta validación es la única barrera.
+     */
+    public static function record(
+        ProductVariant|SimpleProduct $stockable,
+        string $type,
+        int $quantity,
+        string $source,
+        ?Sale $sale = null,
+    ): self {
+        if (! in_array($type, self::TYPES, true)) {
+            throw new LogicException("Tipo de movimiento de stock inválido: {$type}.");
+        }
+
+        if (! in_array($source, self::SOURCES, true)) {
+            throw new LogicException("Origen de movimiento de stock inválido: {$source}.");
+        }
+
+        if ($quantity <= 0) {
+            throw new LogicException('La cantidad de un movimiento de stock debe ser positiva.');
+        }
+
+        if (($source === 'sale') !== ($sale !== null)) {
+            throw new LogicException('Un movimiento de stock lleva venta si y solo si su origen es una venta.');
+        }
+
+        $attributes = [
+            'product_variant_id' => $stockable instanceof ProductVariant ? $stockable->id : null,
+            'simple_product_id' => $stockable instanceof SimpleProduct ? $stockable->id : null,
+        ];
+
+        if (($attributes['product_variant_id'] === null) === ($attributes['simple_product_id'] === null)) {
+            throw new LogicException('Un movimiento de stock debe apuntar exactamente a una variante o a un producto simple.');
+        }
+
+        $column = $stockable instanceof ProductVariant ? 'stock_boxes' : 'stock_quantity';
+
+        return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $attributes, $column) {
+            $type === 'add'
+                ? $stockable->increment($column, $quantity)
+                : $stockable->decrement($column, $quantity);
+
+            return self::create([
+                ...$attributes,
+                'quantity' => $quantity,
+                'type' => $type,
+                'source' => $source,
+                'sale_id' => $sale?->id,
+                'resulting_stock' => $stockable->{$column},
+            ]);
+        });
     }
 }

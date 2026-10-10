@@ -67,9 +67,4 @@ class ProductVariant extends Model
     {
         return $boxes <= $this->stock_boxes;
     }
-
-    public function decrementStock(int $boxes): void
-    {
-        $this->decrement('stock_boxes', $boxes);
-    }
 }

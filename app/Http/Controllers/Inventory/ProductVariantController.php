@@ -9,6 +9,7 @@ use App\Http\Requests\Inventory\UpdateProductVariantRequest;
 use App\Http\Resources\Inventory\ProductVariantResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use App\Services\VariantCodeGenerator;
 use Illuminate\Http\Request;
 
@@ -72,9 +73,7 @@ class ProductVariantController extends Controller
             ], 422);
         }
 
-        $delta = $data['type'] === 'add' ? $data['quantity'] : -$data['quantity'];
-
-        $productVariant->increment('stock_boxes', $delta);
+        StockMovement::record($productVariant, $data['type'], $data['quantity'], 'manual');
 
         return new ProductVariantResource($productVariant);
     }

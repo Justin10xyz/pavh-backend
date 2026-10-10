@@ -10,6 +10,7 @@ use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
 use App\Models\SimpleProduct;
+use App\Models\StockMovement;
 use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
 use Illuminate\Http\Request;
@@ -205,11 +206,11 @@ class SaleController extends Controller
             }
 
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
-                $variants[$variantId]->decrementStock($boxesNeeded);
+                StockMovement::record($variants[$variantId], 'subtract', $boxesNeeded, 'sale', $sale);
             }
 
             foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
-                $simpleProducts[$simpleProductId]->decrementStock($quantityNeeded);
+                StockMovement::record($simpleProducts[$simpleProductId], 'subtract', $quantityNeeded, 'sale', $sale);
             }
 
             // TODO: tax si aplica en el futuro

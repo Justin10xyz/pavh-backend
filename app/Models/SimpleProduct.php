@@ -51,9 +51,4 @@ class SimpleProduct extends Model
     {
         return $quantity <= $this->stock_quantity;
     }
-
-    public function decrementStock(int $quantity): void
-    {
-        $this->decrement('stock_quantity', $quantity);
-    }
 }
