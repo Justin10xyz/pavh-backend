@@ -14,7 +14,7 @@ class CategorySeeder extends Seeder
     {
         Category::updateOrCreate(
             ['code_prefix' => 'PIS'],
-            ['name' => 'Floor'],
+            ['name' => 'Piso'],
         );
     }
 }

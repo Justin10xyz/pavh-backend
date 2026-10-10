@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -29,9 +30,11 @@ class Quote extends Model
         ];
     }
 
+    // withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
+    // cliente aunque el cliente se haya dado de baja después.
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Customer::class)->withTrashed();
     }
 
     public function quoteStatus(): BelongsTo
@@ -62,5 +65,12 @@ class Quote extends Model
             'Cancelada' => 'Esta cotización está cancelada y no se puede convertir a venta.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede convertir a venta.",
         };
+    }
+
+    // customer_id nulo no filtra (igual que dateRange con límites nulos). No
+    // excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+    public function scopeForCustomer(Builder $query, ?int $customerId): Builder
+    {
+        return $query->when($customerId, fn (Builder $query) => $query->where('customer_id', $customerId));
     }
 }

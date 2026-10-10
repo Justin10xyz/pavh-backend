@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['quote_id', 'product_variant_id', 'quantity', 'unit_price', 'line_total'])]
+#[Fillable(['quote_id', 'product_variant_id', 'simple_product_id', 'quantity', 'unit_price', 'line_total'])]
 class QuoteItem extends Model
 {
     protected function casts(): array
@@ -26,5 +26,10 @@ class QuoteItem extends Model
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
+    }
+
+    public function simpleProduct(): BelongsTo
+    {
+        return $this->belongsTo(SimpleProduct::class);
     }
 }

@@ -34,9 +34,11 @@ class Sale extends Model
         return $this->belongsTo(Quote::class);
     }
 
+    // withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
+    // cliente aunque el cliente se haya dado de baja después.
     public function customer(): BelongsTo
     {
-        return $this->belongsTo(Customer::class);
+        return $this->belongsTo(Customer::class)->withTrashed();
     }
 
     public function createdBy(): BelongsTo
@@ -56,5 +58,12 @@ class Sale extends Model
         return $query
             ->when($from, fn (Builder $query) => $query->whereDate('created_at', '>=', $from))
             ->when($to, fn (Builder $query) => $query->whereDate('created_at', '<=', $to));
+    }
+
+    // customer_id nulo no filtra (igual que dateRange con límites nulos). No
+    // excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+    public function scopeForCustomer(Builder $query, ?int $customerId): Builder
+    {
+        return $query->when($customerId, fn (Builder $query) => $query->where('customer_id', $customerId));
     }
 }

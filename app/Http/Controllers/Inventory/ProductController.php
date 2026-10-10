@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreProductRequest;
-use App\Http\Requests\UpdateProductRequest;
-use App\Http\Resources\ProductResource;
+use App\Http\Requests\Inventory\StoreProductRequest;
+use App\Http\Requests\Inventory\UpdateProductRequest;
+use App\Http\Resources\Inventory\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
 

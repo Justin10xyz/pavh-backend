@@ -12,7 +12,7 @@ class UnitTypeSeeder extends Seeder
      */
     public function run(): void
     {
-        foreach (['m2', 'piece'] as $name) {
+        foreach (['m2', 'pieza'] as $name) {
             UnitType::updateOrCreate(['name' => $name]);
         }
     }

@@ -1,15 +1,16 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
 use App\Http\Controllers\Inventory\ProductController;
 use App\Http\Controllers\Inventory\ProductVariantController;
+use App\Http\Controllers\Inventory\SimpleProductController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
-use App\Http\Controllers\QuoteController;
-use App\Http\Controllers\SaleController;
+use App\Http\Controllers\Quote\QuoteController;
+use App\Http\Controllers\Sale\SaleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -29,7 +30,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
 
-    Route::apiResource('customers', CustomerController::class)->except(['destroy']);
+    Route::patch('/simple-products/{simpleProduct}/stock', [SimpleProductController::class, 'adjustStock']);
+    Route::apiResource('simple-products', SimpleProductController::class);
+
+    Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);
+    Route::apiResource('customers', CustomerController::class);
 
     Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
@@ -37,4 +42,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
+
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::put('/categories/{category}', [CategoryController::class, 'update']);
 });
