@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Database\Factories\SimpleProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -16,7 +18,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class SimpleProduct extends Model
 {
-    use SoftDeletes;
+    /** @use HasFactory<SimpleProductFactory> */
+    use HasFactory, SoftDeletes;
 
     protected function casts(): array
     {
