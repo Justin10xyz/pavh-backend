@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
+use App\Models\SimpleProduct;
 use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
 use Illuminate\Http\Request;
@@ -115,12 +116,28 @@ class SaleController extends Controller
         // arriba porque no se puede descontar una fracción de caja física.
         // El dinero (line_total) se calcula sobre la cantidad exacta en m²,
         // nunca sobre las cajas redondeadas.
+        //
+        // Los productos simples no tienen conversión: quantity ya está en la
+        // misma unidad física que stock_quantity.
         $variants = [];
         $boxesNeededByVariant = [];
+        $simpleProducts = [];
+        $quantityNeededBySimpleProduct = [];
 
         foreach ($data['items'] as $item) {
-            // TODO: validar/descontar stock de líneas de producto simple (siguiente paso).
             if (! empty($item['simple_product_id'])) {
+                $simpleProductId = $item['simple_product_id'];
+                $simpleProduct = $simpleProducts[$simpleProductId] ??= SimpleProduct::findOrFail($simpleProductId);
+
+                // stock_quantity es entero; una cantidad fraccionaria no se puede descontar.
+                if (floor((float) $item['quantity']) != (float) $item['quantity']) {
+                    return response()->json([
+                        'message' => "La cantidad de {$simpleProduct->name} debe ser un número entero de unidades.",
+                    ], 422);
+                }
+
+                $quantityNeededBySimpleProduct[$simpleProductId] = ($quantityNeededBySimpleProduct[$simpleProductId] ?? 0) + (int) $item['quantity'];
+
                 continue;
             }
 
@@ -148,7 +165,17 @@ class SaleController extends Controller
             }
         }
 
-        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $quote) {
+        foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+            $simpleProduct = $simpleProducts[$simpleProductId];
+
+            if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
+                return response()->json([
+                    'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
+                ], 422);
+            }
+        }
+
+        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $simpleProducts, $quantityNeededBySimpleProduct, $quote) {
             $sale = Sale::create([
                 'folio' => $folioGenerator->generate(),
                 'quote_id' => $data['quote_id'] ?? null,
@@ -176,6 +203,10 @@ class SaleController extends Controller
 
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
                 $variants[$variantId]->decrementStock($boxesNeeded);
+            }
+
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                $simpleProducts[$simpleProductId]->decrementStock($quantityNeeded);
             }
 
             // TODO: tax si aplica en el futuro

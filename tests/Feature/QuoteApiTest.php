@@ -416,4 +416,49 @@ class QuoteApiTest extends TestCase
         ])->assertUnprocessable()
             ->assertJsonValidationErrors(['items.0.product_variant_id']);
     }
+
+    public function test_it_resolves_simple_product_line_price_server_side_and_includes_it_in_totals(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct(price: 189.50);
+
+        $response = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 1],
+            ],
+        ])->assertCreated();
+
+        // 2 * 100.00 + 3 * 189.50 = 200.00 + 568.50
+        $response->assertJsonPath('data.items.1.unit_price', '189.50')
+            ->assertJsonPath('data.items.1.line_total', '568.50')
+            ->assertJsonPath('data.subtotal', '768.50')
+            ->assertJsonPath('data.total', '768.50');
+
+        $this->assertDatabaseHas('quote_items', [
+            'quote_id' => $response->json('data.id'),
+            'simple_product_id' => $simpleProduct->id,
+            'unit_price' => 189.50,
+            'line_total' => 568.50,
+        ]);
+    }
+
+    public function test_it_recalculates_simple_product_line_price_on_update(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(price: 189.50);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 1]],
+        ])->json('data.id');
+
+        $simpleProduct->update(['price' => 200.00]);
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2]],
+        ])->assertOk()
+            ->assertJsonPath('data.items.0.unit_price', '200.00')
+            ->assertJsonPath('data.items.0.line_total', '400.00')
+            ->assertJsonPath('data.subtotal', '400.00')
+            ->assertJsonPath('data.total', '400.00');
+    }
 }

@@ -9,6 +9,7 @@ use App\Http\Resources\Quote\QuoteResource;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+use App\Models\SimpleProduct;
 
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
@@ -124,25 +125,52 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        $quote->load('items.productVariant');
+        $quote->load(['items.productVariant', 'items.simpleProduct']);
 
-        $unavailableItems = $quote->items->filter(fn ($item) => $item->productVariant === null);
+        $unavailableVariantItems = $quote->items->filter(
+            fn ($item) => $item->product_variant_id !== null && $item->productVariant === null
+        );
+        $unavailableSimpleProductItems = $quote->items->filter(
+            fn ($item) => $item->simple_product_id !== null && $item->simpleProduct === null
+        );
 
-        if ($unavailableItems->isNotEmpty()) {
-            // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
-            $trashedVariants = ProductVariant::withTrashed()
-                ->whereIn('id', $unavailableItems->pluck('product_variant_id'))
-                ->get()
-                ->keyBy('id');
+        if ($unavailableVariantItems->isNotEmpty() || $unavailableSimpleProductItems->isNotEmpty()) {
+            $reasons = [];
 
-            $labels = $unavailableItems->map(function ($item) use ($trashedVariants) {
-                $variant = $trashedVariants->get($item->product_variant_id);
+            if ($unavailableVariantItems->isNotEmpty()) {
+                // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
+                $trashedVariants = ProductVariant::withTrashed()
+                    ->whereIn('id', $unavailableVariantItems->pluck('product_variant_id'))
+                    ->get()
+                    ->keyBy('id');
 
-                return $variant?->code ?? "ID {$item->product_variant_id}";
-            })->unique()->implode(', ');
+                $labels = $unavailableVariantItems->map(function ($item) use ($trashedVariants) {
+                    $variant = $trashedVariants->get($item->product_variant_id);
+
+                    return $variant?->code ?? "ID {$item->product_variant_id}";
+                })->unique()->implode(', ');
+
+                $reasons[] = "las siguientes variantes ya no están disponibles: {$labels}";
+            }
+
+            if ($unavailableSimpleProductItems->isNotEmpty()) {
+                // withTrashed() solo para poder nombrar el producto en el mensaje; la conversión no continúa.
+                $trashedSimpleProducts = SimpleProduct::withTrashed()
+                    ->whereIn('id', $unavailableSimpleProductItems->pluck('simple_product_id'))
+                    ->get()
+                    ->keyBy('id');
+
+                $labels = $unavailableSimpleProductItems->map(function ($item) use ($trashedSimpleProducts) {
+                    $simpleProduct = $trashedSimpleProducts->get($item->simple_product_id);
+
+                    return $simpleProduct?->name ?? "ID {$item->simple_product_id}";
+                })->unique()->implode(', ');
+
+                $reasons[] = "los siguientes productos ya no están disponibles: {$labels}";
+            }
 
             return response()->json([
-                'message' => "No se puede convertir la cotización: las siguientes variantes ya no están disponibles: {$labels}.",
+                'message' => 'No se puede convertir la cotización: '.implode('; ', $reasons).'.',
             ], 422);
         }
 
@@ -153,8 +181,9 @@ class QuoteController extends Controller
                 'notes' => $quote->notes,
                 'items' => $quote->items->map(fn ($item) => [
                     'product_variant_id' => $item->product_variant_id,
+                    'simple_product_id' => $item->simple_product_id,
                     'quantity' => $item->quantity,
-                    'unit_price' => $item->productVariant->price_per_m2,
+                    'unit_price' => $item->simpleProduct?->price ?? $item->productVariant->price_per_m2,
                 ]),
             ],
         ]);
@@ -200,25 +229,18 @@ class QuoteController extends Controller
         $subtotal = 0;
 
         foreach ($items as $item) {
+            // Precio siempre resuelto del catálogo actual, nunca del cliente.
             if (! empty($item['simple_product_id'])) {
-                // TODO: resolver unit_price desde SimpleProduct (siguiente paso).
-                // Por ahora la línea se guarda con precio 0 y no suma al total.
-                $quote->items()->create([
-                    'simple_product_id' => $item['simple_product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => 0,
-                    'line_total' => 0,
-                ]);
-
-                continue;
+                $unitPrice = SimpleProduct::findOrFail($item['simple_product_id'])->price;
+            } else {
+                $unitPrice = ProductVariant::findOrFail($item['product_variant_id'])->price_per_m2;
             }
 
-            $variant = ProductVariant::findOrFail($item['product_variant_id']);
-            $unitPrice = $variant->price_per_m2;
             $lineTotal = round($item['quantity'] * $unitPrice, 2);
 
             $quote->items()->create([
-                'product_variant_id' => $variant->id,
+                'product_variant_id' => $item['product_variant_id'] ?? null,
+                'simple_product_id' => $item['simple_product_id'] ?? null,
                 'quantity' => $item['quantity'],
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,

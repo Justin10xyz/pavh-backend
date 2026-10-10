@@ -597,4 +597,162 @@ class SaleApiTest extends TestCase
 
         $this->assertDatabaseCount('sales', 0);
     }
+
+    public function test_convert_resolves_current_price_for_simple_product_lines(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct(price: 189.50);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 5],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        // Igual que con variantes: convert refleja el precio de HOY, no el congelado en la cotización.
+        $simpleProduct->update(['price' => 210.00]);
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
+            ->assertJsonPath('data.items.0.simple_product_id', null)
+            ->assertJsonPath('data.items.0.unit_price', '100.00')
+            ->assertJsonPath('data.items.1.product_variant_id', null)
+            ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
+            ->assertJsonPath('data.items.1.quantity', '3.00')
+            ->assertJsonPath('data.items.1.unit_price', '210.00');
+    }
+
+    public function test_it_rejects_converting_a_quote_with_soft_deleted_simple_products(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 1],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $simpleProduct->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'No se puede convertir la cotización: los siguientes productos ya no están disponibles: Pegazulejo gris 20kg.');
+    }
+
+    public function test_it_names_both_soft_deleted_variants_and_simple_products_when_converting(): void
+    {
+        $variant = $this->createVariant('Gris', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 1],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $variant->delete();
+        $simpleProduct->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'No se puede convertir la cotización: las siguientes variantes ya no están disponibles: PIS-CREATO-Gris-60X120; los siguientes productos ya no están disponibles: Pegazulejo gris 20kg.');
+    }
+
+    public function test_it_decrements_stock_for_a_simple_product_line(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(price: 189.50, stockQuantity: 20);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.subtotal', '568.50');
+
+        // Sin conversión de unidad: 20 - 3, no ceil() ni factor.
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 17]);
+    }
+
+    public function test_it_aggregates_stock_check_across_duplicate_lines_of_the_same_simple_product(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 5);
+
+        // 3 + 3 = 6 > 5, aunque cada línea por separado sí alcanzaría.
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Stock insuficiente para Pegazulejo gris 20kg. Disponible: 5 unidades, se requieren 6.');
+
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 5]);
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_sale_with_insufficient_simple_product_stock_without_mutating_anything(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 2);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 5]],
+        ])->json('data.id');
+
+        $this->postJson('/api/sales', [
+            'quote_id' => $quoteId,
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 5, 'unit_price' => 189.50],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Stock insuficiente para Pegazulejo gris 20kg. Disponible: 2 unidades, se requieren 5.');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseCount('sale_items', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 2]);
+        $this->assertDatabaseHas('quotes', [
+            'id' => $quoteId,
+            'quote_status_id' => QuoteStatus::where('name', 'Borrador')->first()->id,
+        ]);
+    }
+
+    public function test_it_validates_and_decrements_stock_for_mixed_variant_and_simple_product_lines(): void
+    {
+        // m2_per_box=1.44, quantity=10 m2 -> ceil(10/1.44)=7 cajas
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
+        $simpleProduct = $this->createSimpleProduct(price: 189.50, stockQuantity: 20);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.subtotal', '1758.00');
+
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 3]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 16]);
+    }
+
+    public function test_it_rejects_fractional_quantity_for_a_simple_product_line(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2.5, 'unit_price' => 189.50],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'La cantidad de Pegazulejo gris 20kg debe ser un número entero de unidades.');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 20]);
+    }
 }
