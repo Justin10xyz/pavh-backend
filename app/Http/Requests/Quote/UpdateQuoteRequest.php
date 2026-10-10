@@ -4,6 +4,7 @@ namespace App\Http\Requests\Quote;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateQuoteRequest extends FormRequest
 {
@@ -26,7 +27,7 @@ class UpdateQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['sometimes', 'nullable', 'integer', 'exists:customers,id'],
+            'customer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
             'notes' => ['sometimes', 'nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id', 'integer', 'exists:product_variants,id'],

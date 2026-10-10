@@ -222,6 +222,40 @@ class QuoteApiTest extends TestCase
             ->assertJsonPath('data.0.customer.name', 'Juan Perez');
     }
 
+    public function test_it_rejects_creating_a_quote_for_a_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+        $customer->delete();
+
+        $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_id');
+
+        $this->assertDatabaseCount('quotes', 0);
+    }
+
+    public function test_it_rejects_updating_a_quote_to_a_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+        $customer->delete();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_id');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'customer_id' => null]);
+    }
+
     public function test_index_with_customer_and_quote_status_eager_loads_both_relations(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);

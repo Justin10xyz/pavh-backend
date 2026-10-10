@@ -368,6 +368,22 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('data.0.customer.name', 'Juan Perez');
     }
 
+    public function test_it_rejects_creating_a_sale_for_a_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+        $customer->delete();
+
+        $this->postJson('/api/sales', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_id');
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
+    }
+
     public function test_index_returns_all_sales_newest_first_without_date_filter(): void
     {
         $this->createSaleAt('V-0001', '2026-09-01 10:00:00');
