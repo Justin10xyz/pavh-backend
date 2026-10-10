@@ -182,7 +182,7 @@ class ProductVariantApiTest extends TestCase
             'stock_boxes' => 5,
         ]);
 
-        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add']] as $payload) {
+        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add'], ['quantity' => 0, 'type' => 'subtract']] as $payload) {
             $this->patchJson("/api/product-variants/{$variant->id}/stock", $payload)
                 ->assertUnprocessable()
                 ->assertJsonValidationErrors(['quantity']);

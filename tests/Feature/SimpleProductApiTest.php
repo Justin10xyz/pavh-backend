@@ -246,7 +246,7 @@ class SimpleProductApiTest extends TestCase
     {
         $simpleProduct = $this->createSimpleProduct();
 
-        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add']] as $payload) {
+        foreach ([['quantity' => -50, 'type' => 'subtract'], ['quantity' => -50, 'type' => 'add'], ['quantity' => 0, 'type' => 'add'], ['quantity' => 0, 'type' => 'subtract']] as $payload) {
             $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", $payload)
                 ->assertUnprocessable()
                 ->assertJsonValidationErrors(['quantity']);
