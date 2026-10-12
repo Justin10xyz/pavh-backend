@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+use App\Models\Sale;
 use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
@@ -199,6 +200,69 @@ class QuoteApiTest extends TestCase
             ->assertJsonPath('data.customer.name', 'Juan Perez')
             ->assertJsonPath('data.status', 'Borrador')
             ->assertJsonCount(1, 'data.items');
+    }
+
+    public function test_it_shows_the_sale_a_converted_quote_was_converted_into(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+        $sale = Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale.id', $sale->id)
+            ->assertJsonPath('data.sale.folio', 'VEN-0001');
+    }
+
+    public function test_it_shows_a_null_sale_for_a_quote_not_converted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale', null);
+    }
+
+    public function test_it_shows_the_sale_of_a_converted_quote_even_if_the_sale_was_soft_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $sale = Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+        $sale->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale.folio', 'VEN-0001');
+    }
+
+    public function test_index_does_not_include_the_sale_relation(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.sale');
     }
 
     public function test_it_shows_a_quote_whose_customer_was_soft_deleted(): void

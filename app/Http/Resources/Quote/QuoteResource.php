@@ -31,6 +31,12 @@ class QuoteResource extends JsonResource
             'total' => $this->total,
             'created_by' => $this->created_by,
             'items' => QuoteItemResource::collection($this->whenLoaded('items')),
+            // Solo id+folio, para enlazar a la venta desde el detalle. null si
+            // la relación se cargó pero la cotización no se ha convertido.
+            'sale' => $this->whenLoaded('sale', fn () => $this->sale ? [
+                'id' => $this->sale->id,
+                'folio' => $this->sale->folio,
+            ] : null),
             'created_at' => $this->created_at,
         ];
     }
