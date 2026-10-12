@@ -669,7 +669,9 @@ class QuoteApiTest extends TestCase
 
         $this->assertStringNotContainsString('Cant. (m²)', $html);
         $this->assertStringContainsString('>Cant.</th>', $html);
-        $this->assertMatchesRegularExpression('/3\.00 m²/u', $html);
+        // m2_per_box=1.0 en este helper: 3 cajas = 3 m²
+        $this->assertMatchesRegularExpression('/\b3 cajas/u', $html);
+        $this->assertMatchesRegularExpression('/\b3 m²/u', $html);
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
     }
 

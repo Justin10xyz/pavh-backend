@@ -952,7 +952,43 @@ class SaleApiTest extends TestCase
         $this->get("/api/sales/{$saleId}/pdf")->assertOk();
 
         $this->assertSame('m2', $captured['items'][0]['unit']);
+        $this->assertSame(2, $captured['items'][0]['boxes']);
+        $this->assertEqualsWithDelta(2.88, $captured['items'][0]['quantity'], 0.0001);
         $this->assertSame('uds', $captured['items'][1]['unit']);
+        $this->assertNull($captured['items'][1]['boxes']);
         $this->assertSame('Pegazulejo gris 20kg', $captured['items'][1]['variant_label']);
+
+        // Variante: cajas como cantidad, m² que cubren debajo y precio por m².
+        $html = view('pdf.document', ['document' => $captured])->render();
+
+        $this->assertMatchesRegularExpression('/\b2 cajas/u', $html);
+        $this->assertMatchesRegularExpression('/2\.88 m²/u', $html);
+        $this->assertMatchesRegularExpression('/\$100\.00<span class="muted">\/m²<\/span>/u', $html);
+        $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
+    }
+
+    public function test_pdf_template_shows_only_square_meters_for_a_legacy_variant_line_without_boxes(): void
+    {
+        // Líneas registradas antes del cambio a cajas cuya variante no tenía
+        // m2_per_box: quedaron con boxes = null y se muestran tal cual se emitieron.
+        $html = view('pdf.document', ['document' => [
+            'document_type' => 'Venta',
+            'folio' => 'V-0001',
+            'date' => '01/10/2026',
+            'customer' => null,
+            'items' => [[
+                'variant_label' => 'Creato Taupe 60x120',
+                'unit' => 'm2',
+                'boxes' => null,
+                'quantity' => 5.0,
+                'unit_price' => 100.0,
+                'line_total' => 500.0,
+            ]],
+            'subtotal' => 500.0,
+            'total' => 500.0,
+        ]])->render();
+
+        $this->assertMatchesRegularExpression('/\b5 m²/u', $html);
+        $this->assertStringNotContainsString('caja', $html);
     }
 }
