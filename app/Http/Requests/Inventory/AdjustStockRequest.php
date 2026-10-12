@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Inventory;
 
+use App\Models\StockMovement;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AdjustStockRequest extends FormRequest
 {
@@ -24,7 +26,7 @@ class AdjustStockRequest extends FormRequest
     {
         return [
             'quantity' => ['required', 'integer', 'min:1'],
-            'type' => ['required', 'string', 'in:add,subtract'],
+            'type' => ['required', 'string', Rule::in(StockMovement::TYPES)],
         ];
     }
 }

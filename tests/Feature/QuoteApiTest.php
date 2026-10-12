@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
+use App\Models\Sale;
 use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
@@ -201,6 +202,69 @@ class QuoteApiTest extends TestCase
             ->assertJsonCount(1, 'data.items');
     }
 
+    public function test_it_shows_the_sale_a_converted_quote_was_converted_into(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Quote::find($quoteId)->update([
+            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+        ]);
+        $sale = Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale.id', $sale->id)
+            ->assertJsonPath('data.sale.folio', 'VEN-0001');
+    }
+
+    public function test_it_shows_a_null_sale_for_a_quote_not_converted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale', null);
+    }
+
+    public function test_it_shows_the_sale_of_a_converted_quote_even_if_the_sale_was_soft_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $sale = Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+        $sale->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.sale.folio', 'VEN-0001');
+    }
+
+    public function test_index_does_not_include_the_sale_relation(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.sale');
+    }
+
     public function test_it_shows_a_quote_whose_customer_was_soft_deleted(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);
@@ -220,6 +284,88 @@ class QuoteApiTest extends TestCase
         $this->getJson('/api/quotes?with=customer')
             ->assertOk()
             ->assertJsonPath('data.0.customer.name', 'Juan Perez');
+    }
+
+    public function test_it_rejects_creating_a_quote_for_a_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+        $customer->delete();
+
+        $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('customer_id');
+
+        $this->assertDatabaseCount('quotes', 0);
+    }
+
+    public function test_it_rejects_updating_a_quote_to_a_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+        $customer->delete();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'El cliente seleccionado ya no está disponible.');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'customer_id' => null]);
+    }
+
+    public function test_it_updates_a_quote_keeping_its_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $customer = Customer::create(['name' => 'Juan Perez']);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $customer->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $customer->delete();
+
+        // El form re-envía el mismo customer_id: no es un cambio, no se bloquea.
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'customer_id' => $customer->id,
+            'notes' => 'Actualizada',
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 4]],
+        ])->assertOk()
+            ->assertJsonPath('data.customer_id', $customer->id)
+            ->assertJsonPath('data.notes', 'Actualizada')
+            ->assertJsonPath('data.subtotal', '400.00');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'customer_id' => $customer->id]);
+    }
+
+    public function test_it_rejects_changing_a_quote_customer_to_a_different_soft_deleted_customer(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $current = Customer::create(['name' => 'Juan Perez']);
+        $deleted = Customer::create(['name' => 'Maria Lopez']);
+        $deleted->delete();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $current->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'customer_id' => $deleted->id,
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 4]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'El cliente seleccionado ya no está disponible.');
+
+        // Ni el cliente ni las líneas cambian.
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'customer_id' => $current->id]);
+        $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 1]);
     }
 
     public function test_index_with_customer_and_quote_status_eager_loads_both_relations(): void
@@ -557,5 +703,60 @@ class QuoteApiTest extends TestCase
         $this->assertDatabaseCount('quote_items', 1);
         $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 2, 'line_total' => 379.00]);
         $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'total' => 379.00]);
+    }
+
+    public function test_it_cancels_a_quote_in_draft_status(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 3]],
+        ])->assertCreated()->json('data.id');
+
+        $cancelledStatus = QuoteStatus::where('name', 'Cancelada')->first();
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertOk()
+            ->assertJsonPath('data.id', $quoteId)
+            ->assertJsonPath('data.quote_status_id', $cancelledStatus->id)
+            ->assertJsonPath('data.status', 'Cancelada');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $cancelledStatus->id]);
+        // Solo cambia el estado: las líneas siguen intactas y no se crea ninguna venta.
+        $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 3]);
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_cancelling_a_converted_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $convertedStatus = QuoteStatus::where('name', 'Convertida')->first();
+        Quote::find($quoteId)->update(['quote_status_id' => $convertedStatus->id]);
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta y no se puede cancelar.');
+
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $convertedStatus->id]);
+    }
+
+    public function test_it_rejects_cancelling_an_already_cancelled_quote(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")->assertOk();
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya está cancelada.');
     }
 }

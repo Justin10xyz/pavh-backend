@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Quote\StoreQuoteRequest;
 use App\Http\Requests\Quote\UpdateQuoteRequest;
 use App\Http\Resources\Quote\QuoteResource;
+use App\Models\Customer;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
@@ -53,6 +54,9 @@ class QuoteController extends Controller
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
             'customer',
             'quoteStatus',
+            // withTrashed: el detalle debe seguir indicando a qué venta se
+            // convirtió aunque esa venta se dé de baja después.
+            'sale' => fn ($query) => $query->withTrashed(),
         ]);
 
         return new QuoteResource($quote);
@@ -97,6 +101,18 @@ class QuoteController extends Controller
 
         $data = $request->validated();
 
+        // Solo se rechaza un cliente borrado si es un cambio; conservar el
+        // cliente actual aunque ya esté borrado no bloquea la edición.
+        $customerId = $data['customer_id'] ?? null;
+
+        if ($customerId !== null
+            && (int) $customerId !== (int) $quote->customer_id
+            && Customer::onlyTrashed()->whereKey($customerId)->exists()) {
+            return response()->json([
+                'message' => 'El cliente seleccionado ya no está disponible.',
+            ], 422);
+        }
+
         if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
@@ -120,6 +136,24 @@ class QuoteController extends Controller
         $quote->delete();
 
         return response()->noContent();
+    }
+
+    /**
+     * Solo cambia el estado; no toca stock ni ventas.
+     */
+    public function cancel(Quote $quote)
+    {
+        if ($message = $quote->cancellationBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $cancelledStatus = QuoteStatus::where('name', 'Cancelada')->firstOrFail();
+
+        $quote->update(['quote_status_id' => $cancelledStatus->id]);
+
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+
+        return new QuoteResource($quote);
     }
 
     /**

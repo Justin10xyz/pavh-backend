@@ -10,6 +10,7 @@ use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
 use App\Models\SimpleProduct;
+use App\Models\StockMovement;
 use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
 use Illuminate\Http\Request;
@@ -107,16 +108,6 @@ class SaleController extends Controller
     {
         $data = $request->validated();
 
-        $quote = null;
-
-        if (! empty($data['quote_id'])) {
-            $quote = Quote::with('quoteStatus')->findOrFail($data['quote_id']);
-
-            if ($message = $quote->conversionBlockedMessage()) {
-                return response()->json(['message' => $message], 422);
-            }
-        }
-
         // La cantidad de cada línea está en m², pero el stock vive en cajas
         // (stock_boxes) — convertimos con m2_per_box y redondeamos hacia
         // arriba porque no se puede descontar una fracción de caja física.
@@ -158,27 +149,54 @@ class SaleController extends Controller
             $boxesNeededByVariant[$variantId] = ($boxesNeededByVariant[$variantId] ?? 0) + $boxesNeeded;
         }
 
-        foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
-            $variant = $variants[$variantId];
+        // El chequeo de stock suficiente y el descuento leen cada producto con
+        // lockForUpdate() dentro de la misma transacción: dos ventas
+        // concurrentes sobre el mismo producto se serializan aquí, así que no
+        // pueden ambas pasar la validación y dejar el stock negativo. Se
+        // bloquea en orden de id para que dos ventas con los mismos productos
+        // no se crucen en deadlock.
+        //
+        // La cotización se bloquea igual y antes que los productos (orden
+        // fijo: cotización, variantes, productos simples): si dos ventas
+        // llegan con el mismo quote_id, la segunda espera a la primera y
+        // encuentra la cotización ya en "Convertida".
+        $result = DB::transaction(function () use ($data, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct) {
+            $quote = null;
 
-            if (! $variant->hasSufficientStock($boxesNeeded)) {
-                return response()->json([
-                    'message' => "Stock insuficiente para {$variant->code}. Disponible: {$variant->stock_boxes} cajas, se requieren {$boxesNeeded}.",
-                ], 422);
+            if (! empty($data['quote_id'])) {
+                $quote = Quote::lockForUpdate()->findOrFail($data['quote_id']);
+
+                if ($message = $quote->conversionBlockedMessage()) {
+                    return response()->json(['message' => $message], 422);
+                }
             }
-        }
 
-        foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
-            $simpleProduct = $simpleProducts[$simpleProductId];
+            ksort($boxesNeededByVariant);
+            ksort($quantityNeededBySimpleProduct);
 
-            if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
-                return response()->json([
-                    'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
-                ], 422);
+            $variants = [];
+            $simpleProducts = [];
+
+            foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
+                $variant = $variants[$variantId] = ProductVariant::lockForUpdate()->findOrFail($variantId);
+
+                if (! $variant->hasSufficientStock($boxesNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$variant->code}. Disponible: {$variant->stock_boxes} cajas, se requieren {$boxesNeeded}.",
+                    ], 422);
+                }
             }
-        }
 
-        $sale = DB::transaction(function () use ($data, $request, $folioGenerator, $variants, $boxesNeededByVariant, $simpleProducts, $quantityNeededBySimpleProduct, $quote) {
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                $simpleProduct = $simpleProducts[$simpleProductId] = SimpleProduct::lockForUpdate()->findOrFail($simpleProductId);
+
+                if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
+                    ], 422);
+                }
+            }
+
             $sale = Sale::create([
                 'folio' => $folioGenerator->generate(),
                 'quote_id' => $data['quote_id'] ?? null,
@@ -205,11 +223,11 @@ class SaleController extends Controller
             }
 
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
-                $variants[$variantId]->decrementStock($boxesNeeded);
+                StockMovement::record($variants[$variantId], 'subtract', $boxesNeeded, 'sale', $sale);
             }
 
             foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
-                $simpleProducts[$simpleProductId]->decrementStock($quantityNeeded);
+                StockMovement::record($simpleProducts[$simpleProductId], 'subtract', $quantityNeeded, 'sale', $sale);
             }
 
             // TODO: tax si aplica en el futuro
@@ -226,6 +244,14 @@ class SaleController extends Controller
 
             return $sale;
         });
+
+        // Cotización no convertible o stock insuficiente: la transacción
+        // terminó sin escribir nada.
+        if (! $result instanceof Sale) {
+            return $result;
+        }
+
+        $sale = $result;
 
         $sale->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quote']);
 

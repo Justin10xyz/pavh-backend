@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -52,6 +53,13 @@ class Quote extends Model
         return $this->hasMany(QuoteItem::class);
     }
 
+    // Venta en la que se convirtió (sales.quote_id). Solo existe en estado
+    // Convertida: una cotización se convierte una sola vez.
+    public function sale(): HasOne
+    {
+        return $this->hasOne(Sale::class);
+    }
+
     /**
      * Solo una cotización en Borrador puede convertirse a venta. Cualquier
      * otro estado (incluidos los que se agreguen después al catálogo) se
@@ -64,6 +72,20 @@ class Quote extends Model
             'Convertida' => 'Esta cotización ya fue convertida a venta.',
             'Cancelada' => 'Esta cotización está cancelada y no se puede convertir a venta.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede convertir a venta.",
+        };
+    }
+
+    /**
+     * Mismo criterio que conversionBlockedMessage(): solo Borrador se puede
+     * cancelar y cualquier otro estado se rechaza.
+     */
+    public function cancellationBlockedMessage(): ?string
+    {
+        return match ($this->quoteStatus->name) {
+            'Borrador' => null,
+            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede cancelar.',
+            'Cancelada' => 'Esta cotización ya está cancelada.',
+            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede cancelar.",
         };
     }
 

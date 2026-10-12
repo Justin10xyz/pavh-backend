@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Customer\CustomerController;
+use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
 use App\Http\Controllers\Inventory\ProductController;
@@ -27,9 +28,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/unit-types', [UnitTypeController::class, 'index']);
 
+    Route::get('/product-variants/{productVariant}/stock-movements', [ProductVariantController::class, 'stockMovements']);
     Route::patch('/product-variants/{productVariant}/stock', [ProductVariantController::class, 'adjustStock']);
     Route::apiResource('product-variants', ProductVariantController::class);
 
+    Route::get('/simple-products/{simpleProduct}/stock-movements', [SimpleProductController::class, 'stockMovements']);
     Route::patch('/simple-products/{simpleProduct}/stock', [SimpleProductController::class, 'adjustStock']);
     Route::apiResource('simple-products', SimpleProductController::class);
 
@@ -38,10 +41,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
+    Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);
     Route::apiResource('quotes', QuoteController::class);
 
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
+
+    Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::put('/categories/{category}', [CategoryController::class, 'update']);
