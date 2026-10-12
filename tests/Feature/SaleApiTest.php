@@ -86,24 +86,26 @@ class SaleApiTest extends TestCase
 
     public function test_it_creates_a_direct_sale_and_decrements_stock(): void
     {
-        // m2_per_box=1.44, quantity=10 m2 -> ceil(10/1.44)=7 cajas descontadas
+        // Venta por caja completa: 7 cajas × 1.44 = 10.08 m² × 100.00 = 1008.00,
+        // y se descuentan exactamente las 7 cajas
         $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
         $customer = Customer::create(['name' => 'Juan Perez']);
 
         $response = $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
             ],
         ])->assertCreated();
 
         $response->assertJsonPath('data.folio', 'V-0001')
             ->assertJsonPath('data.quote_id', null)
-            ->assertJsonPath('data.items.0.quantity', '10.00')
+            ->assertJsonPath('data.items.0.boxes', 7)
+            ->assertJsonPath('data.items.0.quantity', '10.080')
             ->assertJsonPath('data.items.0.unit_price', '100.00')
-            ->assertJsonPath('data.items.0.line_total', '1000.00')
-            ->assertJsonPath('data.subtotal', '1000.00')
-            ->assertJsonPath('data.total', '1000.00');
+            ->assertJsonPath('data.items.0.line_total', '1008.00')
+            ->assertJsonPath('data.subtotal', '1008.00')
+            ->assertJsonPath('data.total', '1008.00');
 
         $this->assertDatabaseHas('product_variants', [
             'id' => $variant->id,
@@ -113,12 +115,12 @@ class SaleApiTest extends TestCase
 
     public function test_it_rejects_sale_with_insufficient_stock_and_rolls_back(): void
     {
-        // stock=2 cajas, se necesitan ceil(10/1.44)=7 -> insuficiente
+        // stock=2 cajas, se piden 7 -> insuficiente
         $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 2);
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
             ],
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Stock insuficiente para PIS-CREATO-Taupe-60X120. Disponible: 2 cajas, se requieren 7.');
@@ -137,7 +139,7 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
             ],
         ])->assertStatus(422);
 
@@ -156,7 +158,7 @@ class SaleApiTest extends TestCase
         $quoteResponse = $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 5],
+                ['product_variant_id' => $variant->id, 'boxes' => 4],
             ],
         ])->assertCreated();
 
@@ -170,20 +172,22 @@ class SaleApiTest extends TestCase
         $convertResponse->assertJsonPath('data.quote_id', $quoteId)
             ->assertJsonPath('data.customer_id', $customer->id)
             ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
-            ->assertJsonPath('data.items.0.quantity', '5.00')
+            ->assertJsonPath('data.items.0.boxes', 4)
+            ->assertJsonPath('data.items.0.quantity', '5.760')
             ->assertJsonPath('data.items.0.unit_price', '120.00');
 
         $saleResponse = $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
             'quote_id' => $quoteId,
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 5, 'unit_price' => 120.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 4, 'unit_price' => 120.00],
             ],
         ])->assertCreated();
 
         $saleResponse->assertJsonPath('data.folio', 'V-0001')
             ->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.subtotal', '600.00');
+            // 4 cajas × 1.44 = 5.76 m² × 120.00
+            ->assertJsonPath('data.subtotal', '691.20');
 
         $this->assertDatabaseHas('quotes', [
             'id' => $quoteId,
@@ -196,7 +200,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $quoteResponse->json('data.id');
@@ -215,7 +219,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $quoteResponse->json('data.id');
@@ -236,8 +240,8 @@ class SaleApiTest extends TestCase
 
         $quoteResponse = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $available->id, 'quantity' => 1],
-                ['product_variant_id' => $deleted->id, 'quantity' => 2],
+                ['product_variant_id' => $available->id, 'boxes' => 1],
+                ['product_variant_id' => $deleted->id, 'boxes' => 2],
             ],
         ])->assertCreated();
 
@@ -255,7 +259,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $quoteResponse->json('data.id');
@@ -266,7 +270,7 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
 
@@ -278,14 +282,14 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $this->logQueriesWithVisibleLocks();
 
         $this->postJson('/api/sales', [
             'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
         // conversionBlockedMessage() lee el estado (quote_statuses) de la
@@ -308,7 +312,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         Quote::find($quoteId)->update([
@@ -319,7 +323,7 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
 
@@ -336,7 +340,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $quoteResponse->json('data.id');
@@ -347,7 +351,7 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Esta cotización está cancelada y no se puede convertir a venta.');
 
@@ -360,11 +364,11 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 100);
 
         $first = $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
         $second = $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
         $first->assertJsonPath('data.folio', 'V-0001');
@@ -373,7 +377,7 @@ class SaleApiTest extends TestCase
 
     public function test_it_aggregates_stock_check_across_duplicate_lines_of_the_same_variant(): void
     {
-        // stock=5 cajas. Dos líneas de 4 m2 cada una -> ceil(4/1.44)=3 cajas cada línea;
+        // stock=5 cajas. Dos líneas de 3 cajas cada una;
         // una validación línea por línea contra el stock total (5) aprobaría ambas por separado,
         // pero agregadas son 6 cajas > 5 disponibles: debe rechazar. Prueba que la validación
         // de stock se agrega por variante antes de mutar nada.
@@ -381,8 +385,8 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 4, 'unit_price' => 100],
-                ['product_variant_id' => $variant->id, 'quantity' => 4, 'unit_price' => 100],
+                ['product_variant_id' => $variant->id, 'boxes' => 3, 'unit_price' => 100],
+                ['product_variant_id' => $variant->id, 'boxes' => 3, 'unit_price' => 100],
             ],
         ])->assertStatus(422);
 
@@ -397,7 +401,7 @@ class SaleApiTest extends TestCase
 
         $created = $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
         $this->getJson("/api/sales/{$created->json('data.id')}")
@@ -413,7 +417,7 @@ class SaleApiTest extends TestCase
 
         $created = $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertCreated();
 
         $customer->delete();
@@ -435,7 +439,7 @@ class SaleApiTest extends TestCase
 
         $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('customer_id');
 
@@ -550,7 +554,7 @@ class SaleApiTest extends TestCase
             $this->postJson('/api/sales', [
                 'customer_id' => Customer::create(['name' => $name])->id,
                 'items' => [
-                    ['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100.00],
+                    ['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100.00],
                 ],
             ])->assertCreated();
         }
@@ -585,7 +589,7 @@ class SaleApiTest extends TestCase
         $saleId = $this->postJson('/api/sales', [
             'customer_id' => $customer->id,
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
             ],
         ])->assertCreated()->json('data.id');
 
@@ -603,7 +607,7 @@ class SaleApiTest extends TestCase
 
         $saleId = $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 1, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100.00],
             ],
         ])->assertCreated()->json('data.id');
 
@@ -624,7 +628,7 @@ class SaleApiTest extends TestCase
 
         $response = $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
             ],
         ])->assertCreated();
@@ -664,6 +668,75 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseCount('sales', 0);
     }
 
+    public function test_it_derives_variant_square_meters_from_whole_boxes(): void
+    {
+        // m2_per_box con 3 decimales: 3 cajas × 1.125 = 3.375 m² (no se redondea a 2)
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.125, stockBoxes: 10);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'boxes' => 3, 'unit_price' => 100.00],
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('data.items.0.boxes', 3)
+            ->assertJsonPath('data.items.0.quantity', '3.375')
+            ->assertJsonPath('data.items.0.line_total', '337.50')
+            ->assertJsonPath('data.total', '337.50');
+
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 7]);
+    }
+
+    public function test_it_requires_whole_boxes_for_a_variant_line(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        // Sin boxes (ej. un cliente que todavía manda m²)
+        $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'unit_price' => 100.00]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        // Fracción de caja
+        $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 2.5, 'unit_price' => 100.00]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        // Cero cajas
+        $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 0, 'unit_price' => 100.00]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_client_square_meters_on_a_variant_line(): void
+    {
+        // Los m² de una variante los deriva el backend; aceptarlos permitiría
+        // cobrar m² distintos a los que cubren las cajas entregadas.
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $this->postJson('/api/sales', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 2, 'quantity' => 1, 'unit_price' => 100.00]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
+    public function test_it_rejects_boxes_on_a_simple_product_line(): void
+    {
+        $simpleProduct = $this->createSimpleProduct();
+
+        $this->postJson('/api/sales', [
+            'items' => [['simple_product_id' => $simpleProduct->id, 'boxes' => 2, 'quantity' => 2, 'unit_price' => 189.50]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.simple_product_id']);
+
+        $this->assertDatabaseCount('sales', 0);
+    }
+
     public function test_it_rejects_a_sale_line_without_variant_or_simple_product(): void
     {
         $this->postJson('/api/sales', [
@@ -681,7 +754,7 @@ class SaleApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 5],
+                ['product_variant_id' => $variant->id, 'boxes' => 4],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
             ],
         ])->assertCreated()->json('data.id');
@@ -696,7 +769,7 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('data.items.0.unit_price', '100.00')
             ->assertJsonPath('data.items.1.product_variant_id', null)
             ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
-            ->assertJsonPath('data.items.1.quantity', '3.00')
+            ->assertJsonPath('data.items.1.quantity', '3.000')
             ->assertJsonPath('data.items.1.unit_price', '210.00');
     }
 
@@ -707,7 +780,7 @@ class SaleApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 1],
+                ['product_variant_id' => $variant->id, 'boxes' => 1],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
             ],
         ])->assertCreated()->json('data.id');
@@ -726,7 +799,7 @@ class SaleApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 1],
+                ['product_variant_id' => $variant->id, 'boxes' => 1],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
             ],
         ])->assertCreated()->json('data.id');
@@ -783,7 +856,7 @@ class SaleApiTest extends TestCase
         $this->postJson('/api/sales', [
             'quote_id' => $quoteId,
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 5, 'unit_price' => 189.50],
             ],
         ])->assertUnprocessable()
@@ -801,17 +874,17 @@ class SaleApiTest extends TestCase
 
     public function test_it_validates_and_decrements_stock_for_mixed_variant_and_simple_product_lines(): void
     {
-        // m2_per_box=1.44, quantity=10 m2 -> ceil(10/1.44)=7 cajas
+        // 7 cajas × 1.44 = 10.08 m² × 100.00 = 1008.00 ; 4 × 189.50 = 758.00
         $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
         $simpleProduct = $this->createSimpleProduct(price: 189.50, stockQuantity: 20);
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
             ],
         ])->assertCreated()
-            ->assertJsonPath('data.subtotal', '1758.00');
+            ->assertJsonPath('data.subtotal', '1766.00');
 
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 3]);
         $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 16]);
@@ -839,7 +912,7 @@ class SaleApiTest extends TestCase
 
         $saleId = $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
             ],
         ])->assertCreated()->json('data.id');
@@ -862,7 +935,7 @@ class SaleApiTest extends TestCase
 
         $saleId = $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2.5, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
             ],
         ])->assertCreated()->json('data.id');
@@ -879,7 +952,43 @@ class SaleApiTest extends TestCase
         $this->get("/api/sales/{$saleId}/pdf")->assertOk();
 
         $this->assertSame('m2', $captured['items'][0]['unit']);
+        $this->assertSame(2, $captured['items'][0]['boxes']);
+        $this->assertEqualsWithDelta(2.88, $captured['items'][0]['quantity'], 0.0001);
         $this->assertSame('uds', $captured['items'][1]['unit']);
+        $this->assertNull($captured['items'][1]['boxes']);
         $this->assertSame('Pegazulejo gris 20kg', $captured['items'][1]['variant_label']);
+
+        // Variante: cajas como cantidad, m² que cubren debajo y precio por m².
+        $html = view('pdf.document', ['document' => $captured])->render();
+
+        $this->assertMatchesRegularExpression('/\b2 cajas/u', $html);
+        $this->assertMatchesRegularExpression('/2\.88 m²/u', $html);
+        $this->assertMatchesRegularExpression('/\$100\.00<span class="muted">\/m²<\/span>/u', $html);
+        $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
+    }
+
+    public function test_pdf_template_shows_only_square_meters_for_a_legacy_variant_line_without_boxes(): void
+    {
+        // Líneas registradas antes del cambio a cajas cuya variante no tenía
+        // m2_per_box: quedaron con boxes = null y se muestran tal cual se emitieron.
+        $html = view('pdf.document', ['document' => [
+            'document_type' => 'Venta',
+            'folio' => 'V-0001',
+            'date' => '01/10/2026',
+            'customer' => null,
+            'items' => [[
+                'variant_label' => 'Creato Taupe 60x120',
+                'unit' => 'm2',
+                'boxes' => null,
+                'quantity' => 5.0,
+                'unit_price' => 100.0,
+                'line_total' => 500.0,
+            ]],
+            'subtotal' => 500.0,
+            'total' => 500.0,
+        ]])->render();
+
+        $this->assertMatchesRegularExpression('/\b5 m²/u', $html);
+        $this->assertStringNotContainsString('caja', $html);
     }
 }

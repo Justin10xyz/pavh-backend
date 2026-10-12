@@ -25,10 +25,11 @@ class DashboardController extends Controller
         // Se ordena por revenue porque es lo único comparable entre tipos:
         // quantity_sold suma unidades distintas según el tipo (m² para
         // variantes, unidades para productos simples), así que solo es
-        // informativo por fila.
+        // informativo por fila. boxes_sold es la cantidad real de las variantes
+        // (se venden por caja); en productos simples es null.
         $rows = SaleItem::query()
             ->select('product_variant_id', 'simple_product_id')
-            ->selectRaw('SUM(quantity) as quantity_sold, SUM(line_total) as revenue')
+            ->selectRaw('SUM(quantity) as quantity_sold, SUM(boxes) as boxes_sold, SUM(line_total) as revenue')
             ->whereHas('sale', fn (Builder $query) => $query->dateRange($request->query('from'), $request->query('to')))
             ->groupBy('product_variant_id', 'simple_product_id')
             ->orderByDesc('revenue')
@@ -57,6 +58,7 @@ class DashboardController extends Controller
                 'product_variant_id' => $row->product_variant_id,
                 'simple_product_id' => $row->simple_product_id,
                 'quantity_sold' => round((float) $row->quantity_sold, 2),
+                'boxes_sold' => $row->simple_product_id ? null : (int) $row->boxes_sold,
                 'revenue' => round((float) $row->revenue, 2),
             ])->all(),
         ]);

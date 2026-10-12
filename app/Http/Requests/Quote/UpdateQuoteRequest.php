@@ -26,6 +26,9 @@ class UpdateQuoteRequest extends FormRequest
      * actual (ya borrado) no debe bloquear la edición. El rechazo de un cliente
      * borrado *nuevo* depende del modelo y vive en QuoteController@update.
      *
+     * Cantidad por tipo de línea: mismo contrato que StoreQuoteRequest
+     * (`boxes` en variantes, `quantity` en productos simples).
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -35,8 +38,9 @@ class UpdateQuoteRequest extends FormRequest
             'notes' => ['sometimes', 'nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id', 'integer', 'exists:product_variants,id'],
-            'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'integer', 'exists:simple_products,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'prohibits:items.*.boxes', 'integer', 'exists:simple_products,id'],
+            'items.*.boxes' => ['nullable', 'required_with:items.*.product_variant_id', 'prohibits:items.*.quantity', 'integer', 'min:1'],
+            'items.*.quantity' => ['nullable', 'required_with:items.*.simple_product_id', 'numeric', 'min:0.01'],
         ];
     }
 }

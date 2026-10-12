@@ -73,4 +73,19 @@ class ProductVariant extends Model
     {
         return $boxes <= $this->stock_boxes;
     }
+
+    /**
+     * m² que cubren `$boxes` cajas completas. Las variantes se venden por caja:
+     * esta es la cantidad que se guarda como `quantity` de la línea y sobre la
+     * que se cobra (precio por m²). Null si la variante no tiene m2_per_box —
+     * quien llama debe rechazar la línea, nunca asumir 1:1.
+     */
+    public function squareMetersForBoxes(int $boxes): ?float
+    {
+        if ($this->m2_per_box === null) {
+            return null;
+        }
+
+        return round($boxes * (float) $this->m2_per_box, 3);
+    }
 }

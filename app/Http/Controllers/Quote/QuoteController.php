@@ -66,7 +66,7 @@ class QuoteController extends Controller
     {
         $data = $request->validated();
 
-        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+        if ($message = $this->lineQuantityRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
 
@@ -113,7 +113,7 @@ class QuoteController extends Controller
             ], 422);
         }
 
-        if ($message = $this->fractionalSimpleProductQuantityMessage($data['items'])) {
+        if ($message = $this->lineQuantityRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
 
@@ -221,9 +221,12 @@ class QuoteController extends Controller
                 'quote_id' => $quote->id,
                 'customer_id' => $quote->customer_id,
                 'notes' => $quote->notes,
+                // Variantes: `boxes` es lo que se manda a POST /sales; `quantity`
+                // (m²) va solo como referencia. Simples: `quantity` en unidades.
                 'items' => $quote->items->map(fn ($item) => [
                     'product_variant_id' => $item->product_variant_id,
                     'simple_product_id' => $item->simple_product_id,
+                    'boxes' => $item->boxes,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->simpleProduct?->price ?? $item->productVariant->price_per_m2,
                 ]),
@@ -255,8 +258,9 @@ class QuoteController extends Controller
                         $item->productVariant->color,
                         $item->productVariant->size,
                     ])),
-                // Variantes se capturan en m², productos simples en unidades.
+                // Variantes por caja (con los m² que cubren), productos simples en unidades.
                 'unit' => $item->simple_product_id ? 'uds' : 'm2',
+                'boxes' => $item->boxes,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
                 'line_total' => (float) $item->line_total,
@@ -275,19 +279,29 @@ class QuoteController extends Controller
     /**
      * Va antes de la transacción (no dentro de syncItems) para rechazar sin
      * haber creado la cotización ni borrado las líneas existentes en update.
+     *
+     * - Producto simple: cantidad fraccionaria.
+     * - Variante sin m2_per_box: no hay forma de derivar los m² que cubren las
+     *   cajas, mismo rechazo que en SaleController@store (nunca 1:1).
      */
-    private function fractionalSimpleProductQuantityMessage(array $items): ?string
+    private function lineQuantityRejectionMessage(array $items): ?string
     {
         foreach ($items as $item) {
-            if (empty($item['simple_product_id'])) {
+            if (! empty($item['simple_product_id'])) {
+                $message = SimpleProduct::findOrFail($item['simple_product_id'])
+                    ->fractionalQuantityMessage($item['quantity']);
+
+                if ($message) {
+                    return $message;
+                }
+
                 continue;
             }
 
-            $message = SimpleProduct::findOrFail($item['simple_product_id'])
-                ->fractionalQuantityMessage($item['quantity']);
+            $variant = ProductVariant::findOrFail($item['product_variant_id']);
 
-            if ($message) {
-                return $message;
+            if ($variant->m2_per_box === null) {
+                return "La variante {$variant->code} no tiene factor de conversión m2_per_box configurado, no se puede cotizar.";
             }
         }
 
@@ -300,18 +314,26 @@ class QuoteController extends Controller
 
         foreach ($items as $item) {
             // Precio siempre resuelto del catálogo actual, nunca del cliente.
+            // Variantes por caja completa: se cotizan los m² que cubren las
+            // cajas (boxes × m2_per_box), mismo criterio que la venta.
             if (! empty($item['simple_product_id'])) {
                 $unitPrice = SimpleProduct::findOrFail($item['simple_product_id'])->price;
+                $boxes = null;
+                $quantity = $item['quantity'];
             } else {
-                $unitPrice = ProductVariant::findOrFail($item['product_variant_id'])->price_per_m2;
+                $variant = ProductVariant::findOrFail($item['product_variant_id']);
+                $unitPrice = $variant->price_per_m2;
+                $boxes = (int) $item['boxes'];
+                $quantity = $variant->squareMetersForBoxes($boxes);
             }
 
-            $lineTotal = round($item['quantity'] * $unitPrice, 2);
+            $lineTotal = round($quantity * $unitPrice, 2);
 
             $quote->items()->create([
                 'product_variant_id' => $item['product_variant_id'] ?? null,
                 'simple_product_id' => $item['simple_product_id'] ?? null,
-                'quantity' => $item['quantity'],
+                'boxes' => $boxes,
+                'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'line_total' => $lineTotal,
             ]);

@@ -82,7 +82,7 @@ class MixedQuoteToSaleFlowTest extends TestCase
         $response = $this->postJson('/api/quotes', [
             'customer_id' => $this->customer->id,
             'items' => [
-                ['product_variant_id' => $this->variant->id, 'quantity' => 5, 'unit_price' => 1],
+                ['product_variant_id' => $this->variant->id, 'boxes' => 4, 'unit_price' => 1],
                 ['simple_product_id' => $this->simpleProduct->id, 'quantity' => $simpleQuantity, 'unit_price' => 1],
             ],
         ])->assertCreated();
@@ -99,28 +99,36 @@ class MixedQuoteToSaleFlowTest extends TestCase
         return [
             'quote_id' => $convertData['quote_id'],
             'customer_id' => $convertData['customer_id'],
-            'items' => array_map(fn ($item) => [
-                'product_variant_id' => $item['product_variant_id'],
-                'simple_product_id' => $item['simple_product_id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-            ], $convertData['items']),
+            // Variantes se venden por caja: la venta manda `boxes`, no m².
+            'items' => array_map(fn ($item) => $item['product_variant_id']
+                ? [
+                    'product_variant_id' => $item['product_variant_id'],
+                    'boxes' => $item['boxes'],
+                    'unit_price' => $item['unit_price'],
+                ]
+                : [
+                    'simple_product_id' => $item['simple_product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                ], $convertData['items']),
         ];
     }
 
     public function test_full_mixed_quote_to_sale_flow(): void
     {
         // 4. Crear cotización: precios resueltos server-side.
-        //    5 m² × 100.00 = 500.00 ; 3 × 189.50 = 568.50 ; total 1068.50
+        //    4 cajas × 1.44 = 5.76 m² × 100.00 = 576.00 ; 3 × 189.50 = 568.50 ; total 1144.50
         $quoteId = $this->createMixedQuote(simpleQuantity: 3);
 
-        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'subtotal' => 1068.50, 'total' => 1068.50]);
+        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'subtotal' => 1144.50, 'total' => 1144.50]);
 
         // 5. Detalle: cada línea expone su relación correspondiente.
         $this->getJson("/api/quotes/{$quoteId}")
             ->assertOk()
             ->assertJsonPath('data.items.0.unit_price', '100.00')
-            ->assertJsonPath('data.items.0.line_total', '500.00')
+            ->assertJsonPath('data.items.0.boxes', 4)
+            ->assertJsonPath('data.items.0.quantity', '5.760')
+            ->assertJsonPath('data.items.0.line_total', '576.00')
             ->assertJsonPath('data.items.0.product_variant.id', $this->variant->id)
             ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato')
             ->assertJsonPath('data.items.0.simple_product_id', null)
@@ -130,20 +138,20 @@ class MixedQuoteToSaleFlowTest extends TestCase
             ->assertJsonPath('data.items.1.simple_product.id', $this->simpleProduct->id)
             ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg')
             ->assertJsonPath('data.items.1.simple_product.price', '189.50')
-            ->assertJsonPath('data.subtotal', '1068.50')
-            ->assertJsonPath('data.total', '1068.50');
+            ->assertJsonPath('data.subtotal', '1144.50')
+            ->assertJsonPath('data.total', '1144.50');
 
-        // 6. Editar: la línea simple pasa de 3 a 4 → 500.00 + 758.00 = 1258.00
+        // 6. Editar: la línea simple pasa de 3 a 4 → 576.00 + 758.00 = 1334.00
         $this->putJson("/api/quotes/{$quoteId}", [
             'items' => [
-                ['product_variant_id' => $this->variant->id, 'quantity' => 5],
+                ['product_variant_id' => $this->variant->id, 'boxes' => 4],
                 ['simple_product_id' => $this->simpleProduct->id, 'quantity' => 4],
             ],
         ])->assertOk()
-            ->assertJsonPath('data.items.1.quantity', '4.00')
+            ->assertJsonPath('data.items.1.quantity', '4.000')
             ->assertJsonPath('data.items.1.line_total', '758.00')
-            ->assertJsonPath('data.subtotal', '1258.00')
-            ->assertJsonPath('data.total', '1258.00');
+            ->assertJsonPath('data.subtotal', '1334.00')
+            ->assertJsonPath('data.total', '1334.00');
 
         // 7. Convert: precio de HOY para ambos tipos de línea, no el congelado.
         $this->variant->update(['price_per_m2' => 120.00]);
@@ -159,14 +167,17 @@ class MixedQuoteToSaleFlowTest extends TestCase
             ->assertJsonPath('data.items.1.unit_price', '200.00');
 
         // 8. Venta desde la cotización, con las líneas tal cual las devolvió convert.
-        //    5 × 120.00 + 4 × 200.00 = 600.00 + 800.00 = 1400.00
+        //    Variante por caja completa: 4 cajas × 1.44 = 5.76 m² × 120.00 = 691.20
+        //    + 4 × 200.00 = 800.00 → 1491.20
         $saleResponse = $this->postJson('/api/sales', $this->salePayloadFromConvert($convertResponse->json('data')))
             ->assertCreated()
             ->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.subtotal', '1400.00')
-            ->assertJsonPath('data.total', '1400.00');
+            ->assertJsonPath('data.items.0.boxes', 4)
+            ->assertJsonPath('data.items.0.quantity', '5.760')
+            ->assertJsonPath('data.subtotal', '1491.20')
+            ->assertJsonPath('data.total', '1491.20');
 
-        // Variante: ceil(5 m² / 1.44) = 4 cajas → 10 - 4 = 6
+        // Variante: 4 cajas → 10 - 4 = 6
         $this->assertDatabaseHas('product_variants', ['id' => $this->variant->id, 'stock_boxes' => 6]);
         // Producto simple: 1:1, sin conversión → 20 - 4 = 16
         $this->assertDatabaseHas('simple_products', ['id' => $this->simpleProduct->id, 'stock_quantity' => 16]);
