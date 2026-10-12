@@ -25,6 +25,9 @@ class QuoteItemResource extends JsonResource
                 'name' => $this->simpleProduct->name,
                 'price' => $this->simpleProduct->price,
             ] : null),
+            // Líneas de variante: cajas (cantidad real) y los m² que cubren.
+            // Líneas simples: boxes null, quantity en unidades.
+            'boxes' => $this->boxes,
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price,
             'line_total' => $this->line_total,

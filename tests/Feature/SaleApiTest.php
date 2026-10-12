@@ -99,7 +99,7 @@ class SaleApiTest extends TestCase
 
         $response->assertJsonPath('data.folio', 'V-0001')
             ->assertJsonPath('data.quote_id', null)
-            ->assertJsonPath('data.items.0.quantity', '10.00')
+            ->assertJsonPath('data.items.0.quantity', '10.000')
             ->assertJsonPath('data.items.0.unit_price', '100.00')
             ->assertJsonPath('data.items.0.line_total', '1000.00')
             ->assertJsonPath('data.subtotal', '1000.00')
@@ -170,7 +170,7 @@ class SaleApiTest extends TestCase
         $convertResponse->assertJsonPath('data.quote_id', $quoteId)
             ->assertJsonPath('data.customer_id', $customer->id)
             ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
-            ->assertJsonPath('data.items.0.quantity', '5.00')
+            ->assertJsonPath('data.items.0.quantity', '5.000')
             ->assertJsonPath('data.items.0.unit_price', '120.00');
 
         $saleResponse = $this->postJson('/api/sales', [
@@ -696,7 +696,7 @@ class SaleApiTest extends TestCase
             ->assertJsonPath('data.items.0.unit_price', '100.00')
             ->assertJsonPath('data.items.1.product_variant_id', null)
             ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
-            ->assertJsonPath('data.items.1.quantity', '3.00')
+            ->assertJsonPath('data.items.1.quantity', '3.000')
             ->assertJsonPath('data.items.1.unit_price', '210.00');
     }
 

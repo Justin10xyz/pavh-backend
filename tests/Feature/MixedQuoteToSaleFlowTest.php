@@ -140,7 +140,7 @@ class MixedQuoteToSaleFlowTest extends TestCase
                 ['simple_product_id' => $this->simpleProduct->id, 'quantity' => 4],
             ],
         ])->assertOk()
-            ->assertJsonPath('data.items.1.quantity', '4.00')
+            ->assertJsonPath('data.items.1.quantity', '4.000')
             ->assertJsonPath('data.items.1.line_total', '758.00')
             ->assertJsonPath('data.subtotal', '1258.00')
             ->assertJsonPath('data.total', '1258.00');
