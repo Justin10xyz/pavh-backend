@@ -54,6 +54,9 @@ class QuoteController extends Controller
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
             'customer',
             'quoteStatus',
+            // withTrashed: el detalle debe seguir indicando a qué venta se
+            // convirtió aunque esa venta se dé de baja después.
+            'sale' => fn ($query) => $query->withTrashed(),
         ]);
 
         return new QuoteResource($quote);

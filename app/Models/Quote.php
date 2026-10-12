@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
@@ -50,6 +51,13 @@ class Quote extends Model
     public function items(): HasMany
     {
         return $this->hasMany(QuoteItem::class);
+    }
+
+    // Venta en la que se convirtió (sales.quote_id). Solo existe en estado
+    // Convertida: una cotización se convierte una sola vez.
+    public function sale(): HasOne
+    {
+        return $this->hasOne(Sale::class);
     }
 
     /**
