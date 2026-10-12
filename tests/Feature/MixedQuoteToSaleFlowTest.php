@@ -99,12 +99,20 @@ class MixedQuoteToSaleFlowTest extends TestCase
         return [
             'quote_id' => $convertData['quote_id'],
             'customer_id' => $convertData['customer_id'],
-            'items' => array_map(fn ($item) => [
-                'product_variant_id' => $item['product_variant_id'],
-                'simple_product_id' => $item['simple_product_id'],
-                'quantity' => $item['quantity'],
-                'unit_price' => $item['unit_price'],
-            ], $convertData['items']),
+            // Variantes se venden por caja: la venta manda `boxes`, no m².
+            // TODO(C3): puente temporal mientras /convert siga devolviendo m²
+            // en líneas de variante; al devolver `boxes`, usar ese valor directo.
+            'items' => array_map(fn ($item) => $item['product_variant_id']
+                ? [
+                    'product_variant_id' => $item['product_variant_id'],
+                    'boxes' => (int) ceil(round($item['quantity'] / 1.44, 6)),
+                    'unit_price' => $item['unit_price'],
+                ]
+                : [
+                    'simple_product_id' => $item['simple_product_id'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                ], $convertData['items']),
         ];
     }
 
@@ -159,14 +167,17 @@ class MixedQuoteToSaleFlowTest extends TestCase
             ->assertJsonPath('data.items.1.unit_price', '200.00');
 
         // 8. Venta desde la cotización, con las líneas tal cual las devolvió convert.
-        //    5 × 120.00 + 4 × 200.00 = 600.00 + 800.00 = 1400.00
+        //    Variante por caja completa: 4 cajas × 1.44 = 5.76 m² × 120.00 = 691.20
+        //    + 4 × 200.00 = 800.00 → 1491.20
         $saleResponse = $this->postJson('/api/sales', $this->salePayloadFromConvert($convertResponse->json('data')))
             ->assertCreated()
             ->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.subtotal', '1400.00')
-            ->assertJsonPath('data.total', '1400.00');
+            ->assertJsonPath('data.items.0.boxes', 4)
+            ->assertJsonPath('data.items.0.quantity', '5.760')
+            ->assertJsonPath('data.subtotal', '1491.20')
+            ->assertJsonPath('data.total', '1491.20');
 
-        // Variante: ceil(5 m² / 1.44) = 4 cajas → 10 - 4 = 6
+        // Variante: 4 cajas → 10 - 4 = 6
         $this->assertDatabaseHas('product_variants', ['id' => $this->variant->id, 'stock_boxes' => 6]);
         // Producto simple: 1:1, sin conversión → 20 - 4 = 16
         $this->assertDatabaseHas('simple_products', ['id' => $this->simpleProduct->id, 'stock_quantity' => 16]);

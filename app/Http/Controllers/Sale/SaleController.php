@@ -108,14 +108,15 @@ class SaleController extends Controller
     {
         $data = $request->validated();
 
-        // La cantidad de cada línea está en m², pero el stock vive en cajas
-        // (stock_boxes) — convertimos con m2_per_box y redondeamos hacia
-        // arriba porque no se puede descontar una fracción de caja física.
-        // El dinero (line_total) se calcula sobre la cantidad exacta en m²,
-        // nunca sobre las cajas redondeadas.
+        // Las variantes se venden por caja completa: la línea trae `boxes`, que
+        // es lo que se descuenta de stock_boxes, y sus m² (`quantity`) se
+        // derivan aquí como boxes × m2_per_box. El dinero se calcula sobre esos
+        // m² — los que realmente se entregan —, no sobre los que pidió el
+        // cliente. Por eso cada línea se normaliza en $lines antes de crear nada.
         //
         // Los productos simples no tienen conversión: quantity ya está en la
         // misma unidad física que stock_quantity.
+        $lines = [];
         $variants = [];
         $boxesNeededByVariant = [];
         $simpleProducts = [];
@@ -132,6 +133,12 @@ class SaleController extends Controller
 
                 $quantityNeededBySimpleProduct[$simpleProductId] = ($quantityNeededBySimpleProduct[$simpleProductId] ?? 0) + (int) $item['quantity'];
 
+                $lines[] = [
+                    'simple_product_id' => $simpleProductId,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['unit_price'],
+                ];
+
                 continue;
             }
 
@@ -144,9 +151,16 @@ class SaleController extends Controller
                 ], 422);
             }
 
-            $boxesNeeded = (int) ceil($item['quantity'] / $variant->m2_per_box);
+            $boxes = (int) $item['boxes'];
 
-            $boxesNeededByVariant[$variantId] = ($boxesNeededByVariant[$variantId] ?? 0) + $boxesNeeded;
+            $boxesNeededByVariant[$variantId] = ($boxesNeededByVariant[$variantId] ?? 0) + $boxes;
+
+            $lines[] = [
+                'product_variant_id' => $variantId,
+                'boxes' => $boxes,
+                'quantity' => $variant->squareMetersForBoxes($boxes),
+                'unit_price' => $item['unit_price'],
+            ];
         }
 
         // El chequeo de stock suficiente y el descuento leen cada producto con
@@ -160,7 +174,7 @@ class SaleController extends Controller
         // fijo: cotización, variantes, productos simples): si dos ventas
         // llegan con el mismo quote_id, la segunda espera a la primera y
         // encuentra la cotización ya en "Convertida".
-        $result = DB::transaction(function () use ($data, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct) {
+        $result = DB::transaction(function () use ($data, $lines, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct) {
             $quote = null;
 
             if (! empty($data['quote_id'])) {
@@ -208,14 +222,15 @@ class SaleController extends Controller
 
             $subtotal = 0;
 
-            foreach ($data['items'] as $item) {
-                $lineTotal = round($item['quantity'] * $item['unit_price'], 2);
+            foreach ($lines as $line) {
+                $lineTotal = round($line['quantity'] * $line['unit_price'], 2);
 
                 $sale->items()->create([
-                    'product_variant_id' => $item['product_variant_id'] ?? null,
-                    'simple_product_id' => $item['simple_product_id'] ?? null,
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
+                    'product_variant_id' => $line['product_variant_id'] ?? null,
+                    'simple_product_id' => $line['simple_product_id'] ?? null,
+                    'boxes' => $line['boxes'] ?? null,
+                    'quantity' => $line['quantity'],
+                    'unit_price' => $line['unit_price'],
                     'line_total' => $lineTotal,
                 ]);
 
