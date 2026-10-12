@@ -67,7 +67,7 @@ class DashboardApiTest extends TestCase
     }
 
     /**
-     * @param  array<int, array{0: ProductVariant|SimpleProduct, 1: float, 2: float}>  $lines  [producto, cantidad, precio unitario]
+     * @param  array<int, array{0: ProductVariant|SimpleProduct, 1: float, 2: float, 3?: int}>  $lines  [producto, cantidad, precio unitario, cajas (variantes)]
      */
     private function createSaleAt(string $createdAt, array $lines): Sale
     {
@@ -77,10 +77,13 @@ class DashboardApiTest extends TestCase
             'total' => 0,
         ]));
 
-        foreach ($lines as [$product, $quantity, $unitPrice]) {
+        foreach ($lines as $line) {
+            [$product, $quantity, $unitPrice] = $line;
+
             $sale->items()->create([
                 'product_variant_id' => $product instanceof ProductVariant ? $product->id : null,
                 'simple_product_id' => $product instanceof SimpleProduct ? $product->id : null,
+                'boxes' => $line[3] ?? null,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'line_total' => round($quantity * $unitPrice, 2),
@@ -97,13 +100,13 @@ class DashboardApiTest extends TestCase
         $pegazulejo = $this->createSimpleProduct('Pegazulejo gris 20kg');
 
         $this->createSaleAt('2026-10-02 10:00:00', [
-            [$taupe, 10, 100],
+            [$taupe, 10, 100, 7],
             [$pegazulejo, 4, 189.50],
         ]);
         $this->createSaleAt('2026-10-03 12:00:00', [
             [$pegazulejo, 8, 189.50],
-            [$blanco, 3, 120],
-            [$taupe, 5, 100],
+            [$blanco, 3, 120, 3],
+            [$taupe, 5, 100, 4],
         ]);
 
         // Taupe vende más cantidad (15 m² vs 12 uds) pero Pegazulejo deja más
@@ -118,6 +121,7 @@ class DashboardApiTest extends TestCase
                     'product_variant_id' => null,
                     'simple_product_id' => $pegazulejo->id,
                     'quantity_sold' => 12,
+                    'boxes_sold' => null,
                     'revenue' => 2274,
                 ],
                 [
@@ -126,6 +130,7 @@ class DashboardApiTest extends TestCase
                     'product_variant_id' => $taupe->id,
                     'simple_product_id' => null,
                     'quantity_sold' => 15,
+                    'boxes_sold' => 11,
                     'revenue' => 1500,
                 ],
                 [
@@ -134,6 +139,7 @@ class DashboardApiTest extends TestCase
                     'product_variant_id' => $blanco->id,
                     'simple_product_id' => null,
                     'quantity_sold' => 3,
+                    'boxes_sold' => 3,
                     'revenue' => 360,
                 ],
             ]]);
