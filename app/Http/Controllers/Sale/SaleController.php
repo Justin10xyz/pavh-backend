@@ -28,7 +28,6 @@ class SaleController extends Controller
 
         $allowedRelations = [
             'items' => ['items.productVariant', 'items.simpleProduct'],
-            'customer' => 'customer',
             'quote' => 'quote',
         ];
 
@@ -39,6 +38,7 @@ class SaleController extends Controller
             ->all();
 
         $sales = Sale::query()
+            ->with('customer')
             ->when($with !== [], fn ($query) => $query->with($with))
             ->dateRange($request->query('from'), $request->query('to'))
             ->forCustomer($request->integer('customer_id') ?: null)
