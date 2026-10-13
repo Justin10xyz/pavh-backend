@@ -30,14 +30,14 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 | #   | Módulo                     | Backend | Frontend | Notas                                                                        |
 | --- | -------------------------- | :-----: | :------: | ---------------------------------------------------------------------------- |
-| —   | Autenticación              |   ✅    |    ✅    | —                                                                            |
+| —   | Autenticación              |   ✅    |    ✅    | 3 pendientes no bloqueantes                                                  |
 | 1   | Inventario                 |   ✅    |    ✅    | 4 pendientes no bloqueantes                                                  |
 | 2   | Cotizaciones               |   ✅    |    ✅    | —                                                                            |
 | 3   | Punto de Venta (POS)       |   ✅    |    ✅    | —                                                                            |
 | 4   | Dashboard                  |   ✅    |    ✅    | —                                                                            |
 | 5   | Clientes (módulo dedicado) |   ✅    |    ✅    | —                                                                            |
 | —   | Configuración              |   ✅    |    ✅    | 1 pendiente no bloqueante                                                    |
-| —   | Pase de UX/UI transversal  |    —    |    —     | En curso — Inventario, Cotizaciones, Ventas, Clientes, Configuración y Dashboard hechos |
+| —   | Pase de UX/UI transversal  |    —    |    —     | En curso — Inventario, Cotizaciones, Ventas, Clientes, Configuración, Dashboard y Login hechos |
 
 ## Módulos
 
@@ -47,6 +47,13 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - Endpoints: `login`, `logout`, `user` en `routes/api.php`
 - CORS y dominios stateful configurados para `localhost:5173`
 - Flujo completo verificado con curl y con `tests/Feature/AuthTest.php`
+- **Pase de UX/UI de Login** (a partir de un análisis externo sobre una captura, revisado contra el código):
+  - **Card y encabezado**: `AuthLayout.vue` sobre `bg-bg`; card en `surface` con `border` de 1px, `rounded-md` y sin sombra. El cuadro "PV" de relleno se cambió por `logo_pavh.png` (el mismo del sidebar) y el título pasó a `<h1>` en Source Serif 4 (`text-primary`)
+  - **Controles sin función, quitados**: "Recordar contraseña" (`rememberMe` nunca se enviaba y `AuthController@login` no usa `remember`) y "¿Olvidaste tu contraseña?" (`href="#"`, sin endpoint de restablecimiento). Anotados en "Pendientes" hasta que exista algo real en el backend
+  - **Campos**: `FieldLabel` con asterisco, `InputTextCustom` con íconos `ti-mail`/`ti-lock` a la izquierda (mismo patrón que `CustomerFormView.vue`), `autocomplete="username"`/`"current-password"` para el gestor de contraseñas y foco inicial en Correo. `novalidate` en el `<form>` para que la validación inline no la tape el aviso nativo de `type="email"`. Se quitó el mínimo de 6 caracteres: es regla de alta de cuenta, no de login (el backend solo pide `required`)
+  - **Toggle de contraseña**: nombre fijo "Mostrar contraseña" con `aria-pressed` para el estado (no alterna el texto), `aria-controls`, íconos `ti-eye`/`ti-eye-off`, área de toque `w-8 h-8` y anillo `accent` con `focus-visible`
+  - **Botón y error**: botón `bg-primary`/`hover:bg-primary-dark`, `h-10`, `rounded-md`. El error de credenciales va junto al botón con `role="alert"` y tokens `danger` (antes arriba del form, con `red-*`); como vive en el store (`auth.error`), se limpia al salir de la vista
+  - **Redirección**: el guard manda al login con `?redirect=` (ruta pedida) y el login regresa ahí con `router.replace` (solo rutas internas; si no, al dashboard). La ruta de login lleva `meta.guestOnly`: con sesión activa, el guard manda al dashboard
 
 ### 1. Inventario — ✅ completo (backend + frontend)
 
@@ -331,6 +338,12 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 ### Por módulo (no bloqueantes)
 
+**Autenticación:**
+
+- "Recordar sesión": quitado del login en el pase de UX/UI porque no hacía nada. Para implementarlo: checkbox en `Login.vue` + `Auth::attempt($credentials, $request->boolean('remember'))` en `AuthController@login`
+- Restablecer contraseña: el enlace "¿Olvidaste tu contraseña?" se quitó por la misma razón (no hay endpoint ni envío de correo configurado)
+- Sesión expirada a media operación: `src/lib/axios.js` no tiene interceptor de 401, así que si la sesión caduca cada vista muestra su propio error en vez de mandar al login. Detectado en el pase de UX/UI de Login; resolver con un interceptor que limpie `auth` y redirija a `login` con `?redirect=` (ya soportado)
+
 **Inventario:**
 
 - ~~Revisión de diseño visual de la tabla~~ ✅ — estilos y layout de tablas y formularios de Inventario ajustados como parte del pase de UX/UI
@@ -374,7 +387,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - ~~Bug: la lógica de cálculo de rango de fecha estaba duplicada entre `SalesView.vue` y `src/stores/dashboard.js`~~ — resuelto: extraída a `src/lib/dateRanges.js` al sumarse Productos más vendidos como tercer consumidor
 - ~~Bug: `formatCurrency`/`Intl.NumberFormat` duplicado en varias vistas~~ ✅ — `SalesView.vue`, `SaleDetailView.vue`, `SaleFormView.vue`, `QuoteDetailView.vue` y `QuoteFormView.vue` ahora importan `src/lib/formatCurrency.js`, que ganó el guard `Number(value) || 0` que tenían las copias de los formularios (muestra $0.00 en vez de $NaN con una línea a medio capturar). `InventoryTable.vue` también la usa en lugar de `` `$${Number(x).toFixed(2)}` `` (ahora con separador de miles)
 - ~~Helper de cantidad (`formatQuantity`) repetido en `SaleDetailView.vue`, `QuoteDetailView.vue` y `TopProductsWidget.vue`~~ ✅ — extraído a `src/lib/formatQuantity.js` (hasta 2 decimales, mismo guard `Number(value) || 0` que `formatCurrency`)
-- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). **En curso**: empezó por Inventario (tablas, formularios de producto, filtros; la vista de listado y el formulario de producto multi-medida ya revisados a fondo, ver módulo 1), Cotizaciones (listado, detalle y formulario, ver módulo 2), Ventas (listado, detalle, formulario, líneas compactas en ambos forms, captura con teclado y barra fija de acciones, ver módulo 3), la búsqueda/alta rápida de clientes en `CustomerSearch.vue`, Clientes (listado, detalle y formulario, ver módulo 5), Configuración (listado y diálogo de categorías, ver Configuración) y Dashboard (widgets enlazados a listados filtrados, stock bajo, responsive de las cards, ver módulo 4)
+- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). **En curso**: empezó por Inventario (tablas, formularios de producto, filtros; la vista de listado y el formulario de producto multi-medida ya revisados a fondo, ver módulo 1), Cotizaciones (listado, detalle y formulario, ver módulo 2), Ventas (listado, detalle, formulario, líneas compactas en ambos forms, captura con teclado y barra fija de acciones, ver módulo 3), la búsqueda/alta rápida de clientes en `CustomerSearch.vue`, Clientes (listado, detalle y formulario, ver módulo 5), Configuración (listado y diálogo de categorías, ver Configuración), Dashboard (widgets enlazados a listados filtrados, stock bajo, responsive de las cards, ver módulo 4) y Login (tokens, widgets de form, toggle de contraseña accesible, redirección tras login, ver Autenticación)
 - ~~Adoptar `.data-table` en el resto de listados~~ ✅ — `CategoriesSettingsView.vue` fue el último con copia propia vía `:deep()`; todos los listados la usan
 - Adoptar avisos de acción exitosa (`useNotify()` → `AppToast.vue`, montado en `App.vue`) en el resto de módulos al llegarles el pase de UX/UI: hoy los usan Cotizaciones (guardar, actualizar, cancelar), Ventas (registrar, incluida la conversión desde cotización), Clientes (guardar, actualizar, eliminar) y Configuración (crear, editar categoría). Pendientes: alta/edición/ajuste de stock en Inventario. Errores siguen inline, nunca en toast
 - ~~Líneas de producto de `QuoteFormView.vue` y `SaleFormView.vue` como tabla compacta~~ ✅ — hecho en ambos forms juntos durante el pase de UX/UI de Ventas (ver módulo 3)
@@ -397,7 +410,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 7. ~~Módulo de Punto de Venta~~ ✅ — venta directa, conversión desde cotización, listado con filtros de fecha, detalle con PDF descargable/compartible
 8. ~~Dashboard real~~ ✅ — store de datos, resumen de ventas, stock bajo y cotizaciones activas, todo conectado
 9. ~~Módulo de Clientes (dedicado)~~ ✅ — listado, detalle con historial de cotizaciones/ventas, crear/editar, borrado informativo (Opción B)
-10. Pase de UX/UI transversal — en curso (Inventario, Cotizaciones, Ventas, Clientes, Configuración y Dashboard hechos)
+10. Pase de UX/UI transversal — en curso (Inventario, Cotizaciones, Ventas, Clientes, Configuración, Dashboard y Login hechos)
 
 Roles y permisos **no está en el roadmap** — se decidió no implementarlo.
 
