@@ -26,7 +26,7 @@ class StoreCategoryRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
-            'code_prefix' => ['required', 'string', 'max:255', 'unique:categories,code_prefix'],
+            'code_prefix' => ['required', 'string', 'max:10', 'regex:/^[A-Z]+(-[A-Z]+)*$/', 'unique:categories,code_prefix'],
             'product_form_type' => ['sometimes', 'string', Rule::in(['variant', 'simple'])],
         ];
     }

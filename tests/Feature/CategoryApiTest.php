@@ -130,6 +130,59 @@ class CategoryApiTest extends TestCase
             ->assertJsonValidationErrors(['code_prefix']);
     }
 
+    public function test_it_rejects_a_code_prefix_longer_than_ten_characters(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'ABCDEFGHIJK'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code_prefix']);
+
+        $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'ABCDEFGHIJ'])
+            ->assertCreated()
+            ->assertJsonPath('data.code_prefix', 'ABCDEFGHIJ');
+    }
+
+    public function test_it_rejects_a_code_prefix_with_digits_spaces_or_accents(): void
+    {
+        foreach (['PIS1', 'PI S', 'PISÓ'] as $codePrefix) {
+            $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => $codePrefix])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['code_prefix']);
+        }
+
+        $this->assertDatabaseCount('categories', 0);
+    }
+
+    public function test_it_rejects_a_code_prefix_with_misplaced_hyphens_on_create(): void
+    {
+        foreach (['PIS-', '--', '-PIS', 'PIS--POR'] as $codePrefix) {
+            $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => $codePrefix])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['code_prefix']);
+        }
+
+        $this->assertDatabaseCount('categories', 0);
+    }
+
+    public function test_it_rejects_a_code_prefix_with_misplaced_hyphens_on_update(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        foreach (['PIS-', '--', '-PIS', 'PIS--POR'] as $codePrefix) {
+            $this->putJson("/api/categories/{$category->id}", ['name' => 'Pisos', 'code_prefix' => $codePrefix])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['code_prefix']);
+        }
+
+        $this->assertDatabaseHas('categories', ['id' => $category->id, 'code_prefix' => 'PI']);
+    }
+
+    public function test_it_accepts_a_hyphenated_code_prefix(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Porcelanatos', 'code_prefix' => 'PIS-POR'])
+            ->assertCreated()
+            ->assertJsonPath('data.code_prefix', 'PIS-POR');
+    }
+
     public function test_it_defaults_product_form_type_to_variant_on_create(): void
     {
         $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'SLA'])
