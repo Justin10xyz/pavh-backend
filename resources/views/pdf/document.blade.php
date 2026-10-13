@@ -6,7 +6,7 @@
     <style>
         /*
          * Fuentes: mismas que el frontend (Inter para texto, Source Serif 4 solo
-         * para el wordmark/título), copiadas de @fontsource a resources/fonts.
+         * para el folio), copiadas de @fontsource a resources/fonts.
          * dompdf no soporta woff2, por eso se usan los .woff (subset latin, que
          * cubre acentos y ñ). Solo se incluyen los pesos que usa la plantilla:
          * Inter 400/600 y Source Serif 4 600. Si una fuente no carga, dompdf
@@ -63,11 +63,13 @@
             vertical-align: bottom;
         }
 
-        .wordmark {
-            font-family: 'Source Serif 4', 'Times New Roman', Times, serif;
-            font-weight: bold;
-            font-size: 16pt;
-            color: #14293D;
+        /*
+         * Logo sin tagline: en media carta el lockup completo dejaría "PISOS Y
+         * ACABADOS" a ~2pt de alto (ilegible), y además trae mucho aire arriba.
+         * Solo se fija la altura; dompdf conserva la proporción (890x539).
+         */
+        .logo {
+            height: 40pt;
         }
 
         .document-type {
@@ -152,7 +154,7 @@
     <table class="header">
         <tr>
             <td>
-                <div class="wordmark">PAVH</div>
+                <img class="logo" src="{{ resource_path('images/branding/logo-sin-tagline-color-transparente.png') }}" alt="INNOVA">
             </td>
             <td class="text-right">
                 <div class="document-type">{{ $document['document_type'] }}</div>
