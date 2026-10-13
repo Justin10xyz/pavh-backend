@@ -101,6 +101,35 @@ class CategoryApiTest extends TestCase
             ->assertJsonValidationErrors(['code_prefix']);
     }
 
+    public function test_it_stores_the_code_prefix_in_uppercase_on_create(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'sla'])
+            ->assertCreated()
+            ->assertJsonPath('data.code_prefix', 'SLA');
+
+        $this->assertDatabaseHas('categories', ['name' => 'Slabs', 'code_prefix' => 'SLA']);
+    }
+
+    public function test_it_stores_the_code_prefix_in_uppercase_on_update(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->putJson("/api/categories/{$category->id}", ['name' => 'Pisos', 'code_prefix' => 'pis-por'])
+            ->assertOk()
+            ->assertJsonPath('data.code_prefix', 'PIS-POR');
+
+        $this->assertDatabaseHas('categories', ['id' => $category->id, 'code_prefix' => 'PIS-POR']);
+    }
+
+    public function test_it_rejects_a_lowercase_duplicate_of_an_existing_code_prefix(): void
+    {
+        Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->postJson('/api/categories', ['name' => 'Otra Categoria', 'code_prefix' => 'pi'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code_prefix']);
+    }
+
     public function test_it_defaults_product_form_type_to_variant_on_create(): void
     {
         $this->postJson('/api/categories', ['name' => 'Slabs', 'code_prefix' => 'SLA'])
