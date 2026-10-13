@@ -581,6 +581,31 @@ class SaleApiTest extends TestCase
         $this->assertCount(1, $customerQueries);
     }
 
+    public function test_index_always_includes_customer_without_with_param(): void
+    {
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $maria = Customer::create(['name' => 'Maria Lopez']);
+        $this->createSaleAt('V-0001', '2026-10-01 10:00:00', $juan);
+        $this->createSaleAt('V-0002', '2026-10-02 10:00:00', $maria);
+        $maria->delete();
+
+        DB::enableQueryLog();
+
+        $this->getJson('/api/sales')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.customer.id', $maria->id)
+            ->assertJsonPath('data.0.customer.name', 'Maria Lopez')
+            ->assertJsonPath('data.1.customer.id', $juan->id)
+            ->assertJsonPath('data.1.customer.name', 'Juan Perez');
+
+        // El listado carga customer siempre: una sola consulta, no una por venta.
+        $customerQueries = collect(DB::getQueryLog())
+            ->filter(fn ($entry) => str_contains($entry['query'], 'from "customers"'));
+
+        $this->assertCount(1, $customerQueries);
+    }
+
     public function test_it_downloads_a_sale_as_pdf(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);
