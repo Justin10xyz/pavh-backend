@@ -265,6 +265,12 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
   - **Diálogo**: botones `h-10`, errores `text-xs`, ancho `w-110` y padding `p-4 sm:p-5` como `CustomerCreateDialog.vue`, `role="alert"` en el error de guardado (donde cae el bloqueo de cambio de tipo). Texto de ayuda bajo "Tipo de formulario" según la opción elegida, más "No se puede cambiar si la categoría ya tiene productos." al editar. Prefijo en mayúsculas al teclear (valor real, conservando el cursor; `autocapitalize="characters"`, sin corrector) — reflejo de UX, la normalización real es la del backend
   - **Avisos de acción exitosa**: crear/editar muestran un toast vía `useNotify()` ("Categoría guardada"/"Categoría actualizada", con el nombre que devolvió el backend)
   - Se descartó a propósito: confirmación de salida con cambios sin guardar en el diálogo (3 campos; Esc/Cancelar ya cubren el caso), buscador/filtro y borrado de categoría
+  - **Segunda parte (revisión propia del código, no visible en capturas)**:
+    - Diálogo: al abrir, el foco va a Nombre (antes caía en el botón de cerrar), como `CustomerCreateDialog.vue`. "Guardar" ya no se deshabilita sin explicación cuando faltan campos: queda habilitado y al enviar marca "Este campo es requerido" bajo Nombre/Prefijo, mismo criterio que Clientes
+    - El bloqueo de cambio de tipo (422 con `message` sin `errors`) se muestra bajo el select cuando el tipo elegido difiere del guardado, en vez de en el error general — el backend valida campos antes de revisar el bloqueo, así que no llegan juntos
+    - Al editar, si el prefijo cambia, aviso bajo el campo de que los productos ya creados conservan su código (`PIS-…`) y solo los nuevos usan el prefijo nuevo: `VariantCodeGenerator` usa el prefijo solo al crear una variante
+    - Listado: "Nueva categoría" solo con `catalogs.initialized` (oculto mientras carga, antes del primer fetch o si falló) — crear a media carga agregaba la categoría a un arreglo que la respuesta pendiente reemplazaba
+    - Hub: el acceso dice "Consulta, agrega y edita…" (antes solo "Consulta y agrega")
 
 ## Decisiones clave y su razón
 
@@ -438,4 +444,5 @@ fix(sales): :bug: show correct unit per line in quote and sale PDFs
 fix(quotes): :bug: reject fractional quantity on simple product lines
 style(settings): :lipstick: adopt shared data-table styles in categories list
 feat(inventory): :sparkles: normalize category code prefix to uppercase
+fix(settings): :bug: focus name and validate required fields on submit in category dialog
 ```
