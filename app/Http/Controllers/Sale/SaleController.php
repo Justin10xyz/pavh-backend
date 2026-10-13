@@ -29,6 +29,7 @@ class SaleController extends Controller
         $allowedRelations = [
             'items' => ['items.productVariant', 'items.simpleProduct'],
             'customer' => 'customer',
+            'quote' => 'quote',
         ];
 
         $with = collect(explode(',', $request->query('with', '')))
