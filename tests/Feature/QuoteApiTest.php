@@ -305,6 +305,51 @@ class QuoteApiTest extends TestCase
         $this->assertDatabaseCount('quotes', 0);
     }
 
+    public function test_it_rejects_creating_a_quote_with_soft_deleted_variant_and_simple_product(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+        $variant->delete();
+        $simpleProduct->delete();
+
+        $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'boxes' => 1],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.1.simple_product_id']);
+
+        $this->assertDatabaseCount('quotes', 0);
+        $this->assertDatabaseCount('quote_items', 0);
+    }
+
+    public function test_it_rejects_updating_a_quote_with_soft_deleted_variant_and_simple_product(): void
+    {
+        $activeVariant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $activeVariant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $deletedVariant = $this->createVariant('Gris', 200.00);
+        $deletedSimpleProduct = $this->createSimpleProduct();
+        $deletedVariant->delete();
+        $deletedSimpleProduct->delete();
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [
+                ['product_variant_id' => $deletedVariant->id, 'boxes' => 1],
+                ['simple_product_id' => $deletedSimpleProduct->id, 'quantity' => 2],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.1.simple_product_id']);
+
+        // Las líneas originales quedan intactas.
+        $this->assertDatabaseCount('quote_items', 1);
+        $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'product_variant_id' => $activeVariant->id]);
+    }
+
     public function test_it_rejects_updating_a_quote_to_a_soft_deleted_customer(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);

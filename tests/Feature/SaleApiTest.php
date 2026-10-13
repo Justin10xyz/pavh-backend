@@ -447,6 +447,26 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
     }
 
+    public function test_it_rejects_creating_a_sale_with_soft_deleted_variant_and_simple_product(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+        $variant->delete();
+        $simpleProduct->delete();
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'unit_price' => 189.50],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.1.simple_product_id']);
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 20]);
+    }
+
     public function test_index_returns_all_sales_newest_first_without_date_filter(): void
     {
         $this->createSaleAt('V-0001', '2026-09-01 10:00:00');
