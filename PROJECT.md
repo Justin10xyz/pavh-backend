@@ -36,7 +36,8 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 | 3   | Punto de Venta (POS)       |   ✅    |    ✅    | —                                                                            |
 | 4   | Dashboard                  |   ✅    |    ✅    | —                                                                            |
 | 5   | Clientes (módulo dedicado) |   ✅    |    ✅    | —                                                                            |
-| —   | Pase de UX/UI transversal  |    —    |    —     | En curso — Inventario, Cotizaciones, Ventas y Clientes hechos                |
+| —   | Configuración              |   ✅    |    ✅    | 1 pendiente no bloqueante                                                    |
+| —   | Pase de UX/UI transversal  |    —    |    —     | En curso — Inventario, Cotizaciones, Ventas, Clientes y Configuración hechos |
 
 ## Módulos
 
@@ -243,6 +244,34 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
   - **Tamaños**: botones `h-10` (incluidos los de `ConfirmDialog`) y ningún texto por debajo de `text-xs` en todo el módulo, incluido `CustomerCreateDialog.vue`. Los inputs siguen en `h-[38px]` por el widget (pendiente transversal)
   - **Avisos de acción exitosa**: guardar/actualizar en el form y eliminar (en `useCustomerDelete.js`, así listado y detalle avisan igual) muestran un toast vía `useNotify()`, con el nombre del cliente en el detalle del aviso. El alta rápida (`CustomerCreateDialog.vue`) no avisa: el cliente queda seleccionado a la vista
 
+### Configuración — ✅ completo (backend + frontend)
+
+- Módulo para administrar catálogos desde la app. Hoy solo tiene categorías de producto; el resto de catálogos (`unit_types`, `suppliers`, `commission_categories`) sigue siendo solo `GET` para poblar selects.
+
+**Backend:**
+
+- `POST /api/categories` y `PUT /api/categories/{category}` (Form Requests en `Requests/Inventory/`), además del `GET` de catálogo. Sin borrado (no pedido)
+- `name` y `code_prefix` únicos. `code_prefix` se guarda **siempre en mayúsculas**: `prepareForValidation()` en `StoreCategoryRequest`/`UpdateCategoryRequest` lo normaliza antes de validar, para que `unique` compare contra el valor que de verdad se guarda (un `pi` choca con un `PI` existente). El prefijo forma parte del código de cada variante (`PIS-CREATO-TAU-60X120`)
+- `product_form_type` (`variant`|`simple`) editable, con el bloqueo de cambio vía `Category::productFormTypeChangeBlockedMessage()` (ver módulo 1). El rechazo llega como 422 con `message` y sin `errors`
+
+**Frontend:**
+
+- **Hub** (`SettingsView.vue`, `/configuracion`): un solo acceso, "Categorías de producto" — criterio de hub mínimo, se amplía cuando haya otra pantalla real
+- **Listado** (`CategoriesSettingsView.vue`, `/configuracion/categorias`): columnas Nombre / Prefijo / Tipo, sobre `catalogs.categories` (patrón `initialized`, compartido con Inventario). Sin buscador ni filtros por el tamaño del catálogo
+- **Diálogo crear/editar** (`CategoryFormDialog.vue`, en `src/views/settings/components/`): detecta el modo por la prop `category`; al guardar actualiza `catalogs` in-place (`addCategory`/`updateCategory`)
+- `src/lib/productFormTypes.js`: default, opciones del select (nombre largo, corto y descripción) y `productFormTypeShortLabel()`, compartidos entre el diálogo y la columna Tipo del listado
+- **Pase de UX/UI de Configuración** (a partir de un análisis externo sobre capturas, revisado contra el código):
+  - **Listado**: adopta `.data-table` (sin la copia vía `:deep()`); prefijo como badge con tokens (antes `gray-*` sueltos); columna "Tipo" (Pisos/General) — el tipo decide qué formulario de producto usa la categoría y no se veía; resumen "N categorías" (`aria-live`), como en Clientes. Toda la fila abre el diálogo de edición (aquí el destino es un diálogo, no una ruta, así que sin Ctrl/Cmd+clic); el lápiz sigue como acceso por teclado, con `aria-label`/`title` "Editar categoría {nombre}" y área de toque propia (`p-1.5 lg:p-1`). "Volver" en línea a la izquierda del título, hacia el hub (solo flecha por debajo de `lg`)
+  - **Diálogo**: botones `h-10`, errores `text-xs`, ancho `w-110` y padding `p-4 sm:p-5` como `CustomerCreateDialog.vue`, `role="alert"` en el error de guardado (donde cae el bloqueo de cambio de tipo). Texto de ayuda bajo "Tipo de formulario" según la opción elegida, más "No se puede cambiar si la categoría ya tiene productos." al editar. Prefijo en mayúsculas al teclear (valor real, conservando el cursor; `autocapitalize="characters"`, sin corrector) — reflejo de UX, la normalización real es la del backend
+  - **Avisos de acción exitosa**: crear/editar muestran un toast vía `useNotify()` ("Categoría guardada"/"Categoría actualizada", con el nombre que devolvió el backend)
+  - Se descartó a propósito: confirmación de salida con cambios sin guardar en el diálogo (3 campos; Esc/Cancelar ya cubren el caso), buscador/filtro y borrado de categoría
+  - **Segunda parte (revisión propia del código, no visible en capturas)**:
+    - Diálogo: al abrir, el foco va a Nombre (antes caía en el botón de cerrar), como `CustomerCreateDialog.vue`. "Guardar" ya no se deshabilita sin explicación cuando faltan campos: queda habilitado y al enviar marca "Este campo es requerido" bajo Nombre/Prefijo, mismo criterio que Clientes
+    - El bloqueo de cambio de tipo (422 con `message` sin `errors`) se muestra bajo el select cuando el tipo elegido difiere del guardado, en vez de en el error general — el backend valida campos antes de revisar el bloqueo, así que no llegan juntos
+    - Al editar, si el prefijo cambia, aviso bajo el campo de que los productos ya creados conservan su código (`PIS-…`) y solo los nuevos usan el prefijo nuevo: `VariantCodeGenerator` usa el prefijo solo al crear una variante
+    - Listado: "Nueva categoría" solo con `catalogs.initialized` (oculto mientras carga, antes del primer fetch o si falló) — crear a media carga agregaba la categoría a un arreglo que la respuesta pendiente reemplazaba
+    - Hub: el acceso dice "Consulta, agrega y edita…" (antes solo "Consulta y agrega")
+
 ## Decisiones clave y su razón
 
 | Decisión                                                                                                                                                                                                                                | Razón                                                                                                                                                                                                                                                                  |
@@ -280,6 +309,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 | `ProductFormView.vue` edita cada medida con su propia ficha técnica (`variantGroups`), agrupando con `groupVariants()`                                                                                                                  | Una sola ficha compartida sobrescribía todas las variantes al guardar; reusar `groupVariants()` hace que los grupos del form coincidan exactamente con los de Inventario                                                                                               |
 | `stock_boxes` fuera del `PUT` de variantes existentes                                                                                                                                                                                   | El stock se ajusta solo con el endpoint dedicado (deja historial en `stock_movements`); mandarlo desde el form pisaba ventas ocurridas mientras estaba abierto                                                                                                       |
 | `keep-unknown-value` en `SelectCustom.vue` como opt-in, no por defecto                                                                                                                                                                  | En selects de catálogo (ids) un valor sin opción suele ser un catálogo aún cargando — mostrarlo como opción enseñaría un id crudo                                                                                                                                      |
+| `code_prefix` de categoría normalizado a mayúsculas en `prepareForValidation()` del Form Request, no solo en el input del frontend | Es parte del código generado de cada variante; normalizar antes de validar hace que `unique` no deje pasar `pi` junto a `PI`, y no depende de que el cliente lo mande bien. El frontend solo lo refleja al teclear |
 | `ProductAutocomplete.vue` busca ambos tipos solo si el consumidor pasa `include-simple-products`                                                                                                                                        | Evita que otros usos existentes del componente reciban productos simples sin saberlo y los manden como `product_variant_id` por error                                                                                                                                  |
 
 ## Pendientes
@@ -319,14 +349,18 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - "Nueva cotización"/"Nueva venta" desde el detalle del cliente, con el cliente ya elegido. Detectado en el pase de UX/UI; no se hizo porque es funcionalidad nueva y toca forms de módulos cerrados. Requiere que `QuoteFormView.vue` y `SaleFormView.vue` acepten un `?customer_id=` (precargar el cliente en `CustomerSearch.vue` y en la foto de cambios sin guardar); en `SaleFormView.vue` cuidar su convivencia con `?quote_id=`, que ya decide el modo del form (en conversión el cliente viene de la cotización)
 - ~~`exists:customers,id` no excluía clientes borrados~~ ✅ — `withoutTrashed()` en `StoreQuoteRequest`/`StoreSaleRequest`; en edición de cotización, guard en `QuoteController@update` que permite conservar el cliente actual aunque esté borrado pero rechaza cambiar a uno borrado (ver módulo 5)
 
+**Configuración:**
+
+- `code_prefix` acepta hasta 255 caracteres (`max:255` en `StoreCategoryRequest`/`UpdateCategoryRequest`), demasiado para un prefijo que va dentro del código de cada variante. Detectado en el pase de UX/UI; falta decidir un límite (los existentes tienen hasta 7, ej. `PIS-POR`) y si se restringe a letras/guion
+
 **Transversal:**
 
 - ~~Bug: la lógica de cálculo de rango de fecha estaba duplicada entre `SalesView.vue` y `src/stores/dashboard.js`~~ — resuelto: extraída a `src/lib/dateRanges.js` al sumarse Productos más vendidos como tercer consumidor
 - ~~Bug: `formatCurrency`/`Intl.NumberFormat` duplicado en varias vistas~~ ✅ — `SalesView.vue`, `SaleDetailView.vue`, `SaleFormView.vue`, `QuoteDetailView.vue` y `QuoteFormView.vue` ahora importan `src/lib/formatCurrency.js`, que ganó el guard `Number(value) || 0` que tenían las copias de los formularios (muestra $0.00 en vez de $NaN con una línea a medio capturar). `InventoryTable.vue` también la usa en lugar de `` `$${Number(x).toFixed(2)}` `` (ahora con separador de miles)
 - ~~Helper de cantidad (`formatQuantity`) repetido en `SaleDetailView.vue`, `QuoteDetailView.vue` y `TopProductsWidget.vue`~~ ✅ — extraído a `src/lib/formatQuantity.js` (hasta 2 decimales, mismo guard `Number(value) || 0` que `formatCurrency`)
-- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). **En curso**: empezó por Inventario (tablas, formularios de producto, filtros; la vista de listado y el formulario de producto multi-medida ya revisados a fondo, ver módulo 1), Cotizaciones (listado, detalle y formulario, ver módulo 2), Ventas (listado, detalle, formulario, líneas compactas en ambos forms, captura con teclado y barra fija de acciones, ver módulo 3), la búsqueda/alta rápida de clientes en `CustomerSearch.vue`, y Clientes (listado, detalle y formulario, ver módulo 5)
-- Adoptar `.data-table` en el resto de listados al llegarles el pase de UX/UI: `CategoriesSettingsView.vue` sigue con su propia copia del CSS de tabla vía `:deep()` (`CustomersView.vue` ya la adoptó)
-- Adoptar avisos de acción exitosa (`useNotify()` → `AppToast.vue`, montado en `App.vue`) en el resto de módulos al llegarles el pase de UX/UI: hoy los usan Cotizaciones (guardar, actualizar, cancelar), Ventas (registrar, incluida la conversión desde cotización) y Clientes (guardar, actualizar, eliminar). Pendientes: alta/edición/ajuste de stock en Inventario y categorías. Errores siguen inline, nunca en toast
+- Pase de UX/UI y estilos, módulo por módulo, una vez cerrada la cobertura funcional completa de todos los módulos (decisión de Justin — evitar pulir vistas que aún pueden cambiar de forma). **En curso**: empezó por Inventario (tablas, formularios de producto, filtros; la vista de listado y el formulario de producto multi-medida ya revisados a fondo, ver módulo 1), Cotizaciones (listado, detalle y formulario, ver módulo 2), Ventas (listado, detalle, formulario, líneas compactas en ambos forms, captura con teclado y barra fija de acciones, ver módulo 3), la búsqueda/alta rápida de clientes en `CustomerSearch.vue`, Clientes (listado, detalle y formulario, ver módulo 5) y Configuración (listado y diálogo de categorías, ver Configuración)
+- ~~Adoptar `.data-table` en el resto de listados~~ ✅ — `CategoriesSettingsView.vue` fue el último con copia propia vía `:deep()`; todos los listados la usan
+- Adoptar avisos de acción exitosa (`useNotify()` → `AppToast.vue`, montado en `App.vue`) en el resto de módulos al llegarles el pase de UX/UI: hoy los usan Cotizaciones (guardar, actualizar, cancelar), Ventas (registrar, incluida la conversión desde cotización), Clientes (guardar, actualizar, eliminar) y Configuración (crear, editar categoría). Pendientes: alta/edición/ajuste de stock en Inventario. Errores siguen inline, nunca en toast
 - ~~Líneas de producto de `QuoteFormView.vue` y `SaleFormView.vue` como tabla compacta~~ ✅ — hecho en ambos forms juntos durante el pase de UX/UI de Ventas (ver módulo 3)
 - Migrar los widgets de input (`InputTextCustom`, `InputNumberCustom`, `SelectCustom`) de `h-[38px]` a `h-10`: mientras no se haga, lo que se alinea junto a ellos (ej. precio/subtotal de solo lectura en las líneas de cotización y venta, botón de quitar fila) usa `h-[2.375rem]` (mismo valor en rem) y se pasa a `h-10` junto con los widgets
 - Pregunta de negocio pendiente (Cotizaciones/Ventas): Subtotal y Total siempre son iguales porque no se manejan impuestos — ¿se va a manejar IVA? Si no, mostrar solo "Total" en form, detalle y PDF
@@ -347,7 +381,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 7. ~~Módulo de Punto de Venta~~ ✅ — venta directa, conversión desde cotización, listado con filtros de fecha, detalle con PDF descargable/compartible
 8. ~~Dashboard real~~ ✅ — store de datos, resumen de ventas, stock bajo y cotizaciones activas, todo conectado
 9. ~~Módulo de Clientes (dedicado)~~ ✅ — listado, detalle con historial de cotizaciones/ventas, crear/editar, borrado informativo (Opción B)
-10. Pase de UX/UI transversal — en curso (Inventario, Cotizaciones, Ventas y Clientes hechos)
+10. Pase de UX/UI transversal — en curso (Inventario, Cotizaciones, Ventas, Clientes y Configuración hechos)
 
 Roles y permisos **no está en el roadmap** — se decidió no implementarlo.
 
@@ -408,4 +442,7 @@ fix(quotes): :bug: display simple product lines correctly in quote and sale deta
 test(sales): :white_check_mark: add end-to-end test for mixed quote-to-sale flow
 fix(sales): :bug: show correct unit per line in quote and sale PDFs
 fix(quotes): :bug: reject fractional quantity on simple product lines
+style(settings): :lipstick: adopt shared data-table styles in categories list
+feat(inventory): :sparkles: normalize category code prefix to uppercase
+fix(settings): :bug: focus name and validate required fields on submit in category dialog
 ```
