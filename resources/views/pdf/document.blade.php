@@ -177,7 +177,10 @@
         @endif
     </div>
 
-    {{-- Cada línea trae su unidad: m² (variantes) o unidades (productos simples) --}}
+    {{-- Cada línea trae su unidad. Variantes: cajas (lo que se entrega y cobra)
+         y debajo los m² que cubren; el precio va por m². Productos simples: unidades.
+         Una línea de variante sin `boxes` (registros previos al cambio a cajas)
+         muestra solo sus m². --}}
     <table class="items">
         <thead>
             <tr>
@@ -194,11 +197,16 @@
                     <td class="text-right">
                         @if ($item['unit'] === 'uds')
                             {{ rtrim(rtrim(number_format($item['quantity'], 2), '0'), '.') }} uds.
+                        @elseif ($item['boxes'] ?? null)
+                            {{ $item['boxes'] }} {{ $item['boxes'] === 1 ? 'caja' : 'cajas' }}
+                            <div class="muted">{{ rtrim(rtrim(number_format($item['quantity'], 3), '0'), '.') }} m²</div>
                         @else
-                            {{ number_format($item['quantity'], 2) }} m²
+                            {{ rtrim(rtrim(number_format($item['quantity'], 3), '0'), '.') }} m²
                         @endif
                     </td>
-                    <td class="text-right">${{ number_format($item['unit_price'], 2) }}</td>
+                    <td class="text-right">
+                        ${{ number_format($item['unit_price'], 2) }}@if ($item['unit'] === 'm2')<span class="muted">/m²</span>@endif
+                    </td>
                     <td class="text-right">${{ number_format($item['line_total'], 2) }}</td>
                 </tr>
             @endforeach

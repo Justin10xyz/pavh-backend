@@ -125,14 +125,14 @@ class StockMovementTest extends TestCase
 
     public function test_sale_records_one_movement_per_product_in_physical_stock_units(): void
     {
-        // Dos líneas de la misma variante: ceil(10/1.44)=7 + ceil(2/1.44)=2 = 9 cajas.
+        // Dos líneas de la misma variante: 7 + 2 = 9 cajas.
         $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
         $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
 
         $saleId = $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
-                ['product_variant_id' => $variant->id, 'quantity' => 2, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
             ],
         ])->assertCreated()->json('data.id');
@@ -165,7 +165,7 @@ class StockMovementTest extends TestCase
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
             ],
         ])->assertUnprocessable();
@@ -184,7 +184,7 @@ class StockMovementTest extends TestCase
         $this->travelBack();
         $this->travelTo(now()->subHour());
         $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00]],
         ])->assertCreated();
 
         $this->travelBack();
@@ -271,7 +271,7 @@ class StockMovementTest extends TestCase
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
             ],
         ])->assertCreated();
@@ -282,7 +282,7 @@ class StockMovementTest extends TestCase
 
     public function test_insufficient_stock_check_on_a_sale_runs_against_the_locked_row(): void
     {
-        // stock=2 cajas, se necesitan ceil(10/1.44)=7. El rechazo debe salir
+        // stock=2 cajas, se piden 7. El rechazo debe salir
         // de la lectura bloqueada dentro de la transacción, no de una lectura
         // previa sin lock que una venta concurrente podría dejar obsoleta.
         $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 2);
@@ -291,7 +291,7 @@ class StockMovementTest extends TestCase
 
         $this->postJson('/api/sales', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 10, 'unit_price' => 100.00],
+                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
             ],
         ])->assertUnprocessable();
 

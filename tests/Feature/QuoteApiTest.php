@@ -34,7 +34,10 @@ class QuoteApiTest extends TestCase
         }
     }
 
-    private function createVariant(string $color, float $pricePerM2): ProductVariant
+    // m2_per_box=1.0 por defecto: estos tests prueban la lógica de cotización,
+    // no la conversión, y así N cajas = N m². La conversión real (1.44) tiene
+    // sus propios tests.
+    private function createVariant(string $color, float $pricePerM2, ?float $m2PerBox = 1.0): ProductVariant
     {
         $supplier = Supplier::create(['name' => 'Interceramic']);
         $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
@@ -54,7 +57,8 @@ class QuoteApiTest extends TestCase
             'color' => $color,
             'size' => '60x120',
             'price_per_m2' => $pricePerM2,
-            'price_per_box' => $pricePerM2 * 1.44,
+            'price_per_box' => $pricePerM2 * ($m2PerBox ?? 1),
+            'm2_per_box' => $m2PerBox,
         ]);
     }
 
@@ -79,7 +83,7 @@ class QuoteApiTest extends TestCase
             'customer_id' => $customer->id,
             'notes' => 'Entrega urgente',
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2, 'unit_price' => 999999],
+                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 999999],
             ],
         ])->assertCreated();
 
@@ -104,8 +108,8 @@ class QuoteApiTest extends TestCase
 
         $response = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variantA->id, 'quantity' => 3],
-                ['product_variant_id' => $variantB->id, 'quantity' => 2],
+                ['product_variant_id' => $variantA->id, 'boxes' => 3],
+                ['product_variant_id' => $variantB->id, 'boxes' => 2],
             ],
         ])->assertCreated();
 
@@ -119,11 +123,11 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $first = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $second = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $first->assertJsonPath('data.folio', 'COT-0001');
@@ -136,14 +140,14 @@ class QuoteApiTest extends TestCase
         $variantB = $this->createVariant('Gris', 200.00);
 
         $created = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variantA->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variantA->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $created->json('data.id');
 
         $this->putJson("/api/quotes/{$quoteId}", [
             'notes' => 'Actualizada',
-            'items' => [['product_variant_id' => $variantB->id, 'quantity' => 4]],
+            'items' => [['product_variant_id' => $variantB->id, 'boxes' => 4]],
         ])->assertOk()
             ->assertJsonPath('data.notes', 'Actualizada')
             ->assertJsonCount(1, 'data.items')
@@ -158,7 +162,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $created = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $created->json('data.id');
@@ -168,7 +172,7 @@ class QuoteApiTest extends TestCase
         ]);
 
         $this->putJson("/api/quotes/{$quoteId}", [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 5]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
         ])->assertStatus(422)
             ->assertJsonPath('message', 'Solo se pueden editar cotizaciones en estado Borrador.');
 
@@ -192,7 +196,7 @@ class QuoteApiTest extends TestCase
 
         $created = $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $this->getJson("/api/quotes/{$created->json('data.id')}")
@@ -207,7 +211,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         Quote::find($quoteId)->update([
@@ -226,7 +230,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $this->getJson("/api/quotes/{$quoteId}")
@@ -239,7 +243,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $sale = Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
@@ -255,7 +259,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
@@ -272,7 +276,7 @@ class QuoteApiTest extends TestCase
 
         $created = $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $customer->delete();
@@ -294,7 +298,7 @@ class QuoteApiTest extends TestCase
 
         $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('customer_id');
 
@@ -308,12 +312,12 @@ class QuoteApiTest extends TestCase
         $customer->delete();
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $this->putJson("/api/quotes/{$quoteId}", [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'El cliente seleccionado ya no está disponible.');
 
@@ -327,7 +331,7 @@ class QuoteApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $customer->delete();
@@ -336,7 +340,7 @@ class QuoteApiTest extends TestCase
         $this->putJson("/api/quotes/{$quoteId}", [
             'customer_id' => $customer->id,
             'notes' => 'Actualizada',
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 4]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 4]],
         ])->assertOk()
             ->assertJsonPath('data.customer_id', $customer->id)
             ->assertJsonPath('data.notes', 'Actualizada')
@@ -354,12 +358,12 @@ class QuoteApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'customer_id' => $current->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $this->putJson("/api/quotes/{$quoteId}", [
             'customer_id' => $deleted->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 4]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 4]],
         ])->assertUnprocessable()
             ->assertJsonPath('message', 'El cliente seleccionado ya no está disponible.');
 
@@ -375,7 +379,7 @@ class QuoteApiTest extends TestCase
 
         $this->postJson('/api/quotes', [
             'customer_id' => $customer->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $this->getJson('/api/quotes?with=customer,quoteStatus')
@@ -391,7 +395,7 @@ class QuoteApiTest extends TestCase
         $ids = [];
         foreach (['2026-09-01 10:00:00', '2026-10-05 10:00:00', '2026-09-15 10:00:00'] as $createdAt) {
             $ids[] = $this->travelTo($createdAt, fn () => $this->postJson('/api/quotes', [
-                'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+                'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
             ])->assertCreated()->json('data.id'));
         }
 
@@ -412,7 +416,7 @@ class QuoteApiTest extends TestCase
         foreach ([$juan, $maria, $juan, null] as $customer) {
             $this->postJson('/api/quotes', [
                 'customer_id' => $customer?->id,
-                'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+                'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
             ])->assertCreated();
         }
 
@@ -430,7 +434,7 @@ class QuoteApiTest extends TestCase
 
         $this->postJson('/api/quotes', [
             'customer_id' => $juan->id,
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $juan->delete();
@@ -452,7 +456,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $this->getJson('/api/quotes?with=customer,notARealRelation')
@@ -465,7 +469,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $created = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated();
 
         $quoteId = $created->json('data.id');
@@ -483,7 +487,7 @@ class QuoteApiTest extends TestCase
 
         $response = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['product_variant_id' => $variant->id, 'boxes' => 2],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
             ],
         ])->assertCreated();
@@ -514,7 +518,7 @@ class QuoteApiTest extends TestCase
         $simpleProduct = $this->createSimpleProduct();
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 2]],
         ])->json('data.id');
 
         $this->putJson("/api/quotes/{$quoteId}", [
@@ -555,7 +559,7 @@ class QuoteApiTest extends TestCase
         $simpleProduct = $this->createSimpleProduct();
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 2]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 2]],
         ])->json('data.id');
 
         $this->putJson("/api/quotes/{$quoteId}", [
@@ -571,7 +575,7 @@ class QuoteApiTest extends TestCase
 
         $response = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['product_variant_id' => $variant->id, 'boxes' => 2],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 1],
             ],
         ])->assertCreated();
@@ -616,7 +620,7 @@ class QuoteApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2],
+                ['product_variant_id' => $variant->id, 'boxes' => 2],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
             ],
         ])->assertCreated()->json('data.id');
@@ -639,7 +643,7 @@ class QuoteApiTest extends TestCase
 
         $quoteId = $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2.5],
+                ['product_variant_id' => $variant->id, 'boxes' => 3],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
             ],
         ])->assertCreated()->json('data.id');
@@ -665,8 +669,69 @@ class QuoteApiTest extends TestCase
 
         $this->assertStringNotContainsString('Cant. (m²)', $html);
         $this->assertStringContainsString('>Cant.</th>', $html);
-        $this->assertMatchesRegularExpression('/2\.50 m²/u', $html);
+        // m2_per_box=1.0 en este helper: 3 cajas = 3 m²
+        $this->assertMatchesRegularExpression('/\b3 cajas/u', $html);
+        $this->assertMatchesRegularExpression('/\b3 m²/u', $html);
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
+    }
+
+    public function test_it_quotes_variant_lines_by_whole_boxes(): void
+    {
+        // 4 cajas × 1.44 = 5.76 m² × 359.00 = 2067.84 (lo que cubren las cajas
+        // que se van a entregar, no los m² que pidió el cliente)
+        $variant = $this->createVariant('Taupe', 359.00, m2PerBox: 1.44);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 4]],
+        ])->assertCreated()
+            ->assertJsonPath('data.items.0.boxes', 4)
+            ->assertJsonPath('data.items.0.quantity', '5.760')
+            ->assertJsonPath('data.items.0.line_total', '2067.84')
+            ->assertJsonPath('data.total', '2067.84')
+            ->json('data.id');
+
+        // Editar recalcula igual
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
+        ])->assertOk()
+            ->assertJsonPath('data.items.0.boxes', 5)
+            ->assertJsonPath('data.items.0.quantity', '7.200')
+            ->assertJsonPath('data.total', '2584.80');
+
+        // convert devuelve las cajas (lo que se manda a POST /sales) y los m² de referencia
+        $this->getJson("/api/quotes/{$quoteId}/convert")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.boxes', 5)
+            ->assertJsonPath('data.items.0.quantity', '7.200');
+    }
+
+    public function test_it_rejects_a_quote_variant_line_without_m2_per_box(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: null);
+
+        $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 2]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'La variante PIS-CREATO-Taupe-60X120 no tiene factor de conversión m2_per_box configurado, no se puede cotizar.');
+
+        $this->assertDatabaseCount('quotes', 0);
+    }
+
+    public function test_it_requires_whole_boxes_and_rejects_client_square_meters_on_quote_variant_lines(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'quantity' => 5]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1.5]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.boxes']);
+
+        $this->assertDatabaseCount('quotes', 0);
     }
 
     public function test_it_rejects_a_quote_with_fractional_quantity_on_a_simple_product_line(): void
@@ -676,7 +741,7 @@ class QuoteApiTest extends TestCase
 
         $this->postJson('/api/quotes', [
             'items' => [
-                ['product_variant_id' => $variant->id, 'quantity' => 2.5],
+                ['product_variant_id' => $variant->id, 'boxes' => 3],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 2.5],
             ],
         ])->assertUnprocessable()
@@ -710,7 +775,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 3]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
         ])->assertCreated()->json('data.id');
 
         $cancelledStatus = QuoteStatus::where('name', 'Cancelada')->first();
@@ -732,7 +797,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $convertedStatus = QuoteStatus::where('name', 'Convertida')->first();
@@ -750,7 +815,7 @@ class QuoteApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00);
 
         $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'quantity' => 1]],
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 
         $this->patchJson("/api/quotes/{$quoteId}/cancel")->assertOk();

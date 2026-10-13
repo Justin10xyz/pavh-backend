@@ -16,8 +16,9 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   'customer' => ['name' => string, 'phone' => ?string, 'email' => ?string] | null,
  *   'items' => [[
  *     'variant_label' => string, // variante: "línea color medida"; producto simple: su nombre
- *     'unit' => 'm2' | 'uds',    // variante en m², producto simple en unidades
- *     'quantity' => float,
+ *     'unit' => 'm2' | 'uds',    // variante: cajas + m²; producto simple: unidades
+ *     'boxes' => ?int,           // variante: cajas completas vendidas/cotizadas; simple: null
+ *     'quantity' => float,       // variante: m² que cubren esas cajas; simple: unidades
  *     'unit_price' => float,
  *     'line_total' => float,
  *   ], ...],

@@ -24,6 +24,11 @@ class StoreQuoteRequest extends FormRequest
      * tienen regla aquí para que cualquier valor enviado por el cliente se
      * descarte al llamar a validated().
      *
+     * Cantidad según el tipo de línea (mismo contrato que StoreSaleRequest):
+     * - Variante: `boxes` (cajas completas, entero); sus m² (`quantity`) los
+     *   deriva el backend como boxes × m2_per_box y no se aceptan del cliente.
+     * - Producto simple: `quantity` en unidades; `boxes` no aplica.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -33,8 +38,9 @@ class StoreQuoteRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id', 'integer', 'exists:product_variants,id'],
-            'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'integer', 'exists:simple_products,id'],
-            'items.*.quantity' => ['required', 'numeric', 'min:0.01'],
+            'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'prohibits:items.*.boxes', 'integer', 'exists:simple_products,id'],
+            'items.*.boxes' => ['nullable', 'required_with:items.*.product_variant_id', 'prohibits:items.*.quantity', 'integer', 'min:1'],
+            'items.*.quantity' => ['nullable', 'required_with:items.*.simple_product_id', 'numeric', 'min:0.01'],
         ];
     }
 }
