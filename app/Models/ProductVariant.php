@@ -39,6 +39,7 @@ class ProductVariant extends Model
             'price_per_box' => 'decimal:2',
             'm2_per_box' => 'decimal:3',
             'kilos_per_box' => 'decimal:2',
+            'stock_boxes' => 'integer',
         ];
     }
 

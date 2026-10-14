@@ -27,6 +27,7 @@ class SimpleProduct extends Model
     {
         return [
             'price' => 'decimal:2',
+            'stock_quantity' => 'integer',
         ];
     }
 
