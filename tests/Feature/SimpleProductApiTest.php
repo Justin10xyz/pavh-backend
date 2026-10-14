@@ -81,14 +81,14 @@ class SimpleProductApiTest extends TestCase
         ]);
     }
 
-    public function test_it_defaults_stock_quantity_to_zero_on_create(): void
+    public function test_it_leaves_stock_quantity_null_on_create_when_not_provided(): void
     {
         $this->postJson('/api/simple-products', [
             'category_id' => $this->simpleCategory->id,
             'name' => 'Pegazulejo gris 20kg',
             'price' => 189.50,
         ])->assertCreated()
-            ->assertJsonPath('data.stock_quantity', 0)
+            ->assertJsonPath('data.stock_quantity', null)
             ->assertJsonPath('data.description', null);
     }
 

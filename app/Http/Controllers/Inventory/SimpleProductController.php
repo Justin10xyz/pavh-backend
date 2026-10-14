@@ -84,6 +84,12 @@ class SimpleProductController extends Controller
         return DB::transaction(function () use ($data, $simpleProduct) {
             $simpleProduct = SimpleProduct::lockForUpdate()->findOrFail($simpleProduct->id);
 
+            if (! $simpleProduct->tracksStock()) {
+                return response()->json([
+                    'message' => 'Este producto no tiene seguimiento de stock activo.',
+                ], 422);
+            }
+
             if ($data['type'] === 'subtract' && ! $simpleProduct->hasSufficientStock($data['quantity'])) {
                 return response()->json([
                     'message' => "Stock insuficiente. Disponible: {$simpleProduct->stock_quantity} unidades.",

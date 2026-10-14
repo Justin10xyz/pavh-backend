@@ -28,7 +28,7 @@ class ProductVariantResource extends JsonResource
             'boxes_per_pallet' => $this->boxes_per_pallet,
             'stock_boxes' => $this->stock_boxes,
             'minimum_stock' => $this->minimum_stock,
-            'low_stock' => $this->minimum_stock !== null && $this->stock_boxes <= $this->minimum_stock,
+            'low_stock' => $this->isLowStock(),
             'pei' => $this->pei,
             'ett' => $this->ett,
             'commission_category' => $this->whenLoaded('commissionCategory', fn () => $this->commissionCategory ? [

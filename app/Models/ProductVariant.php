@@ -53,9 +53,14 @@ class ProductVariant extends Model
         return $this->belongsTo(CommissionCategory::class);
     }
 
+    /**
+     * Sin seguimiento de stock (stock_boxes null) nunca es "bajo stock",
+     * aunque tenga mínimo configurado.
+     */
     public function scopeLowStock(Builder $query): Builder
     {
-        return $query->whereNotNull('minimum_stock')
+        return $query->whereNotNull('stock_boxes')
+            ->whereNotNull('minimum_stock')
             ->whereColumn('stock_boxes', '<=', 'minimum_stock');
     }
 
@@ -71,9 +76,25 @@ class ProductVariant extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    /**
+     * stock_boxes null significa que la variante no lleva seguimiento de
+     * stock: no bloquea ventas, no genera alertas ni movimientos.
+     */
+    public function tracksStock(): bool
+    {
+        return $this->stock_boxes !== null;
+    }
+
     public function hasSufficientStock(int $boxes): bool
     {
-        return $boxes <= $this->stock_boxes;
+        return ! $this->tracksStock() || $boxes <= $this->stock_boxes;
+    }
+
+    public function isLowStock(): bool
+    {
+        return $this->tracksStock()
+            && $this->minimum_stock !== null
+            && $this->stock_boxes <= $this->minimum_stock;
     }
 
     /**

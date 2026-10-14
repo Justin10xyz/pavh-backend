@@ -29,7 +29,7 @@ class StockMovementTest extends TestCase
         $this->actingAs(User::factory()->create());
     }
 
-    private function createVariant(?float $m2PerBox = 1.44, int $stockBoxes = 10, string $code = 'PIS-CREATO-TAU-60X120'): ProductVariant
+    private function createVariant(?float $m2PerBox = 1.44, ?int $stockBoxes = 10, string $code = 'PIS-CREATO-TAU-60X120'): ProductVariant
     {
         $supplier = Supplier::create(['name' => 'Interceramic']);
         $category = Category::create(['name' => 'Floor', 'code_prefix' => 'PIS']);
@@ -55,7 +55,7 @@ class StockMovementTest extends TestCase
         ]);
     }
 
-    private function createSimpleProduct(int $stockQuantity = 20): SimpleProduct
+    private function createSimpleProduct(?int $stockQuantity = 20): SimpleProduct
     {
         $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
 
@@ -325,6 +325,85 @@ class StockMovementTest extends TestCase
             StockMovement::record($simpleProduct, 'subtract', 1, 'sale');
         } finally {
             $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 5]);
+            $this->assertDatabaseCount('stock_movements', 0);
+        }
+    }
+
+    public function test_has_sufficient_stock_is_always_true_without_stock_tracking(): void
+    {
+        $variant = $this->createVariant(stockBoxes: null);
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: null);
+
+        foreach ([1, 1000, PHP_INT_MAX] as $quantity) {
+            $this->assertTrue($variant->hasSufficientStock($quantity));
+            $this->assertTrue($simpleProduct->hasSufficientStock($quantity));
+        }
+    }
+
+    public function test_manual_adjustments_on_untracked_products_are_rejected_and_record_nothing(): void
+    {
+        $variant = $this->createVariant(stockBoxes: null);
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: null);
+
+        foreach (['add', 'subtract'] as $type) {
+            $this->patchJson("/api/product-variants/{$variant->id}/stock", ['quantity' => 3, 'type' => $type])
+                ->assertUnprocessable()
+                ->assertJsonPath('message', 'Este producto no tiene seguimiento de stock activo.');
+
+            $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['quantity' => 3, 'type' => $type])
+                ->assertUnprocessable()
+                ->assertJsonPath('message', 'Este producto no tiene seguimiento de stock activo.');
+        }
+
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => null]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => null]);
+    }
+
+    public function test_sale_of_untracked_products_is_not_blocked_and_records_nothing(): void
+    {
+        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: null);
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: null);
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'boxes' => 50, 'unit_price' => 100.00],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 40, 'unit_price' => 189.50],
+            ],
+        ])->assertCreated();
+
+        $this->assertDatabaseCount('stock_movements', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => null]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => null]);
+    }
+
+    public function test_untracked_variant_is_never_low_stock(): void
+    {
+        $variant = $this->createVariant(stockBoxes: null);
+        $variant->update(['minimum_stock' => 1]);
+
+        $this->assertFalse($variant->isLowStock());
+
+        $this->getJson("/api/product-variants/{$variant->id}")
+            ->assertOk()
+            ->assertJsonPath('data.stock_boxes', null)
+            ->assertJsonPath('data.low_stock', false);
+
+        $this->getJson('/api/product-variants?low_stock=1')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_record_rejects_an_untracked_product(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: null);
+
+        $this->expectException(LogicException::class);
+
+        try {
+            StockMovement::record($simpleProduct, 'add', 1, 'manual');
+        } finally {
+            $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => null]);
             $this->assertDatabaseCount('stock_movements', 0);
         }
     }

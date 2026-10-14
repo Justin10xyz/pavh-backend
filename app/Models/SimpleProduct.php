@@ -55,8 +55,17 @@ class SimpleProduct extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    /**
+     * stock_quantity null significa que el producto no lleva seguimiento de
+     * stock: no bloquea ventas ni genera movimientos.
+     */
+    public function tracksStock(): bool
+    {
+        return $this->stock_quantity !== null;
+    }
+
     public function hasSufficientStock(int $quantity): bool
     {
-        return $quantity <= $this->stock_quantity;
+        return ! $this->tracksStock() || $quantity <= $this->stock_quantity;
     }
 }

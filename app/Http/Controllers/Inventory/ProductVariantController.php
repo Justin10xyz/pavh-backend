@@ -91,6 +91,12 @@ class ProductVariantController extends Controller
         return DB::transaction(function () use ($data, $productVariant) {
             $productVariant = ProductVariant::lockForUpdate()->findOrFail($productVariant->id);
 
+            if (! $productVariant->tracksStock()) {
+                return response()->json([
+                    'message' => 'Este producto no tiene seguimiento de stock activo.',
+                ], 422);
+            }
+
             if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
                 return response()->json([
                     'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",

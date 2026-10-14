@@ -53,7 +53,8 @@ class StockMovement extends Model
      * Único punto que muta stock_boxes/stock_quantity: aplica el movimiento
      * y registra su historial en la misma transacción, así no puede existir
      * un cambio de stock sin su fila correspondiente. La validación de stock
-     * suficiente es responsabilidad del llamador.
+     * suficiente y de que el producto lleve seguimiento de stock es
+     * responsabilidad del llamador.
      *
      * La tabla no restringe el arco exclusivo (variante O producto simple) a
      * nivel de base de datos, así que esta validación es la única barrera.
@@ -75,6 +76,10 @@ class StockMovement extends Model
 
         if ($quantity <= 0) {
             throw new LogicException('La cantidad de un movimiento de stock debe ser positiva.');
+        }
+
+        if (! $stockable->tracksStock()) {
+            throw new LogicException('No se registran movimientos de stock para un producto sin seguimiento de stock.');
         }
 
         if (($source === 'sale') !== ($sale !== null)) {
