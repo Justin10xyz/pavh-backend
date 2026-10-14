@@ -18,10 +18,11 @@ class SaleResource extends JsonResource
             'id' => $this->id,
             'folio' => $this->folio,
             'quote_id' => $this->quote_id,
-            'quote' => $this->quote ? [
+            // Venta directa: la relación está cargada pero sin cotización de origen.
+            'quote' => $this->whenLoaded('quote', fn () => $this->quote ? [
                 'id' => $this->quote->id,
                 'folio' => $this->quote->folio,
-            ] : null,
+            ] : null, null),
             'customer_id' => $this->customer_id,
             'customer' => $this->customer ? [
                 'id' => $this->customer->id,

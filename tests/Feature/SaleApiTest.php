@@ -447,6 +447,26 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
     }
 
+    public function test_it_rejects_creating_a_sale_with_soft_deleted_variant_and_simple_product(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $simpleProduct = $this->createSimpleProduct();
+        $variant->delete();
+        $simpleProduct->delete();
+
+        $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'unit_price' => 189.50],
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['items.0.product_variant_id', 'items.1.simple_product_id']);
+
+        $this->assertDatabaseCount('sales', 0);
+        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
+        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 20]);
+    }
+
     public function test_index_returns_all_sales_newest_first_without_date_filter(): void
     {
         $this->createSaleAt('V-0001', '2026-09-01 10:00:00');
@@ -575,6 +595,31 @@ class SaleApiTest extends TestCase
 
         // Con eager loading, una sola consulta a customers para ambas ventas
         // (lazy loading haría una por venta).
+        $customerQueries = collect(DB::getQueryLog())
+            ->filter(fn ($entry) => str_contains($entry['query'], 'from "customers"'));
+
+        $this->assertCount(1, $customerQueries);
+    }
+
+    public function test_index_always_includes_customer_without_with_param(): void
+    {
+        $juan = Customer::create(['name' => 'Juan Perez']);
+        $maria = Customer::create(['name' => 'Maria Lopez']);
+        $this->createSaleAt('V-0001', '2026-10-01 10:00:00', $juan);
+        $this->createSaleAt('V-0002', '2026-10-02 10:00:00', $maria);
+        $maria->delete();
+
+        DB::enableQueryLog();
+
+        $this->getJson('/api/sales')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.customer.id', $maria->id)
+            ->assertJsonPath('data.0.customer.name', 'Maria Lopez')
+            ->assertJsonPath('data.1.customer.id', $juan->id)
+            ->assertJsonPath('data.1.customer.name', 'Juan Perez');
+
+        // El listado carga customer siempre: una sola consulta, no una por venta.
         $customerQueries = collect(DB::getQueryLog())
             ->filter(fn ($entry) => str_contains($entry['query'], 'from "customers"'));
 

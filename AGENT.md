@@ -25,6 +25,7 @@ Este documento es para cualquier agente (Claude Code, Cursor, etc.) que trabaje 
 - Al crear un registro cuya tabla tiene columnas con `default` a nivel MySQL (ej. `stock_boxes` default 0), Eloquent no refresca el modelo automáticamente tras el `INSERT` — el atributo puede llegar `null` en la respuesta aunque la BD ya tenga el default aplicado. Llamar `->refresh()` después de `create()` en esos casos.
 - La zona horaria de la app es `America/Mexico_City` (`config/app.php`), no `UTC` — cualquier lógica de fecha (filtros de rango, comparaciones de "hoy") debe asumir esta zona, no UTC. La API sigue serializando fechas en ISO-8601 UTC (`Z`) hacia el frontend; eso es comportamiento normal de Laravel al serializar, no un bug — `new Date(...)` en JS ya lo convierte a hora local.
 - **dompdf no lee `.woff2`**, solo `.woff`, y descarta silenciosamente cualquier `@font-face` con `format()` distinto de `'truetype'` sin dar error. Para cualquier plantilla PDF nueva que use las fuentes de `@fontsource`, hay que tener copias `.woff` en `resources/fonts/` y omitir `format('woff')` en el `src` del `@font-face` — no "corregir" esto agregando el format, falla silenciosamente y el PDF cae a Helvetica/Times sin aviso.
+- **dompdf necesita la extensión GD de PHP (`ext-gd`, requerida en `composer.json`) para incrustar PNGs con transparencia** (ej. el logo del PDF). En un ambiente nuevo, verificar que GD esté habilitado antes de diagnosticar un PDF sin logo.
 
 ## Convenciones de código (backend)
 
@@ -111,8 +112,8 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 
 | Token          | Hex       | Uso                                                                                                              |
 | -------------- | --------- | ---------------------------------------------------------------------------------------------------------------- |
-| `primary`      | `#14293D` | Sidebar, headers, botones primarios, texto sobre fondo claro en marca                                            |
-| `primary-dark` | `#0B1A29` | Hover/active de elementos `primary`                                                                              |
+| `primary`      | `#1C1B19` | Sidebar, headers, botones primarios, texto sobre fondo claro en marca                                            |
+| `primary-dark` | `#11100F` | Hover/active de elementos `primary`                                                                              |
 | `accent`       | `#A67C3D` | Focus rings, indicador de sección/nav activa. Uso **limitado** — no decorativo, no botones grandes de este color |
 | `bg`           | `#F7F8FA` | Fondo general de la app                                                                                          |
 | `surface`      | `#FFFFFF` | Cards, modales, inputs                                                                                           |
@@ -122,15 +123,34 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 | `success`      | `#2F6844` | Confirmaciones, estados positivos                                                                                |
 | `danger`       | `#A13D3D` | Errores, estados destructivos                                                                                    |
 
+`primary` es un grafito cálido casi negro. Hasta el rebrand a INNOVA fue navy (`#14293D`, con `primary-dark` `#0B1A29`), que chocaba de temperatura de color con el negro/dorado del logo — no regresar a tonos azules. `primary-dark` conserva la proporción tonal que había entre los dos navy (~64% de la luminosidad de `primary`).
+
 ### Tipografía
 
 - **UI general** (botones, forms, tablas, nav, body): **Inter**. Es la fuente por defecto para todo excepto lo indicado abajo.
-- **Wordmark / títulos de página** (`<h1>` de cada vista, logo "PV"/"PAVH"): **Source Serif 4**. Uso restringido — nunca en botones, labels, ni texto de tabla. Es el único lugar donde aparece un serif.
+- **Títulos de página** (`<h1>` de cada vista): **Source Serif 4**. Uso restringido — nunca en botones, labels, ni texto de tabla. Es el único lugar donde aparece un serif. El wordmark de la marca ya no es texto en serif: va dentro de la imagen del logo (ver "Marca").
 - Tamaño base 16px, escala modesta (no tipografía gigante tipo landing page — esto es una herramienta de trabajo).
+
+### Marca (INNOVA)
+
+- **Nombre visible: INNOVA** ("Pisos y Acabados"), por decisión del cliente. Es **solo branding visible**: repos, schema, namespaces, rutas, nombres de archivos/componentes y estos documentos internos siguen diciendo PAVH — no renombrarlos.
+- Todo texto de marca que ve el usuario dice "INNOVA": `<title>` de `index.html`, sufijo del título de pestaña (`"{meta.title} · INNOVA"` en el `afterEach` del router), `alt` de los logos.
+- **El wordmark va dentro de la imagen del logo**, no como texto HTML junto a ella — no agregar un `<span>INNOVA</span>` al lado de un logo que ya lo trae.
+- **Assets**: logos e íconos en `src/assets/branding/` (frontend) y `resources/images/branding/` (backend, para dompdf); favicons (`favicon.ico`, `favicon.svg`, `apple-touch-icon.png`, `android-chrome-*`) en `public/`. Variantes según el fondo:
+
+| Dónde                                          | Archivo                                           | Por qué                                                                         |
+| ---------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Login (`Login.vue`, card blanca)               | `logo-color-fondo-blanco.png` (`w-40`)            | Lockup completo con tagline; hay espacio y el fondo es blanco                   |
+| Sidebar expandido (`lg`+, fondo `primary`)     | `logo-sin-tagline-icono-color-nombre-blanco.png` (`h-16`) | Ícono a color + "INNOVA" en blanco; la tagline sería ilegible a ese tamaño |
+| Sidebar colapsado (< `lg`, `w-16`)             | `icono-color-transparente.png` (`w-10`)           | Solo el ícono, sin wordmark                                                     |
+| PDF de documentos (`pdf/document.blade.php`)   | `logo-sin-tagline-color-transparente.png` (`40pt`) | En media carta la tagline quedaría a ~2pt de alto                              |
+
+- Un logo nuevo se elige según el fondo (blanco/claro → versión a color con "INNOVA" en negro; `primary` → versión con "INNOVA" en blanco) y con tagline solo si se lee al tamaño final.
 
 ### Layout
 
 - Sidebar fijo, fondo `primary`, íconos + labels en blanco/gris claro.
+  - **Header del logo**: `h-22` (5.5rem), logo centrado (`justify-center`) en ambos estados, separado por `border-b border-white/10`. Es más alto que el topbar (`h-13`) a propósito, para que el wordmark del logo se lea — sus bordes inferiores ya no coinciden, no "corregirlo" igualando alturas.
   - **Responsive**: por debajo de `lg` el sidebar es una barra de solo íconos (`w-16`, 4rem) con tooltip a la derecha por item; desde `lg` se expande con labels (`w-50`, 12.5rem). Es CSS puro (mobile-first), sin estado de abierto/cerrado ni menú hamburguesa. El tooltip se desactiva en `lg`+ vía `useMediaQuery` (`src/composables/useMediaQuery.js`), que solo existe para lógica JS que el CSS no resuelve — no para decidir layout.
   - Por eso el área de contenido disponible es `100vw - 4rem` por debajo de `lg` y `100vw - 12.5rem` desde `lg` — tenerlo en cuenta al decidir columnas de un grid o qué columnas de tabla ocultar.
   - El `<main>` de `AppLayout.vue` usa padding escalonado `p-4 sm:p-6 lg:p-8`, que ya es el margen exterior de toda vista.
@@ -143,7 +163,7 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 
 - **Unidades: `rem`, no `px`, para todo lo que deba escalar con el tamaño de fuente del usuario** — alturas de controles (inputs/selects/botones), padding, margin, gap, tamaños de fuente, border-radius. Con Tailwind esto significa preferir las utilidades con nombre (`p-4`, `h-10`, `rounded-md`, `text-sm`), que ya están definidas en rem, sobre un valor arbitrario en px (`h-[38px]`, `rounded-[6px]`). Si de verdad se necesita un valor fuera de la escala de Tailwind, el valor arbitrario se escribe en rem (`h-[2.375rem]`), nunca en px.
   - **Excepción**: bordes de 1px (`border`, `border-b`) se quedan en px — es una línea de separación visual fija, no debe engrosarse con el zoom del usuario.
-  - **Patrón existente a corregir solo hacia adelante, no retroactivo**: Los widgets de input (`InputTextCustom`, `InputNumberCustom`, `SelectCustom`) y algunos botones de `ProductFormView.vue` usan `h-[38px]`; lo que se alinea con esos widgets usa `h-[2.375rem]` (mismo valor en rem). A partir de ahora, cualquier control nuevo usa `h-10` (2.5rem, la utilidad estándar de Tailwind más cercana) en vez de un valor arbitrario en px. Migrar los controles ya existentes es candidato para el pase de UX/UI transversal (ver `PROJECT.md`), no se adelanta fuera de ese pase.
+  - **Altura de controles: `h-10`**. Los widgets de input (`InputTextCustom`, `InputNumberCustom`, `SelectCustom`) miden `h-10`, y lo que se alinea con ellos también (texto de solo lectura en líneas de cotización/venta/colores, botón de quitar fila, `CustomerSearch.vue`). Cualquier control nuevo usa `h-10`; no reintroducir `h-[38px]` ni su equivalente `h-[2.375rem]`.
   - El border-radius de la sección "Layout" (`4px`–`6px`) equivale a `rounded` (0.25rem) y `rounded-md` (0.375rem) de Tailwind — usar esas utilidades con nombre.
   - El tamaño base de 16px de la sección "Tipografía" es el `font-size` raíz del navegador, del cual parten todos los `rem` — no se declara en px en ningún componente; se usan las utilidades de tamaño de Tailwind (`text-sm`, `text-base`, etc.), que ya son rem.
 - **Breakpoints: los default de Tailwind v4**, sin breakpoints custom en `@theme` — `sm` 40rem (640px), `md` 48rem (768px), `lg` 64rem (1024px), `xl` 80rem (1280px). No agregar breakpoints custom salvo necesidad real y explícita.
@@ -171,6 +191,7 @@ Importadas en `main.js` (pesos 400/500/600/700 de Inter, 400/600 de Source Serif
 
 - [ ] ¿Usa los tokens de color definidos arriba (no hex sueltos)?
 - [ ] ¿Usa Inter para UI y Source Serif 4 solo en títulos de página?
+- [ ] ¿Un texto de marca visible dice "INNOVA" (no "PAVH"), y un logo sale de `src/assets/branding/` con la variante que corresponde a su fondo?
 - [ ] ¿Sigue el patrón de layout (sidebar/topbar/cards sin sombra pesada)?
 - [ ] ¿Usa `rem` (utilidades con nombre de Tailwind) en vez de `px` arbitrario para alturas/padding/margin/font-size/radius nuevos? ¿Usa mobile-first con los breakpoints default de Tailwind, usable al menos hasta `md`? ¿Ningún texto queda por debajo de `text-xs` (0.75rem)?
 - [ ] ¿El commit sigue Conventional Commits + gitmoji en inglés?
