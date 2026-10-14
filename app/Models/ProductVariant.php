@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,7 +30,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 ])]
 class ProductVariant extends Model
 {
-    use SoftDeletes;
+    use SerializesDatesInAppTimezone, SoftDeletes;
 
     protected function casts(): array
     {

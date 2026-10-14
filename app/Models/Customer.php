@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[Fillable(['name', 'phone', 'email'])]
 class Customer extends Model
 {
-    use SoftDeletes;
+    use SerializesDatesInAppTimezone, SoftDeletes;
 
     public function quotes(): HasMany
     {

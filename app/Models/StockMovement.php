@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,8 @@ use LogicException;
 ])]
 class StockMovement extends Model
 {
+    use SerializesDatesInAppTimezone;
+
     public const TYPES = ['add', 'subtract'];
 
     public const SOURCES = ['manual', 'sale'];

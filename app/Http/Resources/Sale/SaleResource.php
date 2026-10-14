@@ -34,7 +34,8 @@ class SaleResource extends JsonResource
             'total' => $this->total,
             'created_by' => $this->created_by,
             'items' => SaleItemResource::collection($this->whenLoaded('items')),
-            'created_at' => $this->created_at,
+            // Un Resource no pasa por serializeDate(); mismo formato que SerializesDatesInAppTimezone.
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }
