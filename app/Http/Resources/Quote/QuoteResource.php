@@ -37,7 +37,8 @@ class QuoteResource extends JsonResource
                 'id' => $this->sale->id,
                 'folio' => $this->sale->folio,
             ] : null),
-            'created_at' => $this->created_at,
+            // Un Resource no pasa por serializeDate(); mismo formato que SerializesDatesInAppTimezone.
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }

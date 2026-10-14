@@ -19,7 +19,8 @@ class CustomerResource extends JsonResource
             'name' => $this->name,
             'phone' => $this->phone,
             'email' => $this->email,
-            'created_at' => $this->created_at,
+            // Un Resource no pasa por serializeDate(); mismo formato que SerializesDatesInAppTimezone.
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }
