@@ -21,7 +21,8 @@ class StockMovementResource extends JsonResource
             'source' => $this->source,
             'resulting_stock' => $this->resulting_stock,
             'sale_folio' => $this->whenLoaded('sale', fn () => $this->sale?->folio),
-            'created_at' => $this->created_at,
+            // Un Resource no pasa por serializeDate(); mismo formato que SerializesDatesInAppTimezone.
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }

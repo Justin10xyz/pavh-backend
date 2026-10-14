@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Database\Factories\SimpleProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SimpleProduct extends Model
 {
     /** @use HasFactory<SimpleProductFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, SerializesDatesInAppTimezone, SoftDeletes;
 
     protected function casts(): array
     {
