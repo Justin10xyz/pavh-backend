@@ -497,4 +497,152 @@ class StockMovementTest extends TestCase
             $this->assertDatabaseCount('stock_movements', 0);
         }
     }
+
+    public function test_record_rejects_a_zero_quantity_outside_the_initial_movement(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(stockQuantity: 5);
+
+        $this->expectException(LogicException::class);
+
+        try {
+            StockMovement::record($simpleProduct, 'add', 0, 'manual');
+        } finally {
+            $this->assertDatabaseCount('stock_movements', 0);
+        }
+    }
+
+    private function variantPayload(int $productId, string $color, array $overrides = []): array
+    {
+        return [
+            'product_id' => $productId,
+            'color' => $color,
+            'size' => '60x120',
+            'price_per_m2' => 100.00,
+            'price_per_box' => 144.00,
+            'm2_per_box' => 1.44,
+            ...$overrides,
+        ];
+    }
+
+    public function test_creating_a_variant_with_stock_records_an_initial_movement(): void
+    {
+        // Variante creada directo (sin movimiento) solo para tener el producto.
+        $productId = $this->createVariant()->product_id;
+
+        $variantId = $this->postJson('/api/product-variants', $this->variantPayload($productId, 'Gris', ['stock_boxes' => 10]))
+            ->assertCreated()
+            ->assertJsonPath('data.stock_boxes', 10)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('product_variants', ['id' => $variantId, 'stock_boxes' => 10]);
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_variant_id' => $variantId,
+            'simple_product_id' => null,
+            'quantity' => 10,
+            'type' => 'add',
+            'source' => 'initial',
+            'sale_id' => null,
+            'resulting_stock' => 10,
+        ]);
+    }
+
+    public function test_creating_a_variant_with_zero_stock_tracks_it_from_zero(): void
+    {
+        $productId = $this->createVariant()->product_id;
+
+        $variantId = $this->postJson('/api/product-variants', $this->variantPayload($productId, 'Gris', ['stock_boxes' => 0]))
+            ->assertCreated()
+            ->assertJsonPath('data.stock_boxes', 0)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('stock_movements', [
+            'product_variant_id' => $variantId,
+            'quantity' => 0,
+            'source' => 'initial',
+            'resulting_stock' => 0,
+        ]);
+    }
+
+    public function test_creating_a_variant_without_stock_leaves_it_untracked(): void
+    {
+        $productId = $this->createVariant()->product_id;
+
+        $omittedId = $this->postJson('/api/product-variants', $this->variantPayload($productId, 'Gris'))
+            ->assertCreated()
+            ->assertJsonPath('data.stock_boxes', null)
+            ->json('data.id');
+
+        $nullId = $this->postJson('/api/product-variants', $this->variantPayload($productId, 'Ivory', ['stock_boxes' => null]))
+            ->assertCreated()
+            ->assertJsonPath('data.stock_boxes', null)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('product_variants', ['id' => $omittedId, 'stock_boxes' => null]);
+        $this->assertDatabaseHas('product_variants', ['id' => $nullId, 'stock_boxes' => null]);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_creating_a_variant_rejects_negative_stock(): void
+    {
+        $productId = $this->createVariant()->product_id;
+
+        $this->postJson('/api/product-variants', $this->variantPayload($productId, 'Gris', ['stock_boxes' => -1]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('stock_boxes');
+
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
+
+    public function test_creating_a_simple_product_with_stock_records_an_initial_movement(): void
+    {
+        $categoryId = $this->createSimpleProduct()->category_id;
+
+        $productId = $this->postJson('/api/simple-products', [
+            'category_id' => $categoryId,
+            'name' => 'Boquilla blanca 5kg',
+            'price' => 99.00,
+            'stock_quantity' => 10,
+        ])->assertCreated()
+            ->assertJsonPath('data.stock_quantity', 10)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('simple_products', ['id' => $productId, 'stock_quantity' => 10]);
+        $this->assertDatabaseCount('stock_movements', 1);
+        $this->assertDatabaseHas('stock_movements', [
+            'product_variant_id' => null,
+            'simple_product_id' => $productId,
+            'quantity' => 10,
+            'type' => 'add',
+            'source' => 'initial',
+            'sale_id' => null,
+            'resulting_stock' => 10,
+        ]);
+    }
+
+    public function test_creating_a_simple_product_without_stock_leaves_it_untracked(): void
+    {
+        $categoryId = $this->createSimpleProduct()->category_id;
+
+        $omittedId = $this->postJson('/api/simple-products', [
+            'category_id' => $categoryId,
+            'name' => 'Boquilla blanca 5kg',
+            'price' => 99.00,
+        ])->assertCreated()
+            ->assertJsonPath('data.stock_quantity', null)
+            ->json('data.id');
+
+        $nullId = $this->postJson('/api/simple-products', [
+            'category_id' => $categoryId,
+            'name' => 'Boquilla gris 5kg',
+            'price' => 99.00,
+            'stock_quantity' => null,
+        ])->assertCreated()
+            ->assertJsonPath('data.stock_quantity', null)
+            ->json('data.id');
+
+        $this->assertDatabaseHas('simple_products', ['id' => $omittedId, 'stock_quantity' => null]);
+        $this->assertDatabaseHas('simple_products', ['id' => $nullId, 'stock_quantity' => null]);
+        $this->assertDatabaseCount('stock_movements', 0);
+    }
 }

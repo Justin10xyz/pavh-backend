@@ -33,9 +33,23 @@ class SimpleProductController extends Controller
             return $this->wrongCategoryTypeResponse();
         }
 
-        $simpleProduct = SimpleProduct::create($data)->refresh();
+        // El stock inicial no se guarda directo: entra como movimiento
+        // 'initial' para que quede en el historial. Sin stock_quantity el
+        // producto se crea sin seguimiento.
+        $initialStock = $data['stock_quantity'] ?? null;
+        unset($data['stock_quantity']);
 
-        return new SimpleProductResource($simpleProduct);
+        $simpleProduct = DB::transaction(function () use ($data, $initialStock) {
+            $simpleProduct = SimpleProduct::create($data);
+
+            if ($initialStock !== null) {
+                StockMovement::record($simpleProduct, 'add', $initialStock, 'initial');
+            }
+
+            return $simpleProduct;
+        });
+
+        return new SimpleProductResource($simpleProduct->refresh());
     }
 
     public function update(UpdateSimpleProductRequest $request, SimpleProduct $simpleProduct)

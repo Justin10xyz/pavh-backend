@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\CommissionCategory;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Services\VariantCodeGenerator;
@@ -149,7 +150,7 @@ class ProductVariantSeeder extends Seeder
                 $code = $codeGenerator->generate($product, $color, $group['size']);
                 $attributes = $codeOverrides[$code] ?? $tileAttributes[$group['size']][$color] ?? null;
 
-                ProductVariant::updateOrCreate(
+                $variant = ProductVariant::updateOrCreate(
                     ['code' => $code],
                     [
                         'product_id' => $product->id,
@@ -161,7 +162,6 @@ class ProductVariantSeeder extends Seeder
                         'm2_per_box' => $group['m2_per_box'],
                         'kilos_per_box' => $group['kilos_per_box'],
                         'boxes_per_pallet' => $group['boxes_per_pallet'],
-                        'stock_boxes' => $stockExamples[$code]['stock_boxes'] ?? 0,
                         'minimum_stock' => $stockExamples[$code]['minimum_stock'] ?? null,
                         'pei' => $attributes['pei'] ?? null,
                         'ett' => $attributes['ett'] ?? null,
@@ -170,6 +170,13 @@ class ProductVariantSeeder extends Seeder
                             : null,
                     ],
                 );
+
+                // El stock entra como movimiento 'initial' (mismo camino que el
+                // alta por API) y solo al crear la variante: re-sembrar no
+                // pisa el stock de una variante existente sin dejar historial.
+                if ($variant->wasRecentlyCreated) {
+                    StockMovement::record($variant, 'add', $stockExamples[$code]['stock_boxes'] ?? 0, 'initial');
+                }
             }
         }
     }

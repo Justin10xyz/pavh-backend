@@ -40,9 +40,23 @@ class ProductVariantController extends Controller
 
         $data['code'] = $codeGenerator->generate($product, $data['color'], $data['size']);
 
-        $variant = ProductVariant::create($data)->refresh();
+        // El stock inicial no se guarda directo: entra como movimiento
+        // 'initial' para que quede en el historial. Sin stock_boxes la
+        // variante se crea sin seguimiento.
+        $initialStock = $data['stock_boxes'] ?? null;
+        unset($data['stock_boxes']);
 
-        return new ProductVariantResource($variant);
+        $variant = DB::transaction(function () use ($data, $initialStock) {
+            $variant = ProductVariant::create($data);
+
+            if ($initialStock !== null) {
+                StockMovement::record($variant, 'add', $initialStock, 'initial');
+            }
+
+            return $variant;
+        });
+
+        return new ProductVariantResource($variant->refresh());
     }
 
     public function update(UpdateProductVariantRequest $request, ProductVariant $productVariant)

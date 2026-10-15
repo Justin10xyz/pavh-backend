@@ -81,7 +81,9 @@ class StockMovement extends Model
             throw new LogicException("Origen de movimiento de stock inválido: {$source}.");
         }
 
-        if ($quantity <= 0) {
+        // El movimiento inicial puede ser 0: activa el seguimiento sin
+        // existencias (ej. un producto dado de alta con stock 0).
+        if ($quantity < 0 || ($quantity === 0 && $source !== 'initial')) {
             throw new LogicException('La cantidad de un movimiento de stock debe ser positiva.');
         }
 
