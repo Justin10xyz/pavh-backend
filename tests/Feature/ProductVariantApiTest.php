@@ -60,16 +60,12 @@ class ProductVariantApiTest extends TestCase
             'stock_boxes' => null,
         ]);
 
-        // Sin stock_boxes la variante no lleva seguimiento: no admite ajustes
-        // hasta que se le capture un stock.
+        // Sin stock_boxes la variante no lleva seguimiento: no se puede restar,
+        // y el primer 'add' activa el seguimiento.
         $this->patchJson("/api/product-variants/{$variantId}/stock", [
             'quantity' => 5,
-            'type' => 'add',
+            'type' => 'subtract',
         ])->assertUnprocessable();
-
-        $this->putJson("/api/product-variants/{$variantId}", ['stock_boxes' => 0])
-            ->assertOk()
-            ->assertJsonPath('data.stock_boxes', 0);
 
         $this->patchJson("/api/product-variants/{$variantId}/stock", [
             'quantity' => 5,

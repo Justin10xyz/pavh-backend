@@ -24,7 +24,11 @@ class StockMovement extends Model
 
     public const TYPES = ['add', 'subtract'];
 
-    public const SOURCES = ['manual', 'sale'];
+    /**
+     * 'initial' es el primer ajuste manual de un producto sin seguimiento de
+     * stock: lo activa partiendo de 0.
+     */
+    public const SOURCES = ['initial', 'manual', 'sale'];
 
     protected function casts(): array
     {
@@ -53,8 +57,11 @@ class StockMovement extends Model
      * Único punto que muta stock_boxes/stock_quantity: aplica el movimiento
      * y registra su historial en la misma transacción, así no puede existir
      * un cambio de stock sin su fila correspondiente. La validación de stock
-     * suficiente y de que el producto lleve seguimiento de stock es
-     * responsabilidad del llamador.
+     * suficiente es responsabilidad del llamador.
+     *
+     * Un producto sin seguimiento (stock null) solo admite un movimiento
+     * 'add' con origen 'initial', que inicializa el stock en 0 antes de
+     * sumar; y 'initial' solo vale para ese caso.
      *
      * La tabla no restringe el arco exclusivo (variante O producto simple) a
      * nivel de base de datos, así que esta validación es la única barrera.
@@ -78,8 +85,12 @@ class StockMovement extends Model
             throw new LogicException('La cantidad de un movimiento de stock debe ser positiva.');
         }
 
-        if (! $stockable->tracksStock()) {
-            throw new LogicException('No se registran movimientos de stock para un producto sin seguimiento de stock.');
+        if (! $stockable->tracksStock() && $type === 'subtract') {
+            throw new LogicException('No se puede restar stock a un producto sin seguimiento de stock.');
+        }
+
+        if (($source === 'initial') === $stockable->tracksStock()) {
+            throw new LogicException('Un movimiento de stock es inicial si y solo si el producto no lleva seguimiento de stock.');
         }
 
         if (($source === 'sale') !== ($sale !== null)) {
@@ -98,6 +109,11 @@ class StockMovement extends Model
         $column = $stockable instanceof ProductVariant ? 'stock_boxes' : 'stock_quantity';
 
         return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $attributes, $column) {
+            // increment() sobre NULL deja NULL en SQL: se parte de 0.
+            if ($source === 'initial') {
+                $stockable->update([$column => 0]);
+            }
+
             $type === 'add'
                 ? $stockable->increment($column, $quantity)
                 : $stockable->decrement($column, $quantity);

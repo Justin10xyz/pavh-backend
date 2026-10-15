@@ -22,6 +22,8 @@ class UpdateProductVariantRequest extends FormRequest
      */
     public function rules(): array
     {
+        // stock_boxes no se acepta aquí (validated() lo descarta si llega): el
+        // stock solo cambia por PATCH .../stock, que deja historial.
         return [
             'product_id' => ['sometimes', 'integer', 'exists:products,id'],
             'color' => ['sometimes', 'string'],
@@ -32,7 +34,6 @@ class UpdateProductVariantRequest extends FormRequest
             'm2_per_box' => ['sometimes', 'nullable', 'numeric'],
             'kilos_per_box' => ['sometimes', 'nullable', 'numeric'],
             'boxes_per_pallet' => ['sometimes', 'nullable', 'integer'],
-            'stock_boxes' => ['sometimes', 'nullable', 'integer'],
             'minimum_stock' => ['sometimes', 'nullable', 'integer'],
             'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
             'pei' => ['sometimes', 'nullable', 'string', 'max:10'],

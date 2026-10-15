@@ -84,7 +84,11 @@ class SimpleProductController extends Controller
         return DB::transaction(function () use ($data, $simpleProduct) {
             $simpleProduct = SimpleProduct::lockForUpdate()->findOrFail($simpleProduct->id);
 
-            if (! $simpleProduct->tracksStock()) {
+            // Sin seguimiento de stock solo se puede sumar: el primer 'add'
+            // activa el seguimiento y queda en el historial como 'initial'.
+            $tracksStock = $simpleProduct->tracksStock();
+
+            if (! $tracksStock && $data['type'] === 'subtract') {
                 return response()->json([
                     'message' => 'Este producto no tiene seguimiento de stock activo.',
                 ], 422);
@@ -96,7 +100,7 @@ class SimpleProductController extends Controller
                 ], 422);
             }
 
-            StockMovement::record($simpleProduct, $data['type'], $data['quantity'], 'manual');
+            StockMovement::record($simpleProduct, $data['type'], $data['quantity'], $tracksStock ? 'manual' : 'initial');
 
             return new SimpleProductResource($simpleProduct);
         });
