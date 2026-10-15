@@ -183,9 +183,9 @@ class StockMovementTest extends TestCase
 
         $this->travelBack();
         $this->travelTo(now()->subHour());
-        $this->postJson('/api/sales', [
+        $saleId = $this->postJson('/api/sales', [
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00]],
-        ])->assertCreated();
+        ])->assertCreated()->json('data.id');
 
         $this->travelBack();
         $this->patchJson("/api/product-variants/{$otherVariant->id}/stock", ['quantity' => 1, 'type' => 'add'])->assertOk();
@@ -198,11 +198,13 @@ class StockMovementTest extends TestCase
             ->assertJsonPath('data.0.quantity', 7)
             ->assertJsonPath('data.0.resulting_stock', 8)
             ->assertJsonPath('data.0.sale_folio', 'V-0001')
+            ->assertJsonPath('data.0.sale_id', $saleId)
             ->assertJsonPath('data.1.type', 'add')
             ->assertJsonPath('data.1.source', 'manual')
             ->assertJsonPath('data.1.quantity', 5)
             ->assertJsonPath('data.1.resulting_stock', 15)
-            ->assertJsonPath('data.1.sale_folio', null);
+            ->assertJsonPath('data.1.sale_folio', null)
+            ->assertJsonPath('data.1.sale_id', null);
     }
 
     public function test_it_lists_a_simple_product_history(): void
@@ -237,7 +239,8 @@ class StockMovementTest extends TestCase
 
         $this->getJson("/api/simple-products/{$simpleProduct->id}/stock-movements")
             ->assertOk()
-            ->assertJsonPath('data.0.sale_folio', 'V-0001');
+            ->assertJsonPath('data.0.sale_folio', 'V-0001')
+            ->assertJsonPath('data.0.sale_id', null);
     }
 
     public function test_manual_variant_adjustment_locks_the_row_before_mutating(): void
