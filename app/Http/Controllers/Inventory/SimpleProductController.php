@@ -102,9 +102,32 @@ class SimpleProductController extends Controller
             // activa el seguimiento y queda en el historial como 'initial'.
             $tracksStock = $simpleProduct->tracksStock();
 
+            // Desactivar retira todo el stock actual (el historial guarda
+            // cuánto tenía) y deja el producto sin seguimiento.
+            if ($data['type'] === 'deactivate') {
+                if (! $tracksStock) {
+                    return response()->json([
+                        'message' => 'Este producto ya no tiene seguimiento de stock.',
+                    ], 422);
+                }
+
+                StockMovement::record($simpleProduct, 'subtract', $simpleProduct->stock_quantity, 'deactivated');
+
+                return new SimpleProductResource($simpleProduct);
+            }
+
             if (! $tracksStock && $data['type'] === 'subtract') {
                 return response()->json([
                     'message' => 'Este producto no tiene seguimiento de stock activo.',
+                ], 422);
+            }
+
+            // Un ajuste de 0 sobre stock ya controlado no cambia nada; solo la
+            // activación del seguimiento puede empezar desde 0.
+            if ($tracksStock && $data['quantity'] === 0) {
+                return response()->json([
+                    'message' => 'La cantidad debe ser de al menos 1.',
+                    'errors' => ['quantity' => ['La cantidad debe ser de al menos 1.']],
                 ], 422);
             }
 

@@ -26,9 +26,10 @@ class StockMovement extends Model
 
     /**
      * 'initial' es el primer ajuste manual de un producto sin seguimiento de
-     * stock: lo activa partiendo de 0.
+     * stock: lo activa partiendo de 0. 'deactivated' es lo inverso: retira
+     * todo el stock que tenía (type 'subtract') y lo deja sin seguimiento.
      */
-    public const SOURCES = ['initial', 'manual', 'sale'];
+    public const SOURCES = ['initial', 'manual', 'sale', 'deactivated'];
 
     protected function casts(): array
     {
@@ -63,6 +64,11 @@ class StockMovement extends Model
      * 'add' con origen 'initial', que inicializa el stock en 0 antes de
      * sumar; y 'initial' solo vale para ese caso.
      *
+     * 'deactivated' es la única salida del seguimiento: solo sobre un
+     * producto que lo lleva, como 'subtract' de exactamente su stock actual
+     * (el historial guarda cuánto tenía), y deja el stock y el
+     * resulting_stock en null.
+     *
      * La tabla no restringe el arco exclusivo (variante O producto simple) a
      * nivel de base de datos, así que esta validación es la única barrera.
      */
@@ -82,9 +88,24 @@ class StockMovement extends Model
         }
 
         // El movimiento inicial puede ser 0: activa el seguimiento sin
-        // existencias (ej. un producto dado de alta con stock 0).
-        if ($quantity < 0 || ($quantity === 0 && $source !== 'initial')) {
+        // existencias (ej. un producto dado de alta con stock 0). La
+        // desactivación también, si el producto no tenía existencias.
+        if ($quantity < 0 || ($quantity === 0 && ! in_array($source, ['initial', 'deactivated'], true))) {
             throw new LogicException('La cantidad de un movimiento de stock debe ser positiva.');
+        }
+
+        $column = $stockable instanceof ProductVariant ? 'stock_boxes' : 'stock_quantity';
+
+        // Antes que las demás reglas de seguimiento: sobre un producto sin
+        // seguimiento chocaría con la de 'initial' con un mensaje engañoso.
+        if ($source === 'deactivated') {
+            if (! $stockable->tracksStock()) {
+                throw new LogicException('No se puede desactivar el seguimiento de stock de un producto que no lo lleva.');
+            }
+
+            if ($type !== 'subtract' || $quantity !== $stockable->{$column}) {
+                throw new LogicException('Desactivar el seguimiento de stock retira exactamente el stock actual.');
+            }
         }
 
         if (! $stockable->tracksStock() && $type === 'subtract') {
@@ -108,17 +129,19 @@ class StockMovement extends Model
             throw new LogicException('Un movimiento de stock debe apuntar exactamente a una variante o a un producto simple.');
         }
 
-        $column = $stockable instanceof ProductVariant ? 'stock_boxes' : 'stock_quantity';
-
         return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $attributes, $column) {
             // increment() sobre NULL deja NULL en SQL: se parte de 0.
             if ($source === 'initial') {
                 $stockable->update([$column => 0]);
             }
 
-            $type === 'add'
-                ? $stockable->increment($column, $quantity)
-                : $stockable->decrement($column, $quantity);
+            if ($source === 'deactivated') {
+                $stockable->update([$column => null]);
+            } else {
+                $type === 'add'
+                    ? $stockable->increment($column, $quantity)
+                    : $stockable->decrement($column, $quantity);
+            }
 
             return self::create([
                 ...$attributes,
