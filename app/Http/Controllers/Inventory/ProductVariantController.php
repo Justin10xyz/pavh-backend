@@ -40,9 +40,23 @@ class ProductVariantController extends Controller
 
         $data['code'] = $codeGenerator->generate($product, $data['color'], $data['size']);
 
-        $variant = ProductVariant::create($data)->refresh();
+        // El stock inicial no se guarda directo: entra como movimiento
+        // 'initial' para que quede en el historial. Sin stock_boxes la
+        // variante se crea sin seguimiento.
+        $initialStock = $data['stock_boxes'] ?? null;
+        unset($data['stock_boxes']);
 
-        return new ProductVariantResource($variant);
+        $variant = DB::transaction(function () use ($data, $initialStock) {
+            $variant = ProductVariant::create($data);
+
+            if ($initialStock !== null) {
+                StockMovement::record($variant, 'add', $initialStock, 'initial');
+            }
+
+            return $variant;
+        });
+
+        return new ProductVariantResource($variant->refresh());
     }
 
     public function update(UpdateProductVariantRequest $request, ProductVariant $productVariant)
@@ -91,13 +105,46 @@ class ProductVariantController extends Controller
         return DB::transaction(function () use ($data, $productVariant) {
             $productVariant = ProductVariant::lockForUpdate()->findOrFail($productVariant->id);
 
+            // Sin seguimiento de stock solo se puede sumar: el primer 'add'
+            // activa el seguimiento y queda en el historial como 'initial'.
+            $tracksStock = $productVariant->tracksStock();
+
+            // Desactivar retira todo el stock actual (el historial guarda
+            // cuánto tenía) y deja el producto sin seguimiento.
+            if ($data['type'] === 'deactivate') {
+                if (! $tracksStock) {
+                    return response()->json([
+                        'message' => 'Este producto ya no tiene seguimiento de stock.',
+                    ], 422);
+                }
+
+                StockMovement::record($productVariant, 'subtract', $productVariant->stock_boxes, 'deactivated');
+
+                return new ProductVariantResource($productVariant);
+            }
+
+            if (! $tracksStock && $data['type'] === 'subtract') {
+                return response()->json([
+                    'message' => 'Este producto no tiene seguimiento de stock activo.',
+                ], 422);
+            }
+
+            // Un ajuste de 0 sobre stock ya controlado no cambia nada; solo la
+            // activación del seguimiento puede empezar desde 0.
+            if ($tracksStock && $data['quantity'] === 0) {
+                return response()->json([
+                    'message' => 'La cantidad debe ser de al menos 1.',
+                    'errors' => ['quantity' => ['La cantidad debe ser de al menos 1.']],
+                ], 422);
+            }
+
             if ($data['type'] === 'subtract' && ! $productVariant->hasSufficientStock($data['quantity'])) {
                 return response()->json([
                     'message' => "Stock insuficiente. Disponible: {$productVariant->stock_boxes} cajas.",
                 ], 422);
             }
 
-            StockMovement::record($productVariant, $data['type'], $data['quantity'], 'manual');
+            StockMovement::record($productVariant, $data['type'], $data['quantity'], $tracksStock ? 'manual' : 'initial');
 
             return new ProductVariantResource($productVariant);
         });

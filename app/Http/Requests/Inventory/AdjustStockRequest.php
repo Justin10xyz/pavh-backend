@@ -10,6 +10,13 @@ use Illuminate\Validation\Rule;
 class AdjustStockRequest extends FormRequest
 {
     /**
+     * Acciones del endpoint: los tipos de movimiento más 'deactivate', que
+     * no es un tipo en sí (se registra como 'subtract' con origen
+     * 'deactivated') y no lleva cantidad: retira todo el stock actual.
+     */
+    public const ACTIONS = [...StockMovement::TYPES, 'deactivate'];
+
+    /**
      * Determine if the user is authorized to make this request.
      */
     public function authorize(): bool
@@ -24,9 +31,13 @@ class AdjustStockRequest extends FormRequest
      */
     public function rules(): array
     {
+        // 0 solo es válido al activar el seguimiento (producto sin stock): el
+        // controlador lo rechaza si el producto ya lleva seguimiento, porque
+        // eso depende del estado del producto y no solo del request. Con
+        // 'deactivate' la cantidad se descarta aunque llegue.
         return [
-            'quantity' => ['required', 'integer', 'min:1'],
-            'type' => ['required', 'string', Rule::in(StockMovement::TYPES)],
+            'quantity' => ['exclude_if:type,deactivate', 'required', 'integer', 'min:0'],
+            'type' => ['required', 'string', Rule::in(self::ACTIONS)],
         ];
     }
 }
