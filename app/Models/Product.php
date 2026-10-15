@@ -19,9 +19,11 @@ class Product extends Model
         return $this->belongsTo(Supplier::class);
     }
 
+    // withTrashed: un producto dado de baja puede seguir en una categoría ya
+    // eliminada (solo se bloquea con productos activos).
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class)->withTrashed();
     }
 
     public function unitType(): BelongsTo

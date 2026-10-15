@@ -4,6 +4,7 @@ namespace App\Http\Requests\Inventory;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreSimpleProductRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class StoreSimpleProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => ['required', 'integer', 'exists:categories,id'],
+            'category_id' => ['required', 'integer', Rule::exists('categories', 'id')->withoutTrashed()],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],

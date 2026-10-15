@@ -35,7 +35,7 @@ class AuthController extends Controller
             ], 429)->header('Retry-After', $seconds);
         }
 
-        if (!Auth::attempt($request->only('email', 'password'))) {
+        if (! Auth::attempt($request->only('email', 'password'))) {
             RateLimiter::hit($throttleKey, self::LOGIN_DECAY_SECONDS);
 
             throw ValidationException::withMessages([
@@ -53,7 +53,6 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         Auth::guard('web')->logout();
-
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

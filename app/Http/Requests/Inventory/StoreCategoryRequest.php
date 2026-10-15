@@ -25,11 +25,9 @@ class StoreCategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255', 'unique:categories,name'],
-            'code_prefix' => ['required', 'string', 'max:10', 'regex:/^[A-Z]+(-[A-Z]+)*$/', 'unique:categories,code_prefix'],
+            'name' => ['required', 'string', 'max:255', Rule::unique('categories', 'name')->withoutTrashed()],
+            'code_prefix' => ['required', 'string', 'max:10', 'regex:/^[A-Z]+(-[A-Z]+)*$/', Rule::unique('categories', 'code_prefix')->withoutTrashed()],
             'product_form_type' => ['sometimes', 'string', Rule::in(['variant', 'simple'])],
         ];
     }
 }
-
-

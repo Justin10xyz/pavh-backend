@@ -4,6 +4,7 @@ namespace App\Http\Requests\Inventory;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateSimpleProductRequest extends FormRequest
 {
@@ -23,7 +24,7 @@ class UpdateSimpleProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'category_id' => ['sometimes', 'integer', 'exists:categories,id'],
+            'category_id' => ['sometimes', 'integer', Rule::exists('categories', 'id')->withoutTrashed()],
             'name' => ['sometimes', 'string', 'max:255'],
             'price' => ['sometimes', 'numeric', 'min:0'],
             'description' => ['sometimes', 'nullable', 'string'],

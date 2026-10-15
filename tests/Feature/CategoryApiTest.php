@@ -288,6 +288,119 @@ class CategoryApiTest extends TestCase
             ->assertJsonPath('data.product_form_type', 'variant');
     }
 
+    public function test_it_deletes_a_category_without_products(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->deleteJson("/api/categories/{$category->id}")->assertNoContent();
+
+        $this->assertSoftDeleted('categories', ['id' => $category->id]);
+        $this->getJson('/api/categories')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    public function test_it_blocks_deleting_a_category_with_products(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $this->createProduct($category);
+        $this->createProduct($category);
+
+        $this->deleteJson("/api/categories/{$category->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, '2 productos asociados'));
+
+        $this->assertNotSoftDeleted('categories', ['id' => $category->id]);
+    }
+
+    public function test_it_blocks_deleting_a_category_with_simple_products(): void
+    {
+        $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
+        $this->createSimpleProduct($category);
+
+        $this->deleteJson("/api/categories/{$category->id}")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, '1 producto asociado'));
+
+        $this->assertNotSoftDeleted('categories', ['id' => $category->id]);
+    }
+
+    public function test_it_ignores_soft_deleted_products_when_deleting_a_category(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $product = $this->createProduct($category);
+        $product->delete();
+
+        $this->deleteJson("/api/categories/{$category->id}")->assertNoContent();
+
+        $this->assertSoftDeleted('categories', ['id' => $category->id]);
+        // El producto dado de baja conserva su categoría (historial de ventas y cotizaciones).
+        $this->assertSame('Pisos', Product::withTrashed()->find($product->id)->category->name);
+    }
+
+    public function test_it_returns_a_delete_summary_for_a_category_with_products(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $this->createProduct($category);
+        $this->createProduct($category)->delete();
+
+        $this->getJson("/api/categories/{$category->id}/delete-summary")
+            ->assertOk()
+            ->assertJsonPath('data.products_count', 1)
+            ->assertJsonPath('data.blocked_message', fn (string $message) => str_contains($message, '1 producto asociado'));
+    }
+
+    public function test_it_returns_a_delete_summary_for_a_category_without_products(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->getJson("/api/categories/{$category->id}/delete-summary")
+            ->assertOk()
+            ->assertJsonPath('data.products_count', 0)
+            ->assertJsonPath('data.blocked_message', null);
+    }
+
+    public function test_it_returns_not_found_when_deleting_an_already_deleted_category(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $category->delete();
+
+        $this->deleteJson("/api/categories/{$category->id}")->assertNotFound();
+    }
+
+    public function test_it_allows_reusing_the_name_and_code_prefix_of_a_deleted_category(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $category->delete();
+
+        $this->postJson('/api/categories', ['name' => 'Pisos', 'code_prefix' => 'PI'])->assertCreated();
+
+        $other = Category::create(['name' => 'Azulejos', 'code_prefix' => 'AZ']);
+        $this->putJson("/api/categories/{$other->id}", ['name' => 'Muros', 'code_prefix' => 'MU'])->assertOk();
+        Category::create(['name' => 'Muros viejos', 'code_prefix' => 'MV'])->delete();
+        $this->putJson("/api/categories/{$other->id}", ['name' => 'Muros viejos', 'code_prefix' => 'MV'])->assertOk();
+    }
+
+    public function test_it_rejects_assigning_a_deleted_category_to_a_product(): void
+    {
+        $category = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+        $product = $this->createProduct($category);
+        $deleted = Category::create(['name' => 'Viejos', 'code_prefix' => 'VI']);
+        $deleted->delete();
+
+        $this->putJson("/api/products/{$product->id}", ['category_id' => $deleted->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['category_id']);
+    }
+
+    public function test_it_rejects_assigning_a_deleted_category_to_a_simple_product(): void
+    {
+        $deleted = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
+        $deleted->delete();
+
+        $this->postJson('/api/simple-products', ['category_id' => $deleted->id, 'name' => 'Pegazulejo', 'price' => 185])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['category_id']);
+    }
+
     private function createProduct(Category $category): Product
     {
         return Product::create([
