@@ -25,7 +25,7 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string'],
-            'supplier_id' => ['required', 'integer', 'exists:suppliers,id'],
+            'supplier_id' => ['required', 'integer', Rule::exists('suppliers', 'id')->withoutTrashed()],
             'category_id' => ['required', 'integer', Rule::exists('categories', 'id')->withoutTrashed()],
             'unit_type_id' => ['required', 'integer', 'exists:unit_types,id'],
             'purchase_unit' => ['required', 'string'],
