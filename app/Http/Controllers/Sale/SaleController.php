@@ -71,6 +71,7 @@ class SaleController extends Controller
             'customer',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product.unitType',
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
@@ -88,8 +89,9 @@ class SaleController extends Controller
                         $item->productVariant->color,
                         $item->productVariant->size,
                     ])),
-                // Variantes por caja (con los m² que cubren), productos simples en unidades.
-                'unit' => $item->simple_product_id ? 'uds' : 'm2',
+                // Variantes por caja (con los m² que cubren); productos simples y
+                // variantes por pieza en unidades.
+                'unit' => $item->simple_product_id || $item->productVariant->isSoldByPiece() ? 'uds' : 'm2',
                 'boxes' => $item->boxes,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
@@ -147,7 +149,11 @@ class SaleController extends Controller
             $variantId = $item['product_variant_id'];
             $variant = $variants[$variantId] ??= ProductVariant::findOrFail($variantId);
 
-            if ($variant->m2_per_box === null) {
+            // Variantes por pieza: `boxes` son piezas y quantity es esa misma
+            // cantidad, sin derivar m².
+            $soldByPiece = $variant->isSoldByPiece();
+
+            if (! $soldByPiece && $variant->m2_per_box === null) {
                 return response()->json([
                     'message' => "La variante {$variant->code} no tiene factor de conversión m2_per_box configurado, no se puede vender.",
                 ], 422);
@@ -160,7 +166,7 @@ class SaleController extends Controller
             $lines[] = [
                 'product_variant_id' => $variantId,
                 'boxes' => $boxes,
-                'quantity' => $variant->squareMetersForBoxes($boxes),
+                'quantity' => $soldByPiece ? $boxes : $variant->squareMetersForBoxes($boxes),
                 'unit_price' => $item['unit_price'],
             ];
         }

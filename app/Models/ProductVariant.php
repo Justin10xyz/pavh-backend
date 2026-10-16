@@ -98,6 +98,21 @@ class ProductVariant extends Model
     }
 
     /**
+     * Pisos con unit_type "pieza" (ej. mosaicos/decorados): `boxes` en la
+     * línea cuenta piezas, se cobran a price_per_box y no se derivan m².
+     */
+    public function isSoldByPiece(): bool
+    {
+        // withTrashed: líneas viejas (PDF) pueden apuntar a un producto ya dado de baja.
+        $this->loadMissing([
+            'product' => fn ($query) => $query->withTrashed(),
+            'product.unitType',
+        ]);
+
+        return $this->product->unitType->name === 'pieza';
+    }
+
+    /**
      * m² que cubren `$boxes` cajas completas. Las variantes se venden por caja:
      * esta es la cantidad que se guarda como `quantity` de la línea y sobre la
      * que se cobra (precio por m²). Null si la variante no tiene m2_per_box —
