@@ -261,6 +261,75 @@ class PieceSoldVariantTest extends TestCase
         $this->assertSame('IV', $variant->fresh()->pei);
     }
 
+    public function test_it_rejects_changing_unit_type_from_m2_to_piece_with_variants(): void
+    {
+        $product = $this->createProduct('m2');
+        $pieceUnitType = UnitType::create(['name' => 'pieza']);
+
+        foreach (['TAUPE', 'GRIS'] as $color) {
+            ProductVariant::create([
+                'product_id' => $product->id,
+                'code' => "PIS-DECORADO-{$color}-60X120",
+                'color' => $color,
+                'size' => '60x120',
+                'price_per_m2' => 359.00,
+                'price_per_box' => 516.96,
+                'm2_per_box' => 1.44,
+            ]);
+        }
+
+        $this->putJson("/api/products/{$product->id}", ['unit_type_id' => $pieceUnitType->id])
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => 'No se puede cambiar la unidad de venta: el producto ya tiene 2 variantes registradas.']);
+
+        $this->assertSame($product->unit_type_id, $product->fresh()->unit_type_id);
+    }
+
+    public function test_it_rejects_changing_unit_type_from_piece_to_m2_with_variants(): void
+    {
+        $variant = $this->createPieceVariant();
+        $m2UnitType = UnitType::create(['name' => 'm2']);
+
+        $this->putJson("/api/products/{$variant->product_id}", ['unit_type_id' => $m2UnitType->id])
+            ->assertUnprocessable()
+            ->assertExactJson(['message' => 'No se puede cambiar la unidad de venta: el producto ya tiene 1 variante registrada.']);
+
+        $this->assertTrue($variant->product->fresh()->isSoldByPiece());
+    }
+
+    public function test_soft_deleted_variants_do_not_block_a_unit_type_change(): void
+    {
+        $variant = $this->createPieceVariant();
+        $variant->delete();
+        $m2UnitType = UnitType::create(['name' => 'm2']);
+
+        $this->putJson("/api/products/{$variant->product_id}", ['unit_type_id' => $m2UnitType->id])
+            ->assertOk();
+
+        $this->assertSame($m2UnitType->id, $variant->product->fresh()->unit_type_id);
+    }
+
+    public function test_it_changes_unit_type_on_a_product_without_variants(): void
+    {
+        $product = $this->createProduct('m2');
+        $pieceUnitType = UnitType::create(['name' => 'pieza']);
+
+        $this->putJson("/api/products/{$product->id}", ['unit_type_id' => $pieceUnitType->id])
+            ->assertOk()
+            ->assertJsonPath('data.unit_type', 'pieza');
+    }
+
+    public function test_it_keeps_the_same_unit_type_on_a_product_with_variants(): void
+    {
+        $variant = $this->createPieceVariant();
+
+        $this->putJson("/api/products/{$variant->product_id}", [
+            'unit_type_id' => $variant->product->unit_type_id,
+            'name' => 'Decorado Talavera Premium',
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Decorado Talavera Premium');
+    }
+
     public function test_it_quotes_a_piece_variant_without_m2_per_box(): void
     {
         $variant = $this->createPieceVariant();
