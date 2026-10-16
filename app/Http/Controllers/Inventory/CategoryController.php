@@ -35,4 +35,32 @@ class CategoryController extends Controller
 
         return new CategoryResource($category);
     }
+
+    // Soft delete (ver la migración de deleted_at). Se vuelve a validar aquí
+    // aunque el frontend consulte antes delete-summary: entre una y otra
+    // pudieron agregarse productos.
+    public function destroy(Category $category)
+    {
+        if ($message = $category->deletionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $category->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Payload de solo lectura para el diálogo de borrado: con productos activos
+     * el frontend muestra el motivo en vez de pedir confirmación.
+     */
+    public function deleteSummary(Category $category)
+    {
+        return response()->json([
+            'data' => [
+                'products_count' => $category->activeProductsCount(),
+                'blocked_message' => $category->deletionBlockedMessage(),
+            ],
+        ]);
+    }
 }

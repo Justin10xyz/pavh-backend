@@ -15,20 +15,20 @@ class UserSeeder extends Seeder
     {
         // Crear un usuario administrador
         User::updateOrCreate(
-            ['email' => 'soporte@sistema-pavh.com'],
+            ['email' => 'soporte@innovapisos.app'],
             [
-                'name' => 'Soporte Justin',
-                'password' => Hash::make('Justin1993'),
+                'name' => 'Soporte',
+                'password' => Hash::make('Soporte123'),
                 'email_verified_at' => now(),
             ]
         );
 
         // Crear un usuario regular
         User::updateOrCreate(
-            ['email' => 'pedro_lopez@sistema-pavh.com'],
+            ['email' => 'pedro_lopez@innovapisos.app'],
             [
                 'name' => 'Pedro Lopez',
-                'password' => Hash::make('Pedro1234'),
+                'password' => Hash::make('Pedro2026'),
                 'email_verified_at' => now(),
             ]
         );

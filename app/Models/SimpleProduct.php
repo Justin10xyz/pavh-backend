@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'category_id',
+    'code',
     'name',
     'price',
     'description',
@@ -31,9 +32,11 @@ class SimpleProduct extends Model
         ];
     }
 
+    // withTrashed: un producto dado de baja puede seguir en una categoría ya
+    // eliminada (solo se bloquea con productos activos).
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class)->withTrashed();
     }
 
     /**
