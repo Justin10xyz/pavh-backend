@@ -174,14 +174,17 @@
             @if (! empty($document['customer']['email']))
                 <div class="muted">{{ $document['customer']['email'] }}</div>
             @endif
-            @if (! empty($document['customer']['address']))
-                <div class="muted">Domicilio: {{ $document['customer']['address'] }}</div>
-            @endif
-            @if (! empty($document['customer']['neighborhood']))
-                <div class="muted">Colonia: {{ $document['customer']['neighborhood'] }}</div>
-            @endif
-            @if (! empty($document['customer']['city']))
-                <div class="muted">Ciudad: {{ $document['customer']['city'] }}</div>
+            {{-- Domicilio, colonia y ciudad en un renglón; los vacíos se omiten
+                 sin dejar comas sueltas. --}}
+            @php
+                $customerAddress = collect([
+                    $document['customer']['address'] ?? null,
+                    $document['customer']['neighborhood'] ?? null,
+                    $document['customer']['city'] ?? null,
+                ])->map(fn ($part) => trim((string) $part))->filter()->implode(', ');
+            @endphp
+            @if ($customerAddress !== '')
+                <div class="muted">{{ $customerAddress }}</div>
             @endif
         @else
             <div class="muted">Sin cliente</div>
