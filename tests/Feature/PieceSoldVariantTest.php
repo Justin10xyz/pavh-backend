@@ -158,6 +158,109 @@ class PieceSoldVariantTest extends TestCase
             ->assertOnlyJsonValidationErrors(['product_id']);
     }
 
+    public function test_it_rejects_moving_a_piece_variant_to_an_m2_product(): void
+    {
+        $variant = $this->createPieceVariant();
+        $m2Product = $this->createProduct('m2');
+
+        $this->putJson("/api/product-variants/{$variant->id}", [
+            'product_id' => $m2Product->id,
+            'price_per_box' => 90.00,
+        ])->assertUnprocessable()
+            ->assertExactJson(['message' => 'No se puede mover una variante a un producto con una unidad de venta distinta.']);
+
+        $variant->refresh();
+        $this->assertNotSame($m2Product->id, $variant->product_id);
+        $this->assertEqualsWithDelta(85.50, (float) $variant->price_per_box, 0.0001);
+    }
+
+    public function test_it_rejects_moving_an_m2_variant_to_a_piece_product(): void
+    {
+        $m2Product = $this->createProduct('m2');
+        $variant = ProductVariant::create([
+            'product_id' => $m2Product->id,
+            'code' => 'PIS-DECORADO-TAUPE-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'm2_per_box' => 1.44,
+        ]);
+        $pieceProduct = $this->createProduct('pieza');
+
+        $this->putJson("/api/product-variants/{$variant->id}", [
+            'product_id' => $pieceProduct->id,
+        ])->assertUnprocessable()
+            ->assertExactJson(['message' => 'No se puede mover una variante a un producto con una unidad de venta distinta.']);
+
+        $this->assertSame($m2Product->id, $variant->fresh()->product_id);
+    }
+
+    public function test_it_moves_a_piece_variant_to_another_piece_product(): void
+    {
+        $variant = $this->createPieceVariant();
+        $otherPieceProduct = $this->createProduct('pieza');
+
+        $this->putJson("/api/product-variants/{$variant->id}", [
+            'product_id' => $otherPieceProduct->id,
+        ])->assertOk();
+
+        $this->assertSame($otherPieceProduct->id, $variant->fresh()->product_id);
+    }
+
+    public function test_it_rejects_m2_attributes_when_editing_a_piece_variant(): void
+    {
+        $variant = $this->createPieceVariant();
+
+        foreach (['price_per_m2' => 100.00, 'm2_per_box' => 1.44, 'pei' => 'IV', 'ett' => 3] as $field => $value) {
+            $this->putJson("/api/product-variants/{$variant->id}", [$field => $value])
+                ->assertUnprocessable()
+                ->assertJsonMissingValidationErrors()
+                ->assertJsonPath('message', "La variante {$variant->code} se vende por pieza: no lleva precio por m², m² por caja, PEI ni ETT.");
+        }
+
+        $variant->refresh();
+        $this->assertNull($variant->price_per_m2);
+        $this->assertNull($variant->m2_per_box);
+        $this->assertNull($variant->pei);
+        $this->assertNull($variant->ett);
+    }
+
+    public function test_it_edits_only_price_per_box_on_a_piece_variant(): void
+    {
+        $variant = $this->createPieceVariant();
+
+        $this->putJson("/api/product-variants/{$variant->id}", [
+            'price_per_box' => 92.00,
+            'pei' => null,
+        ])->assertOk();
+
+        $this->assertEqualsWithDelta(92.00, (float) $variant->fresh()->price_per_box, 0.0001);
+    }
+
+    public function test_m2_variant_edits_are_unchanged(): void
+    {
+        $m2Product = $this->createProduct('m2');
+        $variant = ProductVariant::create([
+            'product_id' => $m2Product->id,
+            'code' => 'PIS-DECORADO-TAUPE-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'm2_per_box' => 1.44,
+        ]);
+
+        $this->putJson("/api/product-variants/{$variant->id}", [
+            'price_per_m2' => 370.00,
+            'm2_per_box' => 1.50,
+            'pei' => 'IV',
+            'ett' => 3,
+        ])->assertOk();
+
+        $this->assertSame('IV', $variant->fresh()->pei);
+    }
+
     public function test_it_quotes_a_piece_variant_without_m2_per_box(): void
     {
         $variant = $this->createPieceVariant();

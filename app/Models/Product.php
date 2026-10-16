@@ -33,6 +33,17 @@ class Product extends Model
         return $this->belongsTo(UnitType::class);
     }
 
+    /**
+     * Pisos con unit_type "pieza" (ej. mosaicos/decorados): se venden y
+     * cobran por pieza (price_per_box), sin m².
+     */
+    public function isSoldByPiece(): bool
+    {
+        $this->loadMissing('unitType');
+
+        return $this->unitType->name === 'pieza';
+    }
+
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);

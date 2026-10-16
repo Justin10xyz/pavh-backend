@@ -103,13 +103,53 @@ class ProductVariant extends Model
      */
     public function isSoldByPiece(): bool
     {
-        // withTrashed: líneas viejas (PDF) pueden apuntar a un producto ya dado de baja.
-        $this->loadMissing([
-            'product' => fn ($query) => $query->withTrashed(),
-            'product.unitType',
-        ]);
+        return $this->currentProduct()->isSoldByPiece();
+    }
 
-        return $this->product->unitType->name === 'pieza';
+    /**
+     * Guard de PUT /product-variants/{id} (depende de esta variante, por eso
+     * no vive en UpdateProductVariantRequest):
+     * - No se puede mover a un producto con otra unidad de venta: precios y
+     *   atributos dejarían de tener sentido a medio editar.
+     * - En un producto por pieza no se aceptan price_per_m2, m2_per_box, pei
+     *   ni ett con valor. price_per_box no se exige: la fila ya lo tiene.
+     *
+     * @param  array<string, mixed>  $data  Payload ya validado.
+     */
+    public function updateBlockedMessage(array $data): ?string
+    {
+        $currentProduct = $this->currentProduct();
+
+        $targetProduct = isset($data['product_id'])
+            ? Product::withTrashed()->findOrFail($data['product_id'])
+            : $currentProduct;
+
+        if ((int) $targetProduct->unit_type_id !== (int) $currentProduct->unit_type_id) {
+            return 'No se puede mover una variante a un producto con una unidad de venta distinta.';
+        }
+
+        if (! $targetProduct->isSoldByPiece()) {
+            return null;
+        }
+
+        $m2Attributes = array_filter(
+            array_intersect_key($data, array_flip(['price_per_m2', 'm2_per_box', 'pei', 'ett'])),
+            fn ($value) => $value !== null,
+        );
+
+        if ($m2Attributes === []) {
+            return null;
+        }
+
+        return "La variante {$this->code} se vende por pieza: no lleva precio por m², m² por caja, PEI ni ETT.";
+    }
+
+    // withTrashed: líneas viejas (PDF) pueden apuntar a un producto ya dado de baja.
+    private function currentProduct(): Product
+    {
+        $this->loadMissing(['product' => fn ($query) => $query->withTrashed()]);
+
+        return $this->product;
     }
 
     /**

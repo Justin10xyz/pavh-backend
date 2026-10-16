@@ -61,7 +61,17 @@ class ProductVariantController extends Controller
 
     public function update(UpdateProductVariantRequest $request, ProductVariant $productVariant)
     {
-        $productVariant->update($request->validated());
+        $data = $request->validated();
+
+        if ($message = $productVariant->updateBlockedMessage($data)) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $productVariant->update($data);
+
+        // El guard cargó `product`; si product_id cambió quedaría desactualizado
+        // en la respuesta, que antes no lo incluía.
+        $productVariant->unsetRelation('product');
 
         return new ProductVariantResource($productVariant);
     }
