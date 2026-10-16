@@ -17,6 +17,8 @@ class CommissionCategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'code' => $this->code,
+            'name' => $this->name,
+            'tier' => $this->tier,
             'percentage' => $this->percentage,
             'notes' => $this->notes,
         ];

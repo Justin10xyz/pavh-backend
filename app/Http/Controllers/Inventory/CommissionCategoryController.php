@@ -10,6 +10,6 @@ class CommissionCategoryController extends Controller
 {
     public function index()
     {
-        return CommissionCategoryResource::collection(CommissionCategory::all());
+        return CommissionCategoryResource::collection(CommissionCategory::ordered()->get());
     }
 }
