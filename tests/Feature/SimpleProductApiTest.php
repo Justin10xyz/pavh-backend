@@ -131,7 +131,7 @@ class SimpleProductApiTest extends TestCase
             'name' => 'Otro pegazulejo',
             'price' => 150,
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['code']);
+            ->assertJsonPath('errors.code.0', 'El campo código ya ha sido registrado.');
     }
 
     public function test_it_rejects_the_code_of_a_soft_deleted_simple_product(): void
@@ -185,7 +185,7 @@ class SimpleProductApiTest extends TestCase
 
         $this->putJson("/api/simple-products/{$other->id}", ['code' => 'PEG-20KG'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['code']);
+            ->assertJsonPath('errors.code.0', 'El campo código ya ha sido registrado.');
     }
 
     public function test_it_requires_category_name_and_price_to_create(): void

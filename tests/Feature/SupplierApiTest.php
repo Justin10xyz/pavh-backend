@@ -125,7 +125,7 @@ class SupplierApiTest extends TestCase
 
         $this->postJson('/api/suppliers', ['name' => 'Interceramic'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name']);
+            ->assertJsonPath('errors.name.0', 'Ya existe un proveedor con ese nombre.');
     }
 
     public function test_it_updates_a_supplier(): void
@@ -153,7 +153,7 @@ class SupplierApiTest extends TestCase
 
         $this->putJson("/api/suppliers/{$supplier->id}", ['name' => 'Interceramic'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name']);
+            ->assertJsonPath('errors.name.0', 'Ya existe un proveedor con ese nombre.');
     }
 
     public function test_it_allows_reusing_the_name_of_a_deleted_supplier(): void

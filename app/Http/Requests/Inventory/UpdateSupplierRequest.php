@@ -20,4 +20,11 @@ class UpdateSupplierRequest extends FormRequest
             'name' => ['required', 'string', 'max:255', Rule::unique('suppliers', 'name')->ignore($supplier->id)->withoutTrashed()],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.unique' => __('validation.custom.suppliers.name.unique'),
+        ];
+    }
 }
