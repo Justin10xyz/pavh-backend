@@ -330,6 +330,56 @@ class PieceSoldVariantTest extends TestCase
             ->assertJsonPath('data.name', 'Decorado Talavera Premium');
     }
 
+    private function createM2Variant(): ProductVariant
+    {
+        return ProductVariant::create([
+            'product_id' => $this->createProduct('m2')->id,
+            'code' => 'PIS-DECORADO-TAUPE-60X120',
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'm2_per_box' => 1.44,
+            'stock_boxes' => 10,
+        ]);
+    }
+
+    public function test_quote_detail_exposes_each_variant_unit_type(): void
+    {
+        $pieceVariant = $this->createPieceVariant();
+        $m2Variant = $this->createM2Variant();
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [
+                ['product_variant_id' => $pieceVariant->id, 'boxes' => 3],
+                ['product_variant_id' => $m2Variant->id, 'boxes' => 2],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant.product.unit_type', 'pieza')
+            ->assertJsonPath('data.items.1.product_variant.product.unit_type', 'm2');
+    }
+
+    public function test_sale_detail_exposes_each_variant_unit_type(): void
+    {
+        $pieceVariant = $this->createPieceVariant();
+        $m2Variant = $this->createM2Variant();
+
+        $saleId = $this->postJson('/api/sales', [
+            'items' => [
+                ['product_variant_id' => $pieceVariant->id, 'boxes' => 3, 'unit_price' => 85.50],
+                ['product_variant_id' => $m2Variant->id, 'boxes' => 2, 'unit_price' => 359.00],
+            ],
+        ])->assertCreated()->json('data.id');
+
+        $this->getJson("/api/sales/{$saleId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant.product.unit_type', 'pieza')
+            ->assertJsonPath('data.items.1.product_variant.product.unit_type', 'm2');
+    }
+
     public function test_it_quotes_a_piece_variant_without_m2_per_box(): void
     {
         $variant = $this->createPieceVariant();

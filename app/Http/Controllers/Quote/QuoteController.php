@@ -50,6 +50,7 @@ class QuoteController extends Controller
         $quote->load([
             'items.productVariant',
             'items.productVariant.product',
+            'items.productVariant.product.unitType',
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
             'customer',
             'quoteStatus',

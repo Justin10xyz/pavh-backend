@@ -57,6 +57,7 @@ class SaleController extends Controller
             'quote',
             'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product.unitType',
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
