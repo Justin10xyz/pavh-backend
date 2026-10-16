@@ -14,7 +14,9 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
-            ->when($request->query('with') === 'variants', fn ($query) => $query->with('variants'))
+            // Mismo eager loading que show(): sin `commissionCategory`, el listado de
+            // Inventario no recibía el código de comisión (ProductVariantResource usa whenLoaded).
+            ->when($request->query('with') === 'variants', fn ($query) => $query->with('variants.commissionCategory'))
             ->get();
 
         return ProductResource::collection($products);
