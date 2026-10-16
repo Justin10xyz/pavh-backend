@@ -80,7 +80,7 @@ class SaleController extends Controller
             'document_type' => 'Venta',
             'folio' => $sale->folio,
             'date' => $sale->created_at->format('d/m/Y'),
-            'customer' => $sale->customer?->only(['name', 'phone', 'email']),
+            'customer' => $sale->customer?->only(['name', 'phone', 'email', 'address', 'neighborhood', 'city']),
             'items' => $sale->items->map(fn ($item) => [
                 // Producto simple: solo su nombre (no tiene línea/color/medida).
                 'variant_label' => $item->simpleProduct
