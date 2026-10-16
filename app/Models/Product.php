@@ -14,9 +14,11 @@ class Product extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    // withTrashed: un producto dado de baja puede seguir con un proveedor ya
+    // eliminado (solo se bloquea con productos activos).
     public function supplier(): BelongsTo
     {
-        return $this->belongsTo(Supplier::class);
+        return $this->belongsTo(Supplier::class)->withTrashed();
     }
 
     // withTrashed: un producto dado de baja puede seguir en una categoría ya
