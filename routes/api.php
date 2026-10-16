@@ -53,4 +53,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::put('/categories/{category}', [CategoryController::class, 'update']);
     Route::get('/categories/{category}/delete-summary', [CategoryController::class, 'deleteSummary']);
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+
+    Route::post('/suppliers', [SupplierController::class, 'store']);
+    Route::put('/suppliers/{supplier}', [SupplierController::class, 'update']);
+    Route::get('/suppliers/{supplier}/delete-summary', [SupplierController::class, 'deleteSummary']);
+    Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
 });
