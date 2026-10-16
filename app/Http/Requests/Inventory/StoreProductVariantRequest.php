@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Inventory;
 
 use App\Models\Product;
-use App\Models\UnitType;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -61,11 +60,6 @@ class StoreProductVariantRequest extends FormRequest
             return false;
         }
 
-        $unitTypeId = Product::withTrashed()->whereKey($productId)->value('unit_type_id');
-        $pieceUnitTypeId = UnitType::where('name', 'pieza')->value('id');
-
-        return $unitTypeId !== null
-            && $pieceUnitTypeId !== null
-            && (int) $unitTypeId === (int) $pieceUnitTypeId;
+        return Product::withTrashed()->find($productId)?->isSoldByPiece() ?? false;
     }
 }
