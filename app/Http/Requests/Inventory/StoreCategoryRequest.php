@@ -30,4 +30,11 @@ class StoreCategoryRequest extends FormRequest
             'product_form_type' => ['sometimes', 'string', Rule::in(['variant', 'simple'])],
         ];
     }
+
+    public function messages(): array
+    {
+        return [
+            'name.unique' => __('validation.custom.categories.name.unique'),
+        ];
+    }
 }

@@ -13,12 +13,15 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   'document_type' => 'Venta' | 'Cotización',
  *   'folio' => string,
  *   'date' => string, // ya formateada para mostrarse
- *   'customer' => ['name' => string, 'phone' => ?string, 'email' => ?string] | null,
+ *   'customer' => [
+ *     'name' => string, 'phone' => ?string, 'email' => ?string,
+ *     'address' => ?string, 'neighborhood' => ?string, 'city' => ?string,
+ *   ] | null,
  *   'items' => [[
  *     'variant_label' => string, // variante: "línea color medida"; producto simple: su nombre
- *     'unit' => 'm2' | 'uds',    // variante: cajas + m²; producto simple: unidades
- *     'boxes' => ?int,           // variante: cajas completas vendidas/cotizadas; simple: null
- *     'quantity' => float,       // variante: m² que cubren esas cajas; simple: unidades
+ *     'unit' => 'm2' | 'uds',    // variante: cajas + m²; producto simple o variante por pieza: unidades
+ *     'boxes' => ?int,           // variante: cajas completas (o piezas) vendidas/cotizadas; simple: null
+ *     'quantity' => float,       // variante: m² que cubren esas cajas (por pieza: las piezas); simple: unidades
  *     'unit_price' => float,
  *     'line_total' => float,
  *   ], ...],

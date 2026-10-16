@@ -58,7 +58,7 @@ class CategoryApiTest extends TestCase
 
         $this->postJson('/api/categories', ['name' => 'Pisos', 'code_prefix' => 'OTRO'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name']);
+            ->assertJsonPath('errors.name.0', 'Ya existe una categoría con ese nombre.');
     }
 
     public function test_it_rejects_a_duplicate_category_code_prefix(): void
@@ -88,7 +88,7 @@ class CategoryApiTest extends TestCase
 
         $this->putJson("/api/categories/{$category->id}", ['name' => 'Pisos', 'code_prefix' => 'AZ'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name']);
+            ->assertJsonPath('errors.name.0', 'Ya existe una categoría con ese nombre.');
     }
 
     public function test_it_rejects_a_duplicate_category_code_prefix_on_update(): void

@@ -14,7 +14,9 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $products = Product::query()
-            ->when($request->query('with') === 'variants', fn ($query) => $query->with('variants'))
+            // Mismo eager loading que show(): sin `commissionCategory`, el listado de
+            // Inventario no recibía el código de comisión (ProductVariantResource usa whenLoaded).
+            ->when($request->query('with') === 'variants', fn ($query) => $query->with('variants.commissionCategory'))
             ->get();
 
         return ProductResource::collection($products);
@@ -38,7 +40,14 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product)
     {
-        $product->update($request->validated());
+        $data = $request->validated();
+
+        if (isset($data['unit_type_id'])
+            && $message = $product->unitTypeChangeBlockedMessage((int) $data['unit_type_id'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $product->update($data);
 
         return new ProductResource($product);
     }

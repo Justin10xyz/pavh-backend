@@ -174,13 +174,26 @@
             @if (! empty($document['customer']['email']))
                 <div class="muted">{{ $document['customer']['email'] }}</div>
             @endif
+            {{-- Domicilio, colonia y ciudad en un renglón; los vacíos se omiten
+                 sin dejar comas sueltas. --}}
+            @php
+                $customerAddress = collect([
+                    $document['customer']['address'] ?? null,
+                    $document['customer']['neighborhood'] ?? null,
+                    $document['customer']['city'] ?? null,
+                ])->map(fn ($part) => trim((string) $part))->filter()->implode(', ');
+            @endphp
+            @if ($customerAddress !== '')
+                <div class="muted">{{ $customerAddress }}</div>
+            @endif
         @else
             <div class="muted">Sin cliente</div>
         @endif
     </div>
 
     {{-- Cada línea trae su unidad. Variantes: cajas (lo que se entrega y cobra)
-         y debajo los m² que cubren; el precio va por m². Productos simples: unidades.
+         y debajo los m² que cubren; el precio va por m². Productos simples y
+         variantes por pieza: unidades.
          Una línea de variante sin `boxes` (registros previos al cambio a cajas)
          muestra solo sus m². --}}
     <table class="items">

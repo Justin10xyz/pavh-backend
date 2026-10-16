@@ -191,6 +191,20 @@ return [
         'items.*.simple_product_id' => [
             'exists' => 'El producto seleccionado no está disponible.',
         ],
+
+        // unique de `name` por catálogo. Varios Form Requests validan un campo
+        // `name`, así que estas claves (tabla.campo) no se aplican solas: cada
+        // Form Request las conecta en su messages().
+        'categories' => [
+            'name' => [
+                'unique' => 'Ya existe una categoría con ese nombre.',
+            ],
+        ],
+        'suppliers' => [
+            'name' => [
+                'unique' => 'Ya existe un proveedor con ese nombre.',
+            ],
+        ],
     ],
 
     /*
@@ -208,6 +222,7 @@ return [
         // Form Requests (app/Http/Requests)
         'boxes_per_pallet' => 'cajas por tarima',
         'category_id' => 'categoría',
+        'code' => 'código',
         'code_prefix' => 'prefijo',
         'color' => 'color',
         'commission_category_id' => 'categoría de comisión',
