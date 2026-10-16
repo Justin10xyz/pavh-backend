@@ -56,6 +56,108 @@ class PieceSoldVariantTest extends TestCase
         ]);
     }
 
+    private function createProduct(string $unitTypeName): Product
+    {
+        return Product::create([
+            'supplier_id' => Supplier::create(['name' => 'Interceramic'])->id,
+            'category_id' => Category::create(['name' => 'Floor', 'code_prefix' => 'PIS'])->id,
+            'unit_type_id' => UnitType::firstOrCreate(['name' => $unitTypeName])->id,
+            'name' => 'Decorado Talavera',
+            'purchase_unit' => $unitTypeName === 'pieza' ? 'pieza' : 'caja',
+        ]);
+    }
+
+    public function test_it_creates_a_piece_variant_with_only_price_per_box(): void
+    {
+        // Ambos tipos existen, como en el seeder: la regla no depende del orden de ids.
+        UnitType::create(['name' => 'm2']);
+        $product = $this->createProduct('pieza');
+
+        $response = $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'size' => '20x20',
+            'price_per_box' => 85.50,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('product_variants', [
+            'id' => $response->json('data.id'),
+            'price_per_m2' => null,
+            'm2_per_box' => null,
+        ]);
+    }
+
+    public function test_it_rejects_m2_attributes_on_a_piece_variant(): void
+    {
+        $product = $this->createProduct('pieza');
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'size' => '20x20',
+            'price_per_box' => 85.50,
+            'price_per_m2' => 100.00,
+            'm2_per_box' => 1.44,
+            'pei' => 'IV',
+            'ett' => 3,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['price_per_m2', 'm2_per_box', 'pei', 'ett']);
+
+        $this->assertDatabaseCount('product_variants', 0);
+    }
+
+    public function test_it_requires_price_per_box_on_a_piece_variant(): void
+    {
+        $product = $this->createProduct('pieza');
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'size' => '20x20',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['price_per_box'])
+            ->assertJsonMissingValidationErrors(['price_per_m2']);
+    }
+
+    public function test_m2_variant_rules_are_unchanged(): void
+    {
+        UnitType::create(['name' => 'pieza']);
+        $product = $this->createProduct('m2');
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Taupe',
+            'size' => '60x120',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['price_per_m2', 'price_per_box']);
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'm2_per_box' => 1.44,
+            'pei' => 'IV',
+            'ett' => 3,
+        ])->assertCreated();
+    }
+
+    public function test_unknown_product_only_reports_the_product_error(): void
+    {
+        UnitType::create(['name' => 'pieza']);
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => 999,
+            'color' => 'Taupe',
+            'size' => '60x120',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+            'pei' => 'IV',
+        ])->assertUnprocessable()
+            ->assertOnlyJsonValidationErrors(['product_id']);
+    }
+
     public function test_it_quotes_a_piece_variant_without_m2_per_box(): void
     {
         $variant = $this->createPieceVariant();
