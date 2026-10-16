@@ -62,7 +62,6 @@ class QuoteApiTest extends TestCase
         ]);
     }
 
-
     private function createSimpleProduct(float $price = 189.50, int $stockQuantity = 20): SimpleProduct
     {
         $category = Category::create(['name' => 'Materiales', 'code_prefix' => 'MAT', 'product_form_type' => 'simple']);
@@ -74,6 +73,7 @@ class QuoteApiTest extends TestCase
             'stock_quantity' => $stockQuantity,
         ]);
     }
+
     public function test_it_creates_a_quote_ignoring_client_sent_unit_price(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);

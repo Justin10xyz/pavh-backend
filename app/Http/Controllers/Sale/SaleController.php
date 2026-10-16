@@ -239,11 +239,21 @@ class SaleController extends Controller
                 $subtotal += $lineTotal;
             }
 
+            // Los productos sin seguimiento de stock no se descuentan ni
+            // dejan movimiento en el historial.
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
+                if (! $variants[$variantId]->tracksStock()) {
+                    continue;
+                }
+
                 StockMovement::record($variants[$variantId], 'subtract', $boxesNeeded, 'sale', $sale);
             }
 
             foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                if (! $simpleProducts[$simpleProductId]->tracksStock()) {
+                    continue;
+                }
+
                 StockMovement::record($simpleProducts[$simpleProductId], 'subtract', $quantityNeeded, 'sale', $sale);
             }
 

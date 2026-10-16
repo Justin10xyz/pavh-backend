@@ -50,15 +50,22 @@ class ProductVariantApiTest extends TestCase
         ])->assertCreated();
 
         $variantResponse->assertJsonPath('data.code', 'PIS-CREATO-TAU-60X120');
-        $variantResponse->assertJsonPath('data.stock_boxes', 0);
+        $variantResponse->assertJsonPath('data.stock_boxes', null);
 
         $variantId = $variantResponse->json('data.id');
 
         $this->assertDatabaseHas('product_variants', [
             'id' => $variantId,
             'code' => 'PIS-CREATO-TAU-60X120',
-            'stock_boxes' => 0,
+            'stock_boxes' => null,
         ]);
+
+        // Sin stock_boxes la variante no lleva seguimiento: no se puede restar,
+        // y el primer 'add' activa el seguimiento.
+        $this->patchJson("/api/product-variants/{$variantId}/stock", [
+            'quantity' => 5,
+            'type' => 'subtract',
+        ])->assertUnprocessable();
 
         $this->patchJson("/api/product-variants/{$variantId}/stock", [
             'quantity' => 5,

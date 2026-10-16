@@ -81,15 +81,111 @@ class SimpleProductApiTest extends TestCase
         ]);
     }
 
-    public function test_it_defaults_stock_quantity_to_zero_on_create(): void
+    public function test_it_leaves_stock_quantity_null_on_create_when_not_provided(): void
     {
         $this->postJson('/api/simple-products', [
             'category_id' => $this->simpleCategory->id,
             'name' => 'Pegazulejo gris 20kg',
             'price' => 189.50,
         ])->assertCreated()
-            ->assertJsonPath('data.stock_quantity', 0)
+            ->assertJsonPath('data.stock_quantity', null)
             ->assertJsonPath('data.description', null);
+    }
+
+    public function test_it_creates_a_simple_product_with_a_code_in_uppercase(): void
+    {
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'code' => '  peg-20kg ',
+            'name' => 'Pegazulejo gris 20kg',
+            'price' => 189.50,
+        ])->assertCreated()
+            ->assertJsonPath('data.code', 'PEG-20KG');
+    }
+
+    public function test_it_leaves_the_code_null_on_create_when_not_provided(): void
+    {
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'name' => 'Pegazulejo gris 20kg',
+            'price' => 189.50,
+            'code' => '',
+        ])->assertCreated()
+            ->assertJsonPath('data.code', null);
+
+        // Varios productos sin código no chocan con el índice único.
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'name' => 'Boquilla gris',
+            'price' => 45,
+        ])->assertCreated();
+    }
+
+    public function test_it_rejects_a_duplicate_code_on_create_ignoring_case(): void
+    {
+        $this->createSimpleProduct(['code' => 'PEG-20KG']);
+
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'code' => 'peg-20kg',
+            'name' => 'Otro pegazulejo',
+            'price' => 150,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
+    }
+
+    public function test_it_rejects_the_code_of_a_soft_deleted_simple_product(): void
+    {
+        $this->createSimpleProduct(['code' => 'PEG-20KG'])->delete();
+
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'code' => 'PEG-20KG',
+            'name' => 'Otro pegazulejo',
+            'price' => 150,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
+    }
+
+    public function test_it_rejects_a_code_with_spaces_or_longer_than_fifty_characters(): void
+    {
+        foreach (['PEG 20KG', str_repeat('A', 51)] as $code) {
+            $this->postJson('/api/simple-products', [
+                'category_id' => $this->simpleCategory->id,
+                'code' => $code,
+                'name' => 'Pegazulejo gris 20kg',
+                'price' => 189.50,
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors(['code']);
+        }
+    }
+
+    public function test_it_updates_and_clears_the_code_of_a_simple_product(): void
+    {
+        $simpleProduct = $this->createSimpleProduct(['code' => 'PEG-20KG']);
+
+        // Conservar su propio código no cuenta como duplicado.
+        $this->putJson("/api/simple-products/{$simpleProduct->id}", ['code' => 'PEG-20KG', 'name' => 'Pegazulejo gris'])
+            ->assertOk()
+            ->assertJsonPath('data.code', 'PEG-20KG');
+
+        $this->putJson("/api/simple-products/{$simpleProduct->id}", ['code' => 'peg-gris'])
+            ->assertOk()
+            ->assertJsonPath('data.code', 'PEG-GRIS');
+
+        $this->putJson("/api/simple-products/{$simpleProduct->id}", ['code' => null])
+            ->assertOk()
+            ->assertJsonPath('data.code', null);
+    }
+
+    public function test_it_rejects_a_duplicate_code_on_update(): void
+    {
+        $this->createSimpleProduct(['code' => 'PEG-20KG']);
+        $other = $this->createSimpleProduct(['name' => 'Boquilla gris', 'code' => 'BOQ-GRIS']);
+
+        $this->putJson("/api/simple-products/{$other->id}", ['code' => 'PEG-20KG'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code']);
     }
 
     public function test_it_requires_category_name_and_price_to_create(): void

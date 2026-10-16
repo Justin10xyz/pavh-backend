@@ -11,7 +11,6 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
-
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
 use Illuminate\Http\Request;
@@ -234,7 +233,8 @@ class QuoteController extends Controller
         ]);
     }
 
-    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator){
+    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator)
+    {
         // withTrashed: una cotización vieja se debe poder reimprimir aunque la
         // variante o su línea se hayan dado de baja después.
         $quote->load([

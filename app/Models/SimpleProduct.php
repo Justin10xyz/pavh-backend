@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[Fillable([
     'category_id',
+    'code',
     'name',
     'price',
     'description',
@@ -27,12 +28,15 @@ class SimpleProduct extends Model
     {
         return [
             'price' => 'decimal:2',
+            'stock_quantity' => 'integer',
         ];
     }
 
+    // withTrashed: un producto dado de baja puede seguir en una categoría ya
+    // eliminada (solo se bloquea con productos activos).
     public function category(): BelongsTo
     {
-        return $this->belongsTo(Category::class);
+        return $this->belongsTo(Category::class)->withTrashed();
     }
 
     /**
@@ -54,8 +58,17 @@ class SimpleProduct extends Model
         return $this->hasMany(StockMovement::class);
     }
 
+    /**
+     * stock_quantity null significa que el producto no lleva seguimiento de
+     * stock: no bloquea ventas ni genera movimientos.
+     */
+    public function tracksStock(): bool
+    {
+        return $this->stock_quantity !== null;
+    }
+
     public function hasSufficientStock(int $quantity): bool
     {
-        return $quantity <= $this->stock_quantity;
+        return ! $this->tracksStock() || $quantity <= $this->stock_quantity;
     }
 }
