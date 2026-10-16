@@ -251,7 +251,7 @@ class QuoteController extends Controller
             'document_type' => 'Cotización',
             'folio' => $quote->folio,
             'date' => $quote->created_at->format('d/m/Y'),
-            'customer' => $quote->customer?->only(['name', 'phone', 'email']),
+            'customer' => $quote->customer?->only(['name', 'phone', 'email', 'address', 'neighborhood', 'city']),
             'items' => $quote->items->map(fn ($item) => [
                 // Producto simple: solo su nombre (no tiene línea/color/medida).
                 'variant_label' => $item->simpleProduct

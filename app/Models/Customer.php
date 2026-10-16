@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-#[Fillable(['name', 'phone', 'email'])]
+#[Fillable(['name', 'phone', 'email', 'address', 'neighborhood', 'city'])]
 class Customer extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;

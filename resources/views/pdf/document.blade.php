@@ -174,6 +174,15 @@
             @if (! empty($document['customer']['email']))
                 <div class="muted">{{ $document['customer']['email'] }}</div>
             @endif
+            @if (! empty($document['customer']['address']))
+                <div class="muted">Domicilio: {{ $document['customer']['address'] }}</div>
+            @endif
+            @if (! empty($document['customer']['neighborhood']))
+                <div class="muted">Colonia: {{ $document['customer']['neighborhood'] }}</div>
+            @endif
+            @if (! empty($document['customer']['city']))
+                <div class="muted">Ciudad: {{ $document['customer']['city'] }}</div>
+            @endif
         @else
             <div class="muted">Sin cliente</div>
         @endif
