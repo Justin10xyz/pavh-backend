@@ -38,6 +38,8 @@ class ProductVariantResource extends JsonResource
             'product' => $this->whenLoaded('product', fn () => [
                 'id' => $this->product->id,
                 'name' => $this->product->name,
+                // Quien carga `product` debe cargar también `product.unitType` (evita N+1).
+                'unit_type' => $this->product->unitType?->name,
             ]),
         ];
     }

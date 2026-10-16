@@ -180,7 +180,8 @@
     </div>
 
     {{-- Cada línea trae su unidad. Variantes: cajas (lo que se entrega y cobra)
-         y debajo los m² que cubren; el precio va por m². Productos simples: unidades.
+         y debajo los m² que cubren; el precio va por m². Productos simples y
+         variantes por pieza: unidades.
          Una línea de variante sin `boxes` (registros previos al cambio a cajas)
          muestra solo sus m². --}}
     <table class="items">

@@ -38,7 +38,14 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product)
     {
-        $product->update($request->validated());
+        $data = $request->validated();
+
+        if (isset($data['unit_type_id'])
+            && $message = $product->unitTypeChangeBlockedMessage((int) $data['unit_type_id'])) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $product->update($data);
 
         return new ProductResource($product);
     }
