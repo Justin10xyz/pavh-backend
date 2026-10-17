@@ -20,6 +20,7 @@ class SimpleProductResource extends JsonResource
             'code' => $this->code,
             'name' => $this->name,
             'price' => $this->price,
+            'price_wholesale' => $this->price_wholesale,
             'description' => $this->description,
             'stock_quantity' => $this->stock_quantity,
             'category' => $this->whenLoaded('category', fn () => [

@@ -221,6 +221,9 @@
                     </td>
                     <td class="text-right">
                         ${{ number_format($item['unit_price'], 2) }}@if ($item['unit'] === 'm2')<span class="muted">/m²</span>@endif
+                        @if (($item['price_type'] ?? null) === 'wholesale')
+                            <div class="muted">Mayoreo</div>
+                        @endif
                     </td>
                     <td class="text-right">${{ number_format($item['line_total'], 2) }}</td>
                 </tr>

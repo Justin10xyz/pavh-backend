@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'code',
     'name',
     'price',
+    'price_wholesale',
     'description',
     'stock_quantity',
 ])]
@@ -24,10 +25,18 @@ class SimpleProduct extends Model
     /** @use HasFactory<SimpleProductFactory> */
     use HasFactory, SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * Valores de `price_type` en las líneas de cotización/venta: qué precio
+     * del producto se usó. El vendedor lo elige por línea (sin umbral de
+     * cantidad); las líneas de variante siempre quedan en retail.
+     */
+    public const PRICE_TYPES = ['retail', 'wholesale'];
+
     protected function casts(): array
     {
         return [
             'price' => 'decimal:2',
+            'price_wholesale' => 'decimal:2',
             'stock_quantity' => 'integer',
         ];
     }
@@ -51,6 +60,29 @@ class SimpleProduct extends Model
         }
 
         return "La cantidad de {$this->name} debe ser un número entero de unidades.";
+    }
+
+    /**
+     * Precio actual según el tipo de línea. null si el producto no tiene ese
+     * precio (price_wholesale es opcional) — nunca cae al precio de menudeo.
+     */
+    public function priceFor(string $priceType): ?string
+    {
+        return $priceType === 'wholesale' ? $this->price_wholesale : $this->price;
+    }
+
+    /**
+     * Devuelve el mensaje de rechazo o null si el producto tiene precio para
+     * ese tipo de línea. Usado al cotizar y al convertir — una sola fuente de
+     * verdad.
+     */
+    public function missingPriceMessage(string $priceType): ?string
+    {
+        if ($this->priceFor($priceType) !== null) {
+            return null;
+        }
+
+        return "El producto {$this->name} no tiene precio de mayoreo configurado.";
     }
 
     public function stockMovements(): HasMany
