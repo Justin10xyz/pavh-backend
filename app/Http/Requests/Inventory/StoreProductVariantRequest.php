@@ -19,6 +19,18 @@ class StoreProductVariantRequest extends FormRequest
     }
 
     /**
+     * La medida se guarda sin espacios y con "X" mayúscula (ej. "60 x 60" →
+     * "60X60"): groupVariants.js agrupa por medida exacta y cualquier otra
+     * escritura separaría el grupo.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->size)) {
+            $this->merge(['size' => mb_strtoupper(preg_replace('/\s+/u', '', $this->size))]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * Las reglas de precio/atributos dependen del unit_type del producto
