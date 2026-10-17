@@ -82,28 +82,28 @@ class ProductVariantSeeder extends Seeder
         // importar en qué grupo se procese.
         $tileAttributes = [
             '60X120' => [
-                'Taupe' => ['pei' => '4', 'ett' => 3, 'commission_category' => 'Vo'],
-                'Terracota' => ['pei' => '4', 'ett' => 3, 'commission_category' => 'Vo'],
-                'Ivory' => ['pei' => '4', 'ett' => 3, 'commission_category' => 'Vo'],
-                'Gray' => ['pei' => '4', 'ett' => 3, 'commission_category' => 'Vo'],
-                'Graphite' => ['pei' => '4', 'ett' => 3, 'commission_category' => 'Vo'],
+                'Taupe' => ['pei' => 'IV', 'ett' => 3, 'commission_category' => 'Vo'],
+                'Terracota' => ['pei' => 'IV', 'ett' => 3, 'commission_category' => 'Vo'],
+                'Ivory' => ['pei' => 'IV', 'ett' => 3, 'commission_category' => 'Vo'],
+                'Gray' => ['pei' => 'IV', 'ett' => 3, 'commission_category' => 'Vo'],
+                'Graphite' => ['pei' => 'IV', 'ett' => 3, 'commission_category' => 'Vo'],
             ],
             '30X60' => [
-                'Taupe' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Terracota' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Ivory' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Gray' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Graphite' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Teal' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Espresso' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
+                'Taupe' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Terracota' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Ivory' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Gray' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Graphite' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Teal' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Espresso' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
             ],
             '20X20' => [
-                'Teal' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Terracota' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Taupe' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Gray Canvas' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'N'],
-                'Espresso' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'A'],
-                'Taupe Blend' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'A'],
+                'Teal' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Terracota' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Taupe' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Gray Canvas' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'N'],
+                'Espresso' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'A'],
+                'Taupe Blend' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'A'],
             ],
         ];
 
@@ -142,7 +142,7 @@ class ProductVariantSeeder extends Seeder
         // largo (TEAL en vez de TEA). Esa fila puntual va en categoría A junto con
         // Espresso y Taupe Blend, no en N como el resto de la tabla por color.
         $codeOverrides = [
-            'PIS-CREATO-TEAL-20X20' => ['pei' => '3/4', 'ett' => 3, 'commission_category' => 'A'],
+            'PIS-CREATO-TEAL-20X20' => ['pei' => 'III/IV', 'ett' => 3, 'commission_category' => 'A'],
         ];
 
         foreach ($groups as $group) {

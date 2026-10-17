@@ -3,8 +3,10 @@
 namespace App\Http\Requests\Inventory;
 
 use App\Models\Product;
+use App\Models\ProductVariant;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreProductVariantRequest extends FormRequest
 {
@@ -43,7 +45,7 @@ class StoreProductVariantRequest extends FormRequest
             'stock_boxes' => ['nullable', 'integer', 'min:0'],
             'minimum_stock' => ['nullable', 'integer'],
             'commission_category_id' => ['nullable', 'exists:commission_categories,id'],
-            'pei' => $soldByPiece ? ['prohibited'] : ['nullable', 'string', 'max:10'],
+            'pei' => $soldByPiece ? ['prohibited'] : ['nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => $soldByPiece ? ['prohibited'] : ['nullable', 'integer', 'between:1,4'],
         ];
     }

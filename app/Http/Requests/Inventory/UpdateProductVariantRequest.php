@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Inventory;
 
+use App\Models\ProductVariant;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateProductVariantRequest extends FormRequest
 {
@@ -36,7 +38,7 @@ class UpdateProductVariantRequest extends FormRequest
             'boxes_per_pallet' => ['sometimes', 'nullable', 'integer'],
             'minimum_stock' => ['sometimes', 'nullable', 'integer'],
             'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
-            'pei' => ['sometimes', 'nullable', 'string', 'max:10'],
+            'pei' => ['sometimes', 'nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => ['sometimes', 'nullable', 'integer', 'between:1,4'],
         ];
     }

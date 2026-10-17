@@ -270,4 +270,41 @@ class ProductVariantApiTest extends TestCase
             'deleted_at' => null,
         ]);
     }
+
+    public function test_pei_only_accepts_the_closed_roman_catalog(): void
+    {
+        $product = Product::create([
+            'supplier_id' => Supplier::create(['name' => 'Interceramic'])->id,
+            'category_id' => Category::create(['name' => 'Floor', 'code_prefix' => 'PIS'])->id,
+            'unit_type_id' => UnitType::create(['name' => 'm2'])->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $payload = [
+            'product_id' => $product->id,
+            'color' => 'Taupe',
+            'size' => '30X60',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ];
+
+        foreach (['4', '3/4', 'iv', 'IV/III', 'VI'] as $pei) {
+            $this->postJson('/api/product-variants', [...$payload, 'pei' => $pei])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['pei']);
+        }
+
+        $variantId = $this->postJson('/api/product-variants', [...$payload, 'pei' => 'III/IV'])
+            ->assertCreated()
+            ->assertJsonPath('data.pei', 'III/IV')
+            ->json('data.id');
+
+        $this->putJson("/api/product-variants/{$variantId}", ['pei' => '3/4'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['pei']);
+
+        $this->putJson("/api/product-variants/{$variantId}", ['pei' => null])->assertOk();
+        $this->assertNull(ProductVariant::find($variantId)->pei);
+    }
 }
