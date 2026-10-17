@@ -32,6 +32,13 @@ class ProductVariant extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * Catálogo cerrado de PEI: romano simple, o rango de dos niveles
+     * consecutivos tal como lo publica el proveedor (ej. "III/IV"). Mismo orden
+     * que PEI_OPTIONS en el frontend.
+     */
+    public const PEI_VALUES = ['I', 'I/II', 'II', 'II/III', 'III', 'III/IV', 'IV', 'IV/V', 'V'];
+
     protected function casts(): array
     {
         return [
