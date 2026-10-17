@@ -66,7 +66,7 @@ class QuoteController extends Controller
     {
         $data = $request->validated();
 
-        if ($message = $this->lineQuantityRejectionMessage($data['items'])) {
+        if ($message = $this->lineRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
 
@@ -113,7 +113,7 @@ class QuoteController extends Controller
             ], 422);
         }
 
-        if ($message = $this->lineQuantityRejectionMessage($data['items'])) {
+        if ($message = $this->lineRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
 
@@ -216,6 +216,21 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        // Se respeta el price_type de la cotización, pero el precio se
+        // re-resuelve contra el actual de ese tipo: si al producto le quitaron
+        // el mayoreo desde que se cotizó, se rechaza igual que al cotizar.
+        $missingPriceItems = $quote->items->filter(
+            fn ($item) => $item->simpleProduct?->missingPriceMessage($item->price_type) !== null
+        );
+
+        if ($missingPriceItems->isNotEmpty()) {
+            $labels = $missingPriceItems->map(fn ($item) => $item->simpleProduct->name)->unique()->implode(', ');
+
+            return response()->json([
+                'message' => "No se puede convertir la cotización: los siguientes productos no tienen precio de mayoreo configurado: {$labels}.",
+            ], 422);
+        }
+
         return response()->json([
             'data' => [
                 'quote_id' => $quote->id,
@@ -228,8 +243,10 @@ class QuoteController extends Controller
                     'simple_product_id' => $item->simple_product_id,
                     'boxes' => $item->boxes,
                     'quantity' => $item->quantity,
-                    'unit_price' => $item->simpleProduct?->price
+                    'unit_price' => $item->simpleProduct?->priceFor($item->price_type)
                         ?? ($item->productVariant->isSoldByPiece() ? $item->productVariant->price_per_box : $item->productVariant->price_per_m2),
+                    // Solo productos simples; en variantes POST /sales lo prohíbe.
+                    'price_type' => $item->simple_product_id ? $item->price_type : null,
                 ]),
             ],
         ]);
@@ -267,6 +284,7 @@ class QuoteController extends Controller
                 'boxes' => $item->boxes,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
+                'price_type' => $item->price_type,
                 'line_total' => (float) $item->line_total,
             ])->all(),
             'subtotal' => (float) $quote->subtotal,
@@ -284,17 +302,19 @@ class QuoteController extends Controller
      * Va antes de la transacción (no dentro de syncItems) para rechazar sin
      * haber creado la cotización ni borrado las líneas existentes en update.
      *
-     * - Producto simple: cantidad fraccionaria.
+     * - Producto simple: cantidad fraccionaria, o línea de mayoreo sin
+     *   price_wholesale configurado (nunca cae al precio de menudeo).
      * - Variante sin m2_per_box: no hay forma de derivar los m² que cubren las
      *   cajas, mismo rechazo que en SaleController@store (nunca 1:1). No
      *   aplica a variantes por pieza, que no derivan m².
      */
-    private function lineQuantityRejectionMessage(array $items): ?string
+    private function lineRejectionMessage(array $items): ?string
     {
         foreach ($items as $item) {
             if (! empty($item['simple_product_id'])) {
-                $message = SimpleProduct::findOrFail($item['simple_product_id'])
-                    ->fractionalQuantityMessage($item['quantity']);
+                $simpleProduct = SimpleProduct::findOrFail($item['simple_product_id']);
+                $message = $simpleProduct->fractionalQuantityMessage($item['quantity'])
+                    ?? $simpleProduct->missingPriceMessage($item['price_type'] ?? 'retail');
 
                 if ($message) {
                     return $message;
@@ -322,8 +342,12 @@ class QuoteController extends Controller
             // Variantes por caja completa: se cotizan los m² que cubren las
             // cajas (boxes × m2_per_box), mismo criterio que la venta.
             // Variantes por pieza: `boxes` son piezas, cobradas a price_per_box.
+            // Productos simples: menudeo o mayoreo según `price_type`; las
+            // variantes no tienen mayoreo y siempre quedan en retail.
+            $priceType = $item['price_type'] ?? 'retail';
+
             if (! empty($item['simple_product_id'])) {
-                $unitPrice = SimpleProduct::findOrFail($item['simple_product_id'])->price;
+                $unitPrice = SimpleProduct::findOrFail($item['simple_product_id'])->priceFor($priceType);
                 $boxes = null;
                 $quantity = $item['quantity'];
             } else {
@@ -347,6 +371,7 @@ class QuoteController extends Controller
                 'boxes' => $boxes,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
+                'price_type' => $priceType,
                 'line_total' => $lineTotal,
             ]);
 

@@ -96,6 +96,7 @@ class SaleController extends Controller
                 'boxes' => $item->boxes,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
+                'price_type' => $item->price_type,
                 'line_total' => (float) $item->line_total,
             ])->all(),
             'subtotal' => (float) $sale->subtotal,
@@ -138,10 +139,13 @@ class SaleController extends Controller
 
                 $quantityNeededBySimpleProduct[$simpleProductId] = ($quantityNeededBySimpleProduct[$simpleProductId] ?? 0) + (int) $item['quantity'];
 
+                // price_type se guarda tal cual: unit_price ya lo decidió el
+                // vendedor y no se compara contra price/price_wholesale.
                 $lines[] = [
                     'simple_product_id' => $simpleProductId,
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['unit_price'],
+                    'price_type' => $item['price_type'] ?? 'retail',
                 ];
 
                 continue;
@@ -240,6 +244,7 @@ class SaleController extends Controller
                     'boxes' => $line['boxes'] ?? null,
                     'quantity' => $line['quantity'],
                     'unit_price' => $line['unit_price'],
+                    'price_type' => $line['price_type'] ?? 'retail',
                     'line_total' => $lineTotal,
                 ]);
 

@@ -38,6 +38,8 @@ class UpdateSimpleProductRequest extends FormRequest
             'code' => ['sometimes', 'nullable', 'string', 'max:50', 'regex:/^\S+$/', Rule::unique('simple_products', 'code')->ignore($this->route('simple_product'))],
             'name' => ['sometimes', 'string', 'max:255'],
             'price' => ['sometimes', 'numeric', 'min:0'],
+            // Opcional: null significa que el producto no se vende a mayoreo.
+            'price_wholesale' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'description' => ['sometimes', 'nullable', 'string'],
         ];
     }

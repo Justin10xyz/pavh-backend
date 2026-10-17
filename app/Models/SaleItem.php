@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['sale_id', 'product_variant_id', 'simple_product_id', 'boxes', 'quantity', 'unit_price', 'line_total'])]
+#[Fillable(['sale_id', 'product_variant_id', 'simple_product_id', 'boxes', 'quantity', 'unit_price', 'price_type', 'line_total'])]
 class SaleItem extends Model
 {
     use SerializesDatesInAppTimezone;
