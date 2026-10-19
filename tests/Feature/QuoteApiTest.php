@@ -869,4 +869,57 @@ class QuoteApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Esta cotización ya está cancelada.');
     }
+
+    public function test_it_stores_payment_fields_and_defaults_payment_terms_to_cash(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $cashId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->assertSame('cash', Quote::find($cashId)->payment_terms);
+
+        $creditId = $this->postJson('/api/quotes', [
+            'discount' => 50,
+            'down_payment' => 100,
+            'shipping_cost' => 250.5,
+            'payment_terms' => 'credit',
+            'credit_due_date' => '2026-11-30',
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $quote = Quote::find($creditId);
+        $this->assertSame('50.00', $quote->discount);
+        $this->assertSame('100.00', $quote->down_payment);
+        $this->assertSame('250.50', $quote->shipping_cost);
+        $this->assertSame('credit', $quote->payment_terms);
+        $this->assertSame('2026-11-30', $quote->credit_due_date->toDateString());
+    }
+
+    public function test_it_validates_payment_fields(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $items = [['product_variant_id' => $variant->id, 'boxes' => 1]];
+
+        $this->postJson('/api/quotes', ['payment_terms' => 'credit', 'items' => $items])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['credit_due_date']);
+
+        $this->postJson('/api/quotes', [
+            'discount' => -1,
+            'down_payment' => -1,
+            'shipping_cost' => -1,
+            'payment_terms' => 'layaway',
+            'items' => $items,
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['discount', 'down_payment', 'shipping_cost', 'payment_terms']);
+
+        $quoteId = $this->postJson('/api/quotes', ['items' => $items])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", ['payment_terms' => 'credit', 'items' => $items])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['credit_due_date']);
+    }
 }

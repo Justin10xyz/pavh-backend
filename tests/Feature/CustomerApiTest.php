@@ -149,4 +149,16 @@ class CustomerApiTest extends TestCase
             'total' => 100,
         ]);
     }
+
+    public function test_it_stores_and_returns_the_postal_code(): void
+    {
+        $id = $this->postJson('/api/customers', ['name' => 'Juan Perez', 'postal_code' => '06700'])
+            ->assertCreated()
+            ->assertJsonPath('data.postal_code', '06700')
+            ->json('data.id');
+
+        $this->putJson("/api/customers/{$id}", ['postal_code' => '01000'])
+            ->assertOk()
+            ->assertJsonPath('data.postal_code', '01000');
+    }
 }

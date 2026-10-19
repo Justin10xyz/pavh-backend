@@ -20,7 +20,12 @@ use Illuminate\Support\Carbon;
  * @property int $quote_status_id
  * @property string|null $notes
  * @property numeric $subtotal
+ * @property numeric|null $discount
+ * @property numeric|null $down_payment
+ * @property numeric|null $shipping_cost
  * @property numeric $total
+ * @property string $payment_terms
+ * @property Carbon|null $credit_due_date
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
@@ -29,6 +34,7 @@ use Illuminate\Support\Carbon;
  * @property-read Customer|null $customer
  * @property-read Collection<int, QuoteItem> $items
  * @property-read int|null $items_count
+ * @property-read Comprobante|null $comprobante
  * @property-read QuoteStatus $quoteStatus
  * @property-read Sale|null $sale
  *
@@ -59,18 +65,33 @@ use Illuminate\Support\Carbon;
     'quote_status_id',
     'notes',
     'subtotal',
+    'discount',
+    'down_payment',
+    'shipping_cost',
     'total',
+    'payment_terms',
+    'credit_due_date',
     'created_by',
 ])]
 class Quote extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * Valores de `payment_terms`: contado o crédito. Con crédito la cotización
+     * lleva fecha de vencimiento (`credit_due_date`).
+     */
+    public const PAYMENT_TERMS = ['cash', 'credit'];
+
     protected function casts(): array
     {
         return [
             'subtotal' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'down_payment' => 'decimal:2',
+            'shipping_cost' => 'decimal:2',
             'total' => 'decimal:2',
+            'credit_due_date' => 'date',
         ];
     }
 
@@ -118,6 +139,17 @@ class Quote extends Model
     public function sale(): HasOne
     {
         return $this->hasOne(Sale::class);
+    }
+
+    /**
+     * Comprobante generado desde esta cotización (comprobantes.quote_id,
+     * UNIQUE): a lo más uno por cotización.
+     *
+     * @return HasOne<Comprobante, $this>
+     */
+    public function comprobante(): HasOne
+    {
+        return $this->hasOne(Comprobante::class);
     }
 
     /**
