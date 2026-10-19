@@ -13,12 +13,16 @@ use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class QuoteController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         $request->validate([
             'customer_id' => ['nullable', 'integer'],
@@ -45,7 +49,7 @@ class QuoteController extends Controller
         return QuoteResource::collection($quotes);
     }
 
-    public function show(Quote $quote)
+    public function show(Quote $quote): QuoteResource
     {
         $quote->load([
             'items.productVariant',
@@ -62,7 +66,7 @@ class QuoteController extends Controller
         return new QuoteResource($quote);
     }
 
-    public function store(StoreQuoteRequest $request, QuoteFolioGenerator $folioGenerator)
+    public function store(StoreQuoteRequest $request, QuoteFolioGenerator $folioGenerator): QuoteResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -91,7 +95,7 @@ class QuoteController extends Controller
         return new QuoteResource($quote);
     }
 
-    public function update(UpdateQuoteRequest $request, Quote $quote)
+    public function update(UpdateQuoteRequest $request, Quote $quote): QuoteResource|JsonResponse
     {
         if ($quote->quoteStatus->name !== 'Borrador') {
             return response()->json([
@@ -130,7 +134,7 @@ class QuoteController extends Controller
         return new QuoteResource($quote);
     }
 
-    public function destroy(Quote $quote)
+    public function destroy(Quote $quote): Response
     {
         $quote->items()->delete();
         $quote->delete();
@@ -141,7 +145,7 @@ class QuoteController extends Controller
     /**
      * Solo cambia el estado; no toca stock ni ventas.
      */
-    public function cancel(Quote $quote)
+    public function cancel(Quote $quote): QuoteResource|JsonResponse
     {
         if ($message = $quote->cancellationBlockedMessage()) {
             return response()->json(['message' => $message], 422);
@@ -161,7 +165,7 @@ class QuoteController extends Controller
      * nada — la conversión real ocurre al confirmar POST /api/sales con
      * quote_id, que marca la cotización como Convertida.
      */
-    public function convert(Quote $quote)
+    public function convert(Quote $quote): JsonResponse
     {
         if ($message = $quote->conversionBlockedMessage()) {
             return response()->json(['message' => $message], 422);
@@ -252,7 +256,7 @@ class QuoteController extends Controller
         ]);
     }
 
-    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator)
+    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator): StreamedResponse
     {
         // withTrashed: una cotización vieja se debe poder reimprimir aunque la
         // variante o su línea se hayan dado de baja después.
