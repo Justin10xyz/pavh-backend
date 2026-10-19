@@ -5,12 +5,51 @@ namespace App\Models;
 use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Database\Factories\SimpleProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $category_id
+ * @property string|null $code
+ * @property string $name
+ * @property numeric $price
+ * @property numeric|null $price_wholesale
+ * @property string|null $description
+ * @property int|null $stock_quantity
+ * @property Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Category|null $category
+ * @property-read Collection<int, StockMovement> $stockMovements
+ * @property-read int|null $stock_movements_count
+ *
+ * @method static \Database\Factories\SimpleProductFactory factory($count = null, $state = [])
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct onlyTrashed()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereCategoryId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereCode($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereDescription($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct wherePrice($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct wherePriceWholesale($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereStockQuantity($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct withTrashed(bool $withTrashed = true)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct withoutTrashed()
+ *
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'category_id',
     'code',
