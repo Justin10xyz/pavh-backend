@@ -14,6 +14,13 @@ use Illuminate\Support\Carbon;
  * @property string|null $business_regime
  * @property string|null $tax_id
  * @property string|null $tax_id_number
+ * @property string|null $address
+ * @property string|null $neighborhood
+ * @property string|null $city
+ * @property string|null $postal_code
+ * @property string|null $phone_primary
+ * @property string|null $phone_secondary
+ * @property string|null $email
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  *
@@ -23,7 +30,19 @@ use Illuminate\Support\Carbon;
  *
  * @mixin \Eloquent
  */
-#[Fillable(['place_of_issue', 'business_regime', 'tax_id', 'tax_id_number'])]
+#[Fillable([
+    'place_of_issue',
+    'business_regime',
+    'tax_id',
+    'tax_id_number',
+    'address',
+    'neighborhood',
+    'city',
+    'postal_code',
+    'phone_primary',
+    'phone_secondary',
+    'email',
+])]
 class BusinessSetting extends Model
 {
     use SerializesDatesInAppTimezone;

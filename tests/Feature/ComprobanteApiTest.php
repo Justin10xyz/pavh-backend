@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\BusinessSetting;
 use App\Models\Category;
 use App\Models\Comprobante;
 use App\Models\Customer;
@@ -12,6 +13,7 @@ use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
+use App\Services\ComprobantePdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -225,5 +227,99 @@ class ComprobanteApiTest extends TestCase
         $this->patchJson("/api/comprobantes/{$comprobanteId}", [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['date']);
+    }
+
+    private const LEGAL_NOTICE = 'EL PRESENTE COMPROBANTE ACREDITA LA LEGITIMA PROPIEDAD DE LOS BIENES DE QUIEN LOS POSEÉ Y/O LA OPERACIÓN COMERCIAL REALIZADA. PARA SU EXPEDICIÓN SE CUMPLE CON LO PREVISTO EN LA REGLA DE CARÁCTER GENERAL I.2.7.1.22. DE LA RESOLUCIÓN MISCELANEA PARA EL 2014 CON RELACIÓN A LO ESTABLECIDO EN EL ARTÍCULO 29-A DEL CÓDIGO FISCAL DE LA FEDERACIÓN PARA LOS COMPROBANTES FISCALES. PARA PODER DEDUCIRSE O ACREDITARSE FISCALMENTE LAS CANTIDADES AMPARADAS EN ESTE COMPROBANTE SIMPLIFICADO DEBERÁ SOLICITAR OPORTUNAMENTE SE LE RESTITUYA POR UN COMPROBANTE FISCAL DIGITAL POR INTERNET DENTRO DEL PLAZO QUE ESTIPULE EL PROVEEDOR.';
+
+    public function test_it_downloads_a_comprobante_as_pdf_even_with_empty_settings(): void
+    {
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $this->createQuote()])
+            ->assertCreated()
+            ->json('data.id');
+
+        // Configuración nunca capturada: no bloquea, se genera con espacios en blanco.
+        $this->assertDatabaseCount('business_settings', 0);
+
+        $response = $this->get("/api/comprobantes/{$comprobanteId}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertDownload('Comprobante-CF-0001.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_it_downloads_the_pdf_of_a_comprobante_without_customer(): void
+    {
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+        $this->patchJson("/api/quotes/{$quoteId}/mark-paid")->assertOk();
+
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        $response = $this->get("/api/comprobantes/{$comprobanteId}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_comprobante_pdf_shows_folio_settings_lines_and_legal_notice(): void
+    {
+        BusinessSetting::current()->update([
+            'place_of_issue' => 'Villa Hidalgo, Jal.',
+            'business_regime' => 'Régimen de Actividad Empresarial',
+            'tax_id' => 'XAXX010101000',
+            'tax_id_number' => '12345678901',
+            'address' => 'Av. Hidalgo 123',
+            'phone_primary' => '495 123 4567',
+        ]);
+
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $this->createQuote(), 'date' => '2026-10-15'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $captured = null;
+        $this->mock(ComprobantePdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $comprobante) use (&$captured) {
+                $captured = $comprobante;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/comprobantes/{$comprobanteId}/pdf")->assertOk();
+
+        $this->assertSame('CF-0001', $captured['folio']);
+        $this->assertSame('15/10/2026', $captured['date']);
+        $this->assertSame('Juan Pérez', $captured['customer']['name']);
+        $this->assertSame('Creato Taupe 60X120', $captured['items'][0]['description']);
+        $this->assertSame('m2', $captured['items'][0]['unit']);
+        $this->assertSame('Pegazulejo gris 20kg', $captured['items'][1]['description']);
+        $this->assertSame('uds', $captured['items'][1]['unit']);
+        // Campo nunca capturado: llega null, no bloquea.
+        $this->assertNull($captured['business']['email']);
+
+        // El PDF de dompdf va comprimido; se revisa el HTML de la plantilla.
+        $html = view('pdf.comprobante', ['comprobante' => $captured])->render();
+        $text = preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($html)));
+
+        $this->assertStringContainsString(self::LEGAL_NOTICE, $text);
+        $this->assertStringContainsString('COMPROBANTE FISCAL SIMPLIFICADO', $text);
+        $this->assertStringContainsString('SUB-DISTRIBUIDOR AUTORIZADO', $text);
+        $this->assertStringContainsString('CF-0001', $text);
+        $this->assertStringContainsString('Villa Hidalgo, Jal.', $text);
+        $this->assertStringContainsString('Av. Hidalgo 123', $text);
+        $this->assertStringContainsString('Tel. 495 123 4567', $text);
+        $this->assertStringContainsString('XAXX010101000', $text);
+        $this->assertStringContainsString('12345678901', $text);
+        $this->assertStringContainsString('cuatro mil ciento ochenta pesos 00/100 M.N.', $text);
+        $this->assertStringContainsString('$4,180.00', $text);
+        $this->assertStringContainsString('$3,600.00', $text);
+
+        // El PDF real también se genera con esos datos.
+        $this->assertStringStartsWith('%PDF-', (new ComprobantePdfGenerator)->generate($captured));
     }
 }

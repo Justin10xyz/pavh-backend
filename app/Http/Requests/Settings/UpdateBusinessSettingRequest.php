@@ -29,6 +29,13 @@ class UpdateBusinessSettingRequest extends FormRequest
             'business_regime' => ['nullable', 'string', 'max:255'],
             'tax_id' => ['nullable', 'string', 'max:255'],
             'tax_id_number' => ['nullable', 'string', 'max:255'],
+            'address' => ['nullable', 'string', 'max:255'],
+            'neighborhood' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:255'],
+            'phone_primary' => ['nullable', 'string', 'max:255'],
+            'phone_secondary' => ['nullable', 'string', 'max:255'],
+            'email' => ['nullable', 'string', 'max:255'],
         ];
     }
 }

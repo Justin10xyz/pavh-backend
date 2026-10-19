@@ -30,7 +30,14 @@ class BusinessSettingApiTest extends TestCase
             ->assertJsonPath('data.place_of_issue', null)
             ->assertJsonPath('data.business_regime', null)
             ->assertJsonPath('data.tax_id', null)
-            ->assertJsonPath('data.tax_id_number', null);
+            ->assertJsonPath('data.tax_id_number', null)
+            ->assertJsonPath('data.address', null)
+            ->assertJsonPath('data.neighborhood', null)
+            ->assertJsonPath('data.city', null)
+            ->assertJsonPath('data.postal_code', null)
+            ->assertJsonPath('data.phone_primary', null)
+            ->assertJsonPath('data.phone_secondary', null)
+            ->assertJsonPath('data.email', null);
 
         // Una segunda lectura no crea otro registro.
         $this->getJson('/api/business-settings')->assertOk();
@@ -46,6 +53,13 @@ class BusinessSettingApiTest extends TestCase
             'business_regime' => 'Régimen de Actividad Empresarial',
             'tax_id' => 'XAXX010101000',
             'tax_id_number' => '12345678901',
+            'address' => 'Av. Hidalgo 123',
+            'neighborhood' => 'Centro',
+            'city' => 'Villa Hidalgo, Jal.',
+            'postal_code' => '47250',
+            'phone_primary' => '495 123 4567',
+            'phone_secondary' => '495 765 4321',
+            'email' => 'ventas@innova.mx',
         ];
 
         $this->putJson('/api/business-settings', $payload)
@@ -74,9 +88,48 @@ class BusinessSettingApiTest extends TestCase
             'business_regime' => ['Régimen'],
             'tax_id' => true,
             'tax_id_number' => str_repeat('1', 256),
+            'address' => 123,
+            'neighborhood' => ['Centro'],
+            'city' => false,
+            'postal_code' => 47250,
+            'phone_primary' => ['495'],
+            'phone_secondary' => str_repeat('1', 256),
+            'email' => 123,
         ])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['place_of_issue', 'business_regime', 'tax_id', 'tax_id_number']);
+            ->assertJsonValidationErrors([
+                'place_of_issue', 'business_regime', 'tax_id', 'tax_id_number',
+                'address', 'neighborhood', 'city', 'postal_code', 'phone_primary', 'phone_secondary', 'email',
+            ]);
+    }
+
+    public function test_put_keeps_omitted_contact_fields_and_clears_explicit_nulls(): void
+    {
+        $this->putJson('/api/business-settings', [
+            'address' => 'Av. Hidalgo 123',
+            'city' => 'Villa Hidalgo, Jal.',
+            'phone_primary' => '495 123 4567',
+            'email' => 'ventas@innova.mx',
+        ])->assertOk();
+
+        // Solo llega phone_primary (como null) y city: lo demás se queda.
+        $this->putJson('/api/business-settings', [
+            'city' => 'Aguascalientes, Ags.',
+            'phone_primary' => null,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.address', 'Av. Hidalgo 123')
+            ->assertJsonPath('data.city', 'Aguascalientes, Ags.')
+            ->assertJsonPath('data.phone_primary', null)
+            ->assertJsonPath('data.email', 'ventas@innova.mx');
+
+        $this->assertDatabaseHas('business_settings', [
+            'id' => 1,
+            'address' => 'Av. Hidalgo 123',
+            'city' => 'Aguascalientes, Ags.',
+            'phone_primary' => null,
+            'email' => 'ventas@innova.mx',
+        ]);
     }
 
     public function test_the_record_is_a_singleton_that_cannot_be_deleted(): void
