@@ -68,6 +68,10 @@ class Customer extends Model
         return $this->hasMany(Sale::class);
     }
 
+    /**
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
     public function scopeSearch(Builder $query, string $term): Builder
     {
         return $query->where(function (Builder $query) use ($term) {

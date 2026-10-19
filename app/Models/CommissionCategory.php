@@ -50,8 +50,13 @@ class CommissionCategory extends Model
         ];
     }
 
-    // De la que más comisión deja (tier 1) a la que menos; las que no tienen
-    // tier van al final.
+    /**
+     * De la que más comisión deja (tier 1) a la que menos; las que no tienen
+     * tier van al final.
+     *
+     * @param  Builder<CommissionCategory>  $query
+     * @return Builder<CommissionCategory>
+     */
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderByRaw('tier is null')->orderBy('tier')->orderBy('code');

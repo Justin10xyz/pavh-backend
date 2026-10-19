@@ -149,8 +149,13 @@ class Quote extends Model
         };
     }
 
-    // customer_id nulo no filtra (igual que dateRange con límites nulos). No
-    // excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+    /**
+     * customer_id nulo no filtra (igual que dateRange con límites nulos). No
+     * excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+     *
+     * @param  Builder<Quote>  $query
+     * @return Builder<Quote>
+     */
     public function scopeForCustomer(Builder $query, ?int $customerId): Builder
     {
         return $query->when($customerId, fn (Builder $query) => $query->where('customer_id', $customerId));

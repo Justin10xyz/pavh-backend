@@ -105,8 +105,13 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 
-    // Ambos límites son inclusivos y comparan solo la fecha (whereDate), así
-    // que to=2026-10-07 incluye las ventas de todo ese día.
+    /**
+     * Ambos límites son inclusivos y comparan solo la fecha (whereDate), así
+     * que to=2026-10-07 incluye las ventas de todo ese día.
+     *
+     * @param  Builder<Sale>  $query
+     * @return Builder<Sale>
+     */
     public function scopeDateRange(Builder $query, ?string $from, ?string $to): Builder
     {
         return $query
@@ -114,8 +119,13 @@ class Sale extends Model
             ->when($to, fn (Builder $query) => $query->whereDate('created_at', '<=', $to));
     }
 
-    // customer_id nulo no filtra (igual que dateRange con límites nulos). No
-    // excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+    /**
+     * customer_id nulo no filtra (igual que dateRange con límites nulos). No
+     * excluye clientes dados de baja: su historial se sigue pudiendo consultar.
+     *
+     * @param  Builder<Sale>  $query
+     * @return Builder<Sale>
+     */
     public function scopeForCustomer(Builder $query, ?int $customerId): Builder
     {
         return $query->when($customerId, fn (Builder $query) => $query->where('customer_id', $customerId));
