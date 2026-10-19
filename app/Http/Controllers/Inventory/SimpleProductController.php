@@ -11,21 +11,24 @@ use App\Http\Resources\Inventory\StockMovementResource;
 use App\Models\Category;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 class SimpleProductController extends Controller
 {
-    public function index()
+    public function index(): AnonymousResourceCollection
     {
         return SimpleProductResource::collection(SimpleProduct::all());
     }
 
-    public function show(SimpleProduct $simpleProduct)
+    public function show(SimpleProduct $simpleProduct): SimpleProductResource
     {
         return new SimpleProductResource($simpleProduct);
     }
 
-    public function store(StoreSimpleProductRequest $request)
+    public function store(StoreSimpleProductRequest $request): SimpleProductResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -52,7 +55,7 @@ class SimpleProductController extends Controller
         return new SimpleProductResource($simpleProduct->refresh());
     }
 
-    public function update(UpdateSimpleProductRequest $request, SimpleProduct $simpleProduct)
+    public function update(UpdateSimpleProductRequest $request, SimpleProduct $simpleProduct): SimpleProductResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -65,7 +68,7 @@ class SimpleProductController extends Controller
         return new SimpleProductResource($simpleProduct);
     }
 
-    public function destroy(SimpleProduct $simpleProduct)
+    public function destroy(SimpleProduct $simpleProduct): Response
     {
         $simpleProduct->delete();
 
@@ -77,7 +80,7 @@ class SimpleProductController extends Controller
      * La venta se carga con withTrashed() para conservar el folio aunque la
      * venta se haya dado de baja.
      */
-    public function stockMovements(SimpleProduct $simpleProduct)
+    public function stockMovements(SimpleProduct $simpleProduct): AnonymousResourceCollection
     {
         $movements = $simpleProduct->stockMovements()
             ->with(['sale' => fn ($query) => $query->withTrashed()])
@@ -88,7 +91,7 @@ class SimpleProductController extends Controller
         return StockMovementResource::collection($movements);
     }
 
-    public function adjustStock(AdjustStockRequest $request, SimpleProduct $simpleProduct)
+    public function adjustStock(AdjustStockRequest $request, SimpleProduct $simpleProduct): SimpleProductResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -143,7 +146,7 @@ class SimpleProductController extends Controller
         });
     }
 
-    private function wrongCategoryTypeResponse()
+    private function wrongCategoryTypeResponse(): JsonResponse
     {
         return response()->json([
             'message' => 'La categoría seleccionada no admite productos simples.',

@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Sale;
 
+use App\Models\Sale;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin Sale
+ */
 class SaleResource extends JsonResource
 {
     /**

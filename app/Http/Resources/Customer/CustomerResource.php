@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Customer;
 
+use App\Models\Customer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin Customer
+ */
 class CustomerResource extends JsonResource
 {
     /**

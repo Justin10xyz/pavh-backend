@@ -12,12 +12,15 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\StockMovement;
 use App\Services\VariantCodeGenerator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 class ProductVariantController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         $variants = ProductVariant::query()
             ->when($request->boolean('low_stock'), fn ($query) => $query->lowStock())
@@ -27,12 +30,12 @@ class ProductVariantController extends Controller
         return ProductVariantResource::collection($variants);
     }
 
-    public function show(ProductVariant $productVariant)
+    public function show(ProductVariant $productVariant): ProductVariantResource
     {
         return new ProductVariantResource($productVariant);
     }
 
-    public function store(StoreProductVariantRequest $request, VariantCodeGenerator $codeGenerator)
+    public function store(StoreProductVariantRequest $request, VariantCodeGenerator $codeGenerator): ProductVariantResource
     {
         $data = $request->validated();
 
@@ -59,7 +62,7 @@ class ProductVariantController extends Controller
         return new ProductVariantResource($variant->refresh());
     }
 
-    public function update(UpdateProductVariantRequest $request, ProductVariant $productVariant)
+    public function update(UpdateProductVariantRequest $request, ProductVariant $productVariant): ProductVariantResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -76,7 +79,7 @@ class ProductVariantController extends Controller
         return new ProductVariantResource($productVariant);
     }
 
-    public function destroy(ProductVariant $productVariant)
+    public function destroy(ProductVariant $productVariant): JsonResponse|Response
     {
         if ($productVariant->product->variants()->count() <= 1) {
             return response()->json([
@@ -94,7 +97,7 @@ class ProductVariantController extends Controller
      * La venta se carga con withTrashed() para conservar el folio aunque la
      * venta se haya dado de baja.
      */
-    public function stockMovements(ProductVariant $productVariant)
+    public function stockMovements(ProductVariant $productVariant): AnonymousResourceCollection
     {
         $movements = $productVariant->stockMovements()
             ->with(['sale' => fn ($query) => $query->withTrashed()])
@@ -105,7 +108,7 @@ class ProductVariantController extends Controller
         return StockMovementResource::collection($movements);
     }
 
-    public function adjustStock(AdjustStockRequest $request, ProductVariant $productVariant)
+    public function adjustStock(AdjustStockRequest $request, ProductVariant $productVariant): ProductVariantResource|JsonResponse
     {
         $data = $request->validated();
 

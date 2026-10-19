@@ -36,6 +36,7 @@ class DocumentPdfGenerator
     public const DEFAULT_PAPER = 'half-letter';
 
     /**
+     * @param  array<string, mixed>  $document  Estructura descrita en el docblock de la clase.
      * @param  string|array<int, float>  $paper  Nombre de tamaño de dompdf (ej. 'letter') o [x0, y0, x1, y1] en puntos.
      * @return string Contenido binario del PDF.
      */

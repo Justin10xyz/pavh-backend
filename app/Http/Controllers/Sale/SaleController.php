@@ -13,12 +13,15 @@ use App\Models\SimpleProduct;
 use App\Models\StockMovement;
 use App\Services\DocumentPdfGenerator;
 use App\Services\SaleFolioGenerator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SaleController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
@@ -48,7 +51,7 @@ class SaleController extends Controller
         return SaleResource::collection($sales);
     }
 
-    public function show(Sale $sale)
+    public function show(Sale $sale): SaleResource
     {
         // withTrashed: una venta ya cerrada se debe poder consultar aunque la
         // variante o su línea se hayan dado de baja después.
@@ -64,7 +67,7 @@ class SaleController extends Controller
         return new SaleResource($sale);
     }
 
-    public function downloadPdf(Sale $sale, DocumentPdfGenerator $pdfGenerator)
+    public function downloadPdf(Sale $sale, DocumentPdfGenerator $pdfGenerator): StreamedResponse
     {
         // withTrashed: una venta ya cerrada se debe poder reimprimir aunque la
         // variante o su línea se hayan dado de baja después.
@@ -110,7 +113,7 @@ class SaleController extends Controller
         );
     }
 
-    public function store(StoreSaleRequest $request, SaleFolioGenerator $folioGenerator)
+    public function store(StoreSaleRequest $request, SaleFolioGenerator $folioGenerator): SaleResource|JsonResponse
     {
         $data = $request->validated();
 

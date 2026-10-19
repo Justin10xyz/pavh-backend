@@ -3,9 +3,13 @@
 namespace App\Http\Resources\Quote;
 
 use App\Http\Resources\Inventory\ProductVariantResource;
+use App\Models\QuoteItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin QuoteItem
+ */
 class QuoteItemResource extends JsonResource
 {
     /**
