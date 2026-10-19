@@ -226,6 +226,24 @@ class Quote extends Model
     }
 
     /**
+     * Solo una cotización pagada genera comprobante, y a lo más uno. Cuenta
+     * también un comprobante dado de baja: el índice UNIQUE de
+     * comprobantes.quote_id lo incluye, así que tampoco deja generar otro.
+     */
+    public function comprobanteConversionBlockedMessage(): ?string
+    {
+        if ($this->paid_at === null) {
+            return 'Esta cotización no ha sido pagada y no se puede convertir a comprobante.';
+        }
+
+        if ($this->comprobante()->withTrashed()->exists()) {
+            return 'Esta cotización ya tiene un comprobante.';
+        }
+
+        return null;
+    }
+
+    /**
      * Saldo pendiente: total (ya con descuento) + envío - anticipo. Envío o
      * anticipo null (no aplica) cuentan como 0.
      */

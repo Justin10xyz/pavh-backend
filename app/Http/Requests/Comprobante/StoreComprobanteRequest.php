@@ -23,17 +23,19 @@ class StoreComprobanteRequest extends FormRequest
      * server-side — deliberadamente no tienen regla aquí para que cualquier
      * valor enviado por el cliente se descarte al llamar a validated().
      *
-     * `quote_id` es único: una cotización genera a lo más un comprobante. El
-     * `unique` incluye los dados de baja porque el índice de la base también
-     * los cuenta.
+     * Que la cotización esté pagada y no tenga ya comprobante lo valida el
+     * controlador con Quote::comprobanteConversionBlockedMessage() (mensaje en
+     * español, dentro de la transacción); el índice UNIQUE de
+     * comprobantes.quote_id lo respalda. Las líneas y montos no se reciben: se
+     * copian de la cotización. Sin `date` se usa la fecha de hoy.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
         return [
-            'quote_id' => ['required', 'integer', Rule::exists('quotes', 'id')->withoutTrashed(), Rule::unique('comprobantes', 'quote_id')],
-            'date' => ['required', 'date'],
+            'quote_id' => ['required', 'integer', Rule::exists('quotes', 'id')->withoutTrashed()],
+            'date' => ['nullable', 'date'],
         ];
     }
 }

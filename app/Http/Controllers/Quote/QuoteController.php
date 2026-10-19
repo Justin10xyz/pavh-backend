@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Quote;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Quote\StoreQuoteRequest;
 use App\Http\Requests\Quote\UpdateQuoteRequest;
+use App\Http\Resources\Quote\QuoteItemResource;
 use App\Http\Resources\Quote\QuoteResource;
 use App\Models\Customer;
 use App\Models\ProductVariant;
@@ -12,6 +13,7 @@ use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
+use App\Services\AmountInWords;
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
 use Illuminate\Http\JsonResponse;
@@ -149,6 +151,11 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
+        // De contado no hay vencimiento: se limpia aunque llegue en el payload.
+        if (($data['payment_terms'] ?? $quote->payment_terms) === 'cash') {
+            $data['credit_due_date'] = null;
+        }
+
         DB::transaction(function () use ($quote, $data, $lines, $subtotal, $discount) {
             $quote->update([
                 ...$data,
@@ -166,8 +173,15 @@ class QuoteController extends Controller
         return new QuoteResource($quote);
     }
 
-    public function destroy(Quote $quote): Response
+    public function destroy(Quote $quote): Response|JsonResponse
     {
+        // Pagada: su stock ya se descontó; mismo guard que editar/cancelar.
+        if ($quote->paid_at !== null) {
+            return response()->json([
+                'message' => 'Esta cotización ya fue pagada y no se puede eliminar.',
+            ], 422);
+        }
+
         $quote->items()->delete();
         $quote->delete();
 
@@ -396,6 +410,42 @@ class QuoteController extends Controller
                     // Solo productos simples; en variantes POST /sales lo prohíbe.
                     'price_type' => $item->simple_product_id ? $item->price_type : null,
                 ]),
+            ],
+        ]);
+    }
+
+    /**
+     * Payload de solo lectura para mostrar el comprobante antes de confirmarlo.
+     * No muta nada — el comprobante se crea al confirmar POST
+     * /api/comprobantes con quote_id, que copia líneas y montos tal cual.
+     */
+    public function toComprobante(Quote $quote, AmountInWords $amountInWords): JsonResponse
+    {
+        if ($message = $quote->comprobanteConversionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        // withTrashed: el comprobante copia la cotización tal cual, aunque un
+        // producto se haya dado de baja después de pagarla.
+        $quote->load([
+            'customer',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product.unitType',
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        return response()->json([
+            'data' => [
+                'quote_id' => $quote->id,
+                'quote_folio' => $quote->folio,
+                'customer_id' => $quote->customer_id,
+                'customer' => $quote->customer?->only(['id', 'name', 'phone', 'email', 'address', 'neighborhood', 'city', 'postal_code']),
+                'date' => now()->toDateString(),
+                'items' => QuoteItemResource::collection($quote->items),
+                'subtotal' => $quote->subtotal,
+                'total' => $quote->total,
+                'total_in_words' => $amountInWords->pesos($quote->total),
             ],
         ]);
     }

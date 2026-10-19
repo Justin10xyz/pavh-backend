@@ -922,4 +922,27 @@ class QuoteApiTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['credit_due_date']);
     }
+
+    public function test_switching_to_cash_clears_credit_due_date_even_if_sent(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $items = [['product_variant_id' => $variant->id, 'boxes' => 1]];
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'payment_terms' => 'credit',
+            'credit_due_date' => '2026-11-30',
+            'items' => $items,
+        ])->assertCreated()->json('data.id');
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'payment_terms' => 'cash',
+            'credit_due_date' => '2026-12-15',
+            'items' => $items,
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.payment_terms', 'cash')
+            ->assertJsonPath('data.credit_due_date', null);
+
+        $this->assertNull(Quote::find($quoteId)->credit_due_date);
+    }
 }

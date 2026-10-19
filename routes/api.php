@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Comprobante\ComprobanteController;
 use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Inventory\CategoryController;
@@ -40,6 +41,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::apiResource('customers', CustomerController::class);
 
     Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
+    Route::get('/quotes/{quote}/to-comprobante', [QuoteController::class, 'toComprobante']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
     Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);
     Route::patch('/quotes/{quote}/mark-paid', [QuoteController::class, 'markPaid']);
@@ -47,6 +49,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
+
+    Route::post('/comprobantes', [ComprobanteController::class, 'store']);
+    Route::patch('/comprobantes/{comprobante}', [ComprobanteController::class, 'updateDate']);
 
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 

@@ -389,4 +389,19 @@ class QuotePaymentTest extends TestCase
             $this->assertSame($expected, $quote->balance(), "total={$total}, envío={$shippingCost}, anticipo={$downPayment}");
         }
     }
+
+    public function test_a_paid_quote_cannot_be_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 10);
+        $quoteId = $this->createQuote([['product_variant_id' => $variant->id, 'boxes' => 2]]);
+
+        $this->patchJson("/api/quotes/{$quoteId}/mark-paid")->assertOk();
+
+        $this->deleteJson("/api/quotes/{$quoteId}")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya fue pagada y no se puede eliminar.');
+
+        $this->assertNotSoftDeleted('quotes', ['id' => $quoteId]);
+        $this->assertDatabaseCount('quote_items', 1);
+    }
 }
