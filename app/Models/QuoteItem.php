@@ -6,6 +6,7 @@ use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -17,11 +18,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property numeric $unit_price
  * @property string $price_type
  * @property numeric $line_total
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \App\Models\ProductVariant|null $productVariant
- * @property-read \App\Models\Quote|null $quote
- * @property-read \App\Models\SimpleProduct|null $simpleProduct
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ProductVariant|null $productVariant
+ * @property-read Quote|null $quote
+ * @property-read SimpleProduct|null $simpleProduct
+ *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem query()
@@ -36,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem whereSimpleProductId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem whereUnitPrice($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|QuoteItem whereUpdatedAt($value)
+ *
  * @mixin \Eloquent
  */
 #[Fillable(['quote_id', 'product_variant_id', 'simple_product_id', 'boxes', 'quantity', 'unit_price', 'price_type', 'line_total'])]

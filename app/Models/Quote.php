@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -20,15 +22,16 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property numeric $subtotal
  * @property numeric $total
  * @property int|null $created_by
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read \App\Models\User|null $createdBy
- * @property-read \App\Models\Customer|null $customer
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\QuoteItem> $items
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read User|null $createdBy
+ * @property-read Customer|null $customer
+ * @property-read Collection<int, QuoteItem> $items
  * @property-read int|null $items_count
- * @property-read \App\Models\QuoteStatus $quoteStatus
- * @property-read \App\Models\Sale|null $sale
+ * @property-read QuoteStatus $quoteStatus
+ * @property-read Sale|null $sale
+ *
  * @method static Builder<static>|Quote forCustomer(?int $customerId)
  * @method static Builder<static>|Quote newModelQuery()
  * @method static Builder<static>|Quote newQuery()
@@ -47,6 +50,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static Builder<static>|Quote whereUpdatedAt($value)
  * @method static Builder<static>|Quote withTrashed(bool $withTrashed = true)
  * @method static Builder<static>|Quote withoutTrashed()
+ *
  * @mixin \Eloquent
  */
 #[Fillable([

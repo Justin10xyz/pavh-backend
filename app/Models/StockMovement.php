@@ -6,6 +6,7 @@ use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -18,11 +19,12 @@ use LogicException;
  * @property string $source
  * @property int|null $sale_id
  * @property int|null $resulting_stock
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \App\Models\ProductVariant|null $productVariant
- * @property-read \App\Models\Sale|null $sale
- * @property-read \App\Models\SimpleProduct|null $simpleProduct
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ProductVariant|null $productVariant
+ * @property-read Sale|null $sale
+ * @property-read SimpleProduct|null $simpleProduct
+ *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement query()
@@ -36,6 +38,7 @@ use LogicException;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSource($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereType($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereUpdatedAt($value)
+ *
  * @mixin \Eloquent
  */
 #[Fillable([

@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Database\Factories\SimpleProductFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -20,12 +22,13 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property numeric|null $price_wholesale
  * @property string|null $description
  * @property int|null $stock_quantity
- * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \App\Models\Category|null $category
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\StockMovement> $stockMovements
+ * @property Carbon|null $deleted_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read Category|null $category
+ * @property-read Collection<int, StockMovement> $stockMovements
  * @property-read int|null $stock_movements_count
+ *
  * @method static \Database\Factories\SimpleProductFactory factory($count = null, $state = [])
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct newQuery()
@@ -44,6 +47,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct whereUpdatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct withTrashed(bool $withTrashed = true)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|SimpleProduct withoutTrashed()
+ *
  * @mixin \Eloquent
  */
 #[Fillable([

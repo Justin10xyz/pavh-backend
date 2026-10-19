@@ -5,10 +5,12 @@ namespace App\Models;
 use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
@@ -28,13 +30,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int|null $boxes_per_pallet
  * @property int|null $stock_boxes
  * @property int|null $minimum_stock
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property \Illuminate\Support\Carbon|null $deleted_at
- * @property-read \App\Models\CommissionCategory|null $commissionCategory
- * @property-read \App\Models\Product|null $product
- * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\StockMovement> $stockMovements
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read CommissionCategory|null $commissionCategory
+ * @property-read Product|null $product
+ * @property-read Collection<int, StockMovement> $stockMovements
  * @property-read int|null $stock_movements_count
+ *
  * @method static Builder<static>|ProductVariant byCategory(int $categoryId)
  * @method static Builder<static>|ProductVariant lowStock()
  * @method static Builder<static>|ProductVariant newModelQuery()
@@ -63,6 +66,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @method static Builder<static>|ProductVariant whereUpdatedAt($value)
  * @method static Builder<static>|ProductVariant withTrashed(bool $withTrashed = true)
  * @method static Builder<static>|ProductVariant withoutTrashed()
+ *
  * @mixin \Eloquent
  */
 #[Fillable([
