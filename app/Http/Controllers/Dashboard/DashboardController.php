@@ -5,11 +5,12 @@ namespace App\Http\Controllers\Dashboard;
 use App\Http\Controllers\Controller;
 use App\Models\SaleItem;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    public function topProducts(Request $request)
+    public function topProducts(Request $request): JsonResponse
     {
         $request->validate([
             'from' => ['nullable', 'date_format:Y-m-d'],
