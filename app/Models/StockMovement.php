@@ -18,10 +18,12 @@ use LogicException;
  * @property string $type
  * @property string $source
  * @property int|null $sale_id
+ * @property int|null $quote_id
  * @property int|null $resulting_stock
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read ProductVariant|null $productVariant
+ * @property-read Quote|null $quote
  * @property-read Sale|null $sale
  * @property-read SimpleProduct|null $simpleProduct
  *
@@ -48,6 +50,7 @@ use LogicException;
     'type',
     'source',
     'sale_id',
+    'quote_id',
     'resulting_stock',
 ])]
 class StockMovement extends Model
@@ -60,8 +63,9 @@ class StockMovement extends Model
      * 'initial' es el primer ajuste manual de un producto sin seguimiento de
      * stock: lo activa partiendo de 0. 'deactivated' es lo inverso: retira
      * todo el stock que tenía (type 'subtract') y lo deja sin seguimiento.
+     * 'quote_payment' es la salida al marcar pagada una cotización.
      */
-    public const SOURCES = ['initial', 'manual', 'sale', 'deactivated'];
+    public const SOURCES = ['initial', 'manual', 'sale', 'deactivated', 'quote_payment'];
 
     protected function casts(): array
     {
@@ -96,6 +100,14 @@ class StockMovement extends Model
     }
 
     /**
+     * @return BelongsTo<Quote, $this>
+     */
+    public function quote(): BelongsTo
+    {
+        return $this->belongsTo(Quote::class);
+    }
+
+    /**
      * Único punto que muta stock_boxes/stock_quantity: aplica el movimiento
      * y registra su historial en la misma transacción, así no puede existir
      * un cambio de stock sin su fila correspondiente. La validación de stock
@@ -119,6 +131,7 @@ class StockMovement extends Model
         int $quantity,
         string $source,
         ?Sale $sale = null,
+        ?Quote $quote = null,
     ): self {
         if (! in_array($type, self::TYPES, true)) {
             throw new LogicException("Tipo de movimiento de stock inválido: {$type}.");
@@ -161,6 +174,10 @@ class StockMovement extends Model
             throw new LogicException('Un movimiento de stock lleva venta si y solo si su origen es una venta.');
         }
 
+        if (($source === 'quote_payment') !== ($quote !== null)) {
+            throw new LogicException('Un movimiento de stock lleva cotización si y solo si su origen es el pago de una cotización.');
+        }
+
         $attributes = [
             'product_variant_id' => $stockable instanceof ProductVariant ? $stockable->id : null,
             'simple_product_id' => $stockable instanceof SimpleProduct ? $stockable->id : null,
@@ -170,7 +187,7 @@ class StockMovement extends Model
             throw new LogicException('Un movimiento de stock debe apuntar exactamente a una variante o a un producto simple.');
         }
 
-        return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $attributes, $column) {
+        return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $quote, $attributes, $column) {
             // increment() sobre NULL deja NULL en SQL: se parte de 0.
             if ($source === 'initial') {
                 $stockable->update([$column => 0]);
@@ -190,6 +207,7 @@ class StockMovement extends Model
                 'type' => $type,
                 'source' => $source,
                 'sale_id' => $sale?->id,
+                'quote_id' => $quote?->id,
                 'resulting_stock' => $stockable->{$column},
             ]);
         });

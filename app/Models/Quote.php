@@ -26,11 +26,14 @@ use Illuminate\Support\Carbon;
  * @property numeric $total
  * @property string $payment_terms
  * @property Carbon|null $credit_due_date
+ * @property Carbon|null $paid_at
+ * @property int|null $paid_by
  * @property int|null $created_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
  * @property-read User|null $createdBy
+ * @property-read User|null $paidBy
  * @property-read Customer|null $customer
  * @property-read Collection<int, QuoteItem> $items
  * @property-read int|null $items_count
@@ -71,6 +74,8 @@ use Illuminate\Support\Carbon;
     'total',
     'payment_terms',
     'credit_due_date',
+    'paid_at',
+    'paid_by',
     'created_by',
 ])]
 class Quote extends Model
@@ -92,6 +97,7 @@ class Quote extends Model
             'shipping_cost' => 'decimal:2',
             'total' => 'decimal:2',
             'credit_due_date' => 'date',
+            'paid_at' => 'datetime',
         ];
     }
 
@@ -120,6 +126,14 @@ class Quote extends Model
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function paidBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'paid_by');
     }
 
     /**
@@ -159,6 +173,12 @@ class Quote extends Model
      */
     public function conversionBlockedMessage(): ?string
     {
+        // Pagada: su stock ya se descontó; convertirla a venta lo descontaría
+        // otra vez.
+        if ($this->paid_at !== null) {
+            return 'Esta cotización ya fue pagada y no se puede convertir a venta.';
+        }
+
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
             'Convertida' => 'Esta cotización ya fue convertida a venta.',
@@ -173,12 +193,45 @@ class Quote extends Model
      */
     public function cancellationBlockedMessage(): ?string
     {
+        // Pagada: cancelar no regresa el stock que ya se descontó.
+        if ($this->paid_at !== null) {
+            return 'Esta cotización ya fue pagada y no se puede cancelar.';
+        }
+
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
             'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede cancelar.',
             'Cancelada' => 'Esta cotización ya está cancelada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede cancelar.",
         };
+    }
+
+    /**
+     * Mismo criterio que conversionBlockedMessage(): solo una cotización en
+     * Borrador se puede marcar como pagada, y una sola vez (el pago descuenta
+     * su stock).
+     */
+    public function markPaidBlockedMessage(): ?string
+    {
+        if ($this->paid_at !== null) {
+            return 'Esta cotización ya fue marcada como pagada.';
+        }
+
+        return match ($this->quoteStatus->name) {
+            'Borrador' => null,
+            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede marcar como pagada.',
+            'Cancelada' => 'Esta cotización está cancelada y no se puede marcar como pagada.',
+            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede marcar como pagada.",
+        };
+    }
+
+    /**
+     * Saldo pendiente: total (ya con descuento) + envío - anticipo. Envío o
+     * anticipo null (no aplica) cuentan como 0.
+     */
+    public function balance(): float
+    {
+        return round((float) $this->total + (float) $this->shipping_cost - (float) $this->down_payment, 2);
     }
 
     /**

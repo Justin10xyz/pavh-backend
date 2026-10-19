@@ -11,6 +11,7 @@ use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
+use App\Models\StockMovement;
 use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
 use Illuminate\Http\JsonResponse;
@@ -74,21 +75,32 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        $quote = DB::transaction(function () use ($data, $request, $folioGenerator) {
+        $lines = $this->resolveLines($data['items']);
+        $subtotal = $this->linesSubtotal($lines);
+        $discount = $data['discount'] ?? null;
+
+        if ($message = $this->discountRejectionMessage($subtotal, $discount)) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        $quote = DB::transaction(function () use ($data, $lines, $subtotal, $discount, $request, $folioGenerator) {
             $draftStatus = QuoteStatus::where('name', 'Borrador')->firstOrFail();
 
             $data['folio'] = $folioGenerator->generate();
             $data['quote_status_id'] = $draftStatus->id;
-            $data['subtotal'] = 0;
-            $data['total'] = 0;
+            $data['subtotal'] = $subtotal;
+            $data['total'] = $this->totalFor($subtotal, $discount);
             $data['created_by'] = $request->user()->id;
 
             $quote = Quote::create($data);
 
-            $this->syncItems($quote, $data['items']);
+            $this->createItems($quote, $lines);
 
             return $quote;
         });
+
+        // payment_terms tiene default en la BD y create() no lo refresca.
+        $quote->refresh();
 
         $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
@@ -100,6 +112,13 @@ class QuoteController extends Controller
         if ($quote->quoteStatus->name !== 'Borrador') {
             return response()->json([
                 'message' => 'Solo se pueden editar cotizaciones en estado Borrador.',
+            ], 422);
+        }
+
+        // Pagada: su stock ya se descontó según las líneas actuales.
+        if ($quote->paid_at !== null) {
+            return response()->json([
+                'message' => 'Esta cotización ya fue pagada y no se puede editar.',
             ], 422);
         }
 
@@ -121,12 +140,25 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
-        DB::transaction(function () use ($quote, $data) {
-            $quote->update($data);
+        $lines = $this->resolveLines($data['items']);
+        $subtotal = $this->linesSubtotal($lines);
+        // discount es `sometimes`: si no llega se conserva el guardado.
+        $discount = array_key_exists('discount', $data) ? $data['discount'] : $quote->discount;
+
+        if ($message = $this->discountRejectionMessage($subtotal, $discount)) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        DB::transaction(function () use ($quote, $data, $lines, $subtotal, $discount) {
+            $quote->update([
+                ...$data,
+                'subtotal' => $subtotal,
+                'total' => $this->totalFor($subtotal, $discount),
+            ]);
 
             $quote->items()->delete();
 
-            $this->syncItems($quote, $data['items']);
+            $this->createItems($quote, $lines);
         });
 
         $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
@@ -158,6 +190,118 @@ class QuoteController extends Controller
         $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($quote);
+    }
+
+    /**
+     * Marca la cotización como pagada y descuenta el stock de sus líneas, como
+     * una venta: valida stock suficiente de todo (agregado por producto) antes
+     * de mutar nada, y cada descuento pasa por StockMovement::record() con
+     * origen 'quote_payment'. Los productos sin seguimiento no bloquean ni se
+     * descuentan.
+     *
+     * Mismo orden de bloqueo que SaleController@store (cotización, variantes,
+     * productos simples, por id): dos pagos concurrentes de la misma cotización
+     * se serializan y el segundo la encuentra ya pagada.
+     */
+    public function markPaid(Request $request, Quote $quote): QuoteResource|JsonResponse
+    {
+        $result = DB::transaction(function () use ($request, $quote) {
+            $quote = Quote::lockForUpdate()->findOrFail($quote->id);
+
+            if ($message = $quote->markPaidBlockedMessage()) {
+                return response()->json(['message' => $message], 422);
+            }
+
+            $boxesNeededByVariant = [];
+            $quantityNeededBySimpleProduct = [];
+
+            foreach ($quote->items as $item) {
+                if ($item->simple_product_id !== null) {
+                    $quantityNeededBySimpleProduct[$item->simple_product_id] = ($quantityNeededBySimpleProduct[$item->simple_product_id] ?? 0) + (int) $item->quantity;
+
+                    continue;
+                }
+
+                // Línea previa a la venta por caja completa sin m2_per_box: no
+                // hay forma de saber cuántas cajas descontar.
+                if ($item->boxes === null) {
+                    return response()->json([
+                        'message' => 'Una línea de la cotización no tiene cajas capturadas; edítala antes de marcarla como pagada.',
+                    ], 422);
+                }
+
+                $boxesNeededByVariant[$item->product_variant_id] = ($boxesNeededByVariant[$item->product_variant_id] ?? 0) + $item->boxes;
+            }
+
+            ksort($boxesNeededByVariant);
+            ksort($quantityNeededBySimpleProduct);
+
+            $variants = [];
+            $simpleProducts = [];
+
+            // withTrashed() solo para nombrar en el mensaje un producto dado
+            // de baja; igual que en convert, no se deja pasar.
+            foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
+                $variant = $variants[$variantId] = ProductVariant::withTrashed()->lockForUpdate()->findOrFail($variantId);
+
+                if ($variant->trashed()) {
+                    return response()->json([
+                        'message' => "No se puede marcar como pagada: la variante {$variant->code} ya no está disponible.",
+                    ], 422);
+                }
+
+                if (! $variant->hasSufficientStock($boxesNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$variant->code}. Disponible: {$variant->stock_boxes} cajas, se requieren {$boxesNeeded}.",
+                    ], 422);
+                }
+            }
+
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                $simpleProduct = $simpleProducts[$simpleProductId] = SimpleProduct::withTrashed()->lockForUpdate()->findOrFail($simpleProductId);
+
+                if ($simpleProduct->trashed()) {
+                    return response()->json([
+                        'message' => "No se puede marcar como pagada: el producto {$simpleProduct->name} ya no está disponible.",
+                    ], 422);
+                }
+
+                if (! $simpleProduct->hasSufficientStock($quantityNeeded)) {
+                    return response()->json([
+                        'message' => "Stock insuficiente para {$simpleProduct->name}. Disponible: {$simpleProduct->stock_quantity} unidades, se requieren {$quantityNeeded}.",
+                    ], 422);
+                }
+            }
+
+            foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
+                if ($variants[$variantId]->tracksStock()) {
+                    StockMovement::record($variants[$variantId], 'subtract', $boxesNeeded, 'quote_payment', quote: $quote);
+                }
+            }
+
+            foreach ($quantityNeededBySimpleProduct as $simpleProductId => $quantityNeeded) {
+                if ($simpleProducts[$simpleProductId]->tracksStock()) {
+                    StockMovement::record($simpleProducts[$simpleProductId], 'subtract', $quantityNeeded, 'quote_payment', quote: $quote);
+                }
+            }
+
+            $quote->update([
+                'paid_at' => now(),
+                'paid_by' => $request->user()->id,
+            ]);
+
+            return $quote;
+        });
+
+        // Cotización no pagable o stock insuficiente: la transacción terminó
+        // sin escribir nada.
+        if (! $result instanceof Quote) {
+            return $result;
+        }
+
+        $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+
+        return new QuoteResource($result);
     }
 
     /**
@@ -303,7 +447,7 @@ class QuoteController extends Controller
     }
 
     /**
-     * Va antes de la transacción (no dentro de syncItems) para rechazar sin
+     * Va antes de la transacción (no dentro de resolveLines) para rechazar sin
      * haber creado la cotización ni borrado las líneas existentes en update.
      *
      * - Producto simple: cantidad fraccionaria, o línea de mayoreo sin
@@ -340,11 +484,16 @@ class QuoteController extends Controller
     }
 
     /**
+     * Resuelve cada línea a lo que se va a guardar, sin escribir nada: así el
+     * subtotal se conoce antes de la transacción y el guard de descuento puede
+     * rechazar sin haber creado la cotización ni borrado sus líneas.
+     *
      * @param  array<int, array<string, mixed>>  $items  Líneas ya validadas del request.
+     * @return array<int, array<string, mixed>>
      */
-    private function syncItems(Quote $quote, array $items): void
+    private function resolveLines(array $items): array
     {
-        $subtotal = 0;
+        $lines = [];
 
         foreach ($items as $item) {
             // Precio siempre resuelto del catálogo actual, nunca del cliente.
@@ -372,25 +521,59 @@ class QuoteController extends Controller
                 }
             }
 
-            $lineTotal = round($quantity * $unitPrice, 2);
-
-            $quote->items()->create([
+            $lines[] = [
                 'product_variant_id' => $item['product_variant_id'] ?? null,
                 'simple_product_id' => $item['simple_product_id'] ?? null,
                 'boxes' => $boxes,
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'price_type' => $priceType,
-                'line_total' => $lineTotal,
-            ]);
-
-            $subtotal += $lineTotal;
+                'line_total' => round($quantity * $unitPrice, 2),
+            ];
         }
 
-        // TODO: tax si aplica en el futuro
-        $quote->update([
-            'subtotal' => $subtotal,
-            'total' => $subtotal,
-        ]);
+        return $lines;
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $lines  Salida de resolveLines().
+     */
+    private function linesSubtotal(array $lines): float
+    {
+        return round(array_sum(array_column($lines, 'line_total')), 2);
+    }
+
+    /**
+     * TODO: tax si aplica en el futuro
+     */
+    private function totalFor(float $subtotal, mixed $discount): float
+    {
+        return round($subtotal - (float) $discount, 2);
+    }
+
+    /**
+     * Va en el controlador y no en el Form Request: depende del subtotal ya
+     * calculado de las líneas, no del payload crudo.
+     */
+    private function discountRejectionMessage(float $subtotal, mixed $discount): ?string
+    {
+        if ($this->totalFor($subtotal, $discount) >= 0) {
+            return null;
+        }
+
+        $formattedDiscount = number_format((float) $discount, 2);
+        $formattedSubtotal = number_format($subtotal, 2);
+
+        return "El descuento (\${$formattedDiscount}) no puede ser mayor que el subtotal (\${$formattedSubtotal}).";
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $lines  Salida de resolveLines().
+     */
+    private function createItems(Quote $quote, array $lines): void
+    {
+        foreach ($lines as $line) {
+            $quote->items()->create($line);
+        }
     }
 }
