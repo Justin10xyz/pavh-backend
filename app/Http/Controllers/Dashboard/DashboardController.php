@@ -57,9 +57,9 @@ class DashboardController extends Controller
                 'type' => $row->simple_product_id ? 'simple' : 'variant',
                 'product_variant_id' => $row->product_variant_id,
                 'simple_product_id' => $row->simple_product_id,
-                'quantity_sold' => round((float) $row->quantity_sold, 2),
-                'boxes_sold' => $row->simple_product_id ? null : (int) $row->boxes_sold,
-                'revenue' => round((float) $row->revenue, 2),
+                'quantity_sold' => round((float) $row->getAttribute('quantity_sold'), 2),
+                'boxes_sold' => $row->simple_product_id ? null : (int) $row->getAttribute('boxes_sold'),
+                'revenue' => round((float) $row->getAttribute('revenue'), 2),
             ])->all(),
         ]);
     }

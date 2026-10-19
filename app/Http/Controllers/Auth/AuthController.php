@@ -32,7 +32,7 @@ class AuthController extends Controller
 
             return response()->json([
                 'message' => "Demasiados intentos. Intenta de nuevo en {$seconds} segundos.",
-            ], 429)->header('Retry-After', $seconds);
+            ], 429)->header('Retry-After', (string) $seconds);
         }
 
         if (! Auth::attempt($request->only('email', 'password'))) {

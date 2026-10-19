@@ -189,7 +189,7 @@ class QuoteController extends Controller
                 $labels = $unavailableVariantItems->map(function ($item) use ($trashedVariants) {
                     $variant = $trashedVariants->get($item->product_variant_id);
 
-                    return $variant?->code ?? "ID {$item->product_variant_id}";
+                    return $variant->code ?? "ID {$item->product_variant_id}";
                 })->unique()->implode(', ');
 
                 $reasons[] = "las siguientes variantes ya no están disponibles: {$labels}";
@@ -205,7 +205,7 @@ class QuoteController extends Controller
                 $labels = $unavailableSimpleProductItems->map(function ($item) use ($trashedSimpleProducts) {
                     $simpleProduct = $trashedSimpleProducts->get($item->simple_product_id);
 
-                    return $simpleProduct?->name ?? "ID {$item->simple_product_id}";
+                    return $simpleProduct->name ?? "ID {$item->simple_product_id}";
                 })->unique()->implode(', ');
 
                 $reasons[] = "los siguientes productos ya no están disponibles: {$labels}";
