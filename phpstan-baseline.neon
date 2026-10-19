@@ -25,36 +25,6 @@ parameters:
 			path: app/Http/Controllers/Dashboard/DashboardController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\SaleItem\:\:\$simple_product_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$color\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$size\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:dateRange\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -65,18 +35,6 @@ parameters:
 			identifier: method.notFound
 			count: 3
 			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\SaleItem\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:variants\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Inventory/ProductVariantController.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
@@ -91,66 +49,6 @@ parameters:
 			path: app/Http/Controllers/Inventory/SimpleProductController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxes\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_total\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$price_type\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$productVariant\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_variant_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$simpleProduct\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$simple_product_id\.$#'
-			identifier: property.notFound
-			count: 6
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$unit_price\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasOne\:\:withTrashed\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -160,12 +58,6 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
 			identifier: method.notFound
 			count: 3
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 2
 			path: app/Http/Controllers/Quote/QuoteController.php
 
 		-
@@ -181,63 +73,9 @@ parameters:
 			path: app/Http/Controllers/Quote/QuoteController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxes\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_total\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$price_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$productVariant\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$simpleProduct\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$simple_product_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$unit_price\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
 			identifier: method.notFound
 			count: 6
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
-			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
 			path: app/Http/Controllers/Sale/SaleController.php
 
 		-
@@ -883,37 +721,7 @@ parameters:
 			path: app/Http/Resources/Sale/SaleResource.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Product.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\:\:withTrashed\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Models/ProductVariant.php
-
-		-
-			message: '#^Method App\\Models\\ProductVariant\:\:currentProduct\(\) should return App\\Models\\Product but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Models/ProductVariant.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Models/Quote.php
-
-		-
-			message: '#^Method App\\Models\\SimpleProduct\:\:priceFor\(\) should return string\|null but returns float\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Models/SimpleProduct.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code_prefix\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/VariantCodeGenerator.php

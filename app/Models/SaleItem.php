@@ -7,6 +7,37 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * @property int $id
+ * @property int $sale_id
+ * @property int|null $product_variant_id
+ * @property int|null $simple_product_id
+ * @property int|null $boxes
+ * @property numeric $quantity
+ * @property numeric $unit_price
+ * @property string $price_type
+ * @property numeric $line_total
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\ProductVariant|null $productVariant
+ * @property-read \App\Models\Sale|null $sale
+ * @property-read \App\Models\SimpleProduct|null $simpleProduct
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereBoxes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereLineTotal($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem wherePriceType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereProductVariantId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereQuantity($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereSaleId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereSimpleProductId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereUnitPrice($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|SaleItem whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
 #[Fillable(['sale_id', 'product_variant_id', 'simple_product_id', 'boxes', 'quantity', 'unit_price', 'price_type', 'line_total'])]
 class SaleItem extends Model
 {

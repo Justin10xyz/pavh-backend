@@ -9,6 +9,35 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
+/**
+ * @property int $id
+ * @property int|null $product_variant_id
+ * @property int|null $simple_product_id
+ * @property int $quantity
+ * @property string $type
+ * @property string $source
+ * @property int|null $sale_id
+ * @property int|null $resulting_stock
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \App\Models\ProductVariant|null $productVariant
+ * @property-read \App\Models\Sale|null $sale
+ * @property-read \App\Models\SimpleProduct|null $simpleProduct
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereProductVariantId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereQuantity($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereResultingStock($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSaleId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSimpleProductId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSource($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'product_variant_id',
     'simple_product_id',

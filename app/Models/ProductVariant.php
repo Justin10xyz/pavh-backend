@@ -10,6 +10,61 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property int $product_id
+ * @property string $code
+ * @property string|null $supplier_code
+ * @property int|null $commission_category_id
+ * @property string|null $pei
+ * @property int|null $ett
+ * @property string $color
+ * @property string $size
+ * @property numeric|null $price_per_m2
+ * @property numeric|null $price_per_box
+ * @property int|null $pieces_per_box
+ * @property numeric|null $m2_per_box
+ * @property numeric|null $kilos_per_box
+ * @property int|null $boxes_per_pallet
+ * @property int|null $stock_boxes
+ * @property int|null $minimum_stock
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \App\Models\CommissionCategory|null $commissionCategory
+ * @property-read \App\Models\Product|null $product
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\StockMovement> $stockMovements
+ * @property-read int|null $stock_movements_count
+ * @method static Builder<static>|ProductVariant byCategory(int $categoryId)
+ * @method static Builder<static>|ProductVariant lowStock()
+ * @method static Builder<static>|ProductVariant newModelQuery()
+ * @method static Builder<static>|ProductVariant newQuery()
+ * @method static Builder<static>|ProductVariant onlyTrashed()
+ * @method static Builder<static>|ProductVariant query()
+ * @method static Builder<static>|ProductVariant whereBoxesPerPallet($value)
+ * @method static Builder<static>|ProductVariant whereCode($value)
+ * @method static Builder<static>|ProductVariant whereColor($value)
+ * @method static Builder<static>|ProductVariant whereCommissionCategoryId($value)
+ * @method static Builder<static>|ProductVariant whereCreatedAt($value)
+ * @method static Builder<static>|ProductVariant whereDeletedAt($value)
+ * @method static Builder<static>|ProductVariant whereEtt($value)
+ * @method static Builder<static>|ProductVariant whereId($value)
+ * @method static Builder<static>|ProductVariant whereKilosPerBox($value)
+ * @method static Builder<static>|ProductVariant whereM2PerBox($value)
+ * @method static Builder<static>|ProductVariant whereMinimumStock($value)
+ * @method static Builder<static>|ProductVariant wherePei($value)
+ * @method static Builder<static>|ProductVariant wherePiecesPerBox($value)
+ * @method static Builder<static>|ProductVariant wherePricePerBox($value)
+ * @method static Builder<static>|ProductVariant wherePricePerM2($value)
+ * @method static Builder<static>|ProductVariant whereProductId($value)
+ * @method static Builder<static>|ProductVariant whereSize($value)
+ * @method static Builder<static>|ProductVariant whereStockBoxes($value)
+ * @method static Builder<static>|ProductVariant whereSupplierCode($value)
+ * @method static Builder<static>|ProductVariant whereUpdatedAt($value)
+ * @method static Builder<static>|ProductVariant withTrashed(bool $withTrashed = true)
+ * @method static Builder<static>|ProductVariant withoutTrashed()
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'product_id',
     'code',

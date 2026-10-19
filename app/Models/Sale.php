@@ -10,6 +10,42 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property string $folio
+ * @property int|null $quote_id
+ * @property int|null $customer_id
+ * @property numeric $subtotal
+ * @property numeric $total
+ * @property int|null $created_by
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property \Illuminate\Support\Carbon|null $deleted_at
+ * @property-read \App\Models\User|null $createdBy
+ * @property-read \App\Models\Customer|null $customer
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\SaleItem> $items
+ * @property-read int|null $items_count
+ * @property-read \App\Models\Quote|null $quote
+ * @method static Builder<static>|Sale dateRange(?string $from, ?string $to)
+ * @method static Builder<static>|Sale forCustomer(?int $customerId)
+ * @method static Builder<static>|Sale newModelQuery()
+ * @method static Builder<static>|Sale newQuery()
+ * @method static Builder<static>|Sale onlyTrashed()
+ * @method static Builder<static>|Sale query()
+ * @method static Builder<static>|Sale whereCreatedAt($value)
+ * @method static Builder<static>|Sale whereCreatedBy($value)
+ * @method static Builder<static>|Sale whereCustomerId($value)
+ * @method static Builder<static>|Sale whereDeletedAt($value)
+ * @method static Builder<static>|Sale whereFolio($value)
+ * @method static Builder<static>|Sale whereId($value)
+ * @method static Builder<static>|Sale whereQuoteId($value)
+ * @method static Builder<static>|Sale whereSubtotal($value)
+ * @method static Builder<static>|Sale whereTotal($value)
+ * @method static Builder<static>|Sale whereUpdatedAt($value)
+ * @method static Builder<static>|Sale withTrashed(bool $withTrashed = true)
+ * @method static Builder<static>|Sale withoutTrashed()
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'folio',
     'quote_id',

@@ -7,6 +7,22 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property string $name
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Product> $products
+ * @property-read int|null $products_count
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|UnitType whereUpdatedAt($value)
+ * @mixin \Eloquent
+ */
 #[Fillable(['name'])]
 class UnitType extends Model
 {
