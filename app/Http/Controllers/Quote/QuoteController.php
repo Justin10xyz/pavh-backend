@@ -85,6 +85,12 @@ class QuoteController extends Controller
             return response()->json(['message' => $message], 422);
         }
 
+        // De contado (también por default si no llega) no hay vencimiento: se
+        // limpia aunque llegue en el payload, igual que en update.
+        if (($data['payment_terms'] ?? 'cash') === 'cash') {
+            $data['credit_due_date'] = null;
+        }
+
         $quote = DB::transaction(function () use ($data, $lines, $subtotal, $discount, $request, $folioGenerator) {
             $draftStatus = QuoteStatus::where('name', 'Borrador')->firstOrFail();
 

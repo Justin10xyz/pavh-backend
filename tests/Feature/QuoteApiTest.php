@@ -945,4 +945,25 @@ class QuoteApiTest extends TestCase
 
         $this->assertNull(Quote::find($quoteId)->credit_due_date);
     }
+
+    public function test_storing_a_cash_quote_discards_credit_due_date(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+        $items = [['product_variant_id' => $variant->id, 'boxes' => 1]];
+
+        // Explícito y por default (payment_terms no llega).
+        foreach ([['payment_terms' => 'cash'], []] as $paymentTerms) {
+            $quoteId = $this->postJson('/api/quotes', [
+                ...$paymentTerms,
+                'credit_due_date' => '2026-11-30',
+                'items' => $items,
+            ])
+                ->assertCreated()
+                ->assertJsonPath('data.payment_terms', 'cash')
+                ->assertJsonPath('data.credit_due_date', null)
+                ->json('data.id');
+
+            $this->assertNull(Quote::find($quoteId)->credit_due_date);
+        }
+    }
 }

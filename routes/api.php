@@ -13,6 +13,7 @@ use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
 use App\Http\Controllers\Quote\QuoteController;
 use App\Http\Controllers\Sale\SaleController;
+use App\Http\Controllers\Settings\BusinessSettingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -64,4 +65,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update']);
     Route::get('/suppliers/{supplier}/delete-summary', [SupplierController::class, 'deleteSummary']);
     Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+
+    Route::get('/business-settings', [BusinessSettingController::class, 'show']);
+    Route::put('/business-settings', [BusinessSettingController::class, 'update']);
 });
