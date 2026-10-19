@@ -307,6 +307,8 @@ class QuoteController extends Controller
      * - Variante sin m2_per_box: no hay forma de derivar los m² que cubren las
      *   cajas, mismo rechazo que en SaleController@store (nunca 1:1). No
      *   aplica a variantes por pieza, que no derivan m².
+     *
+     * @param  array<int, array<string, mixed>>  $items  Líneas ya validadas del request.
      */
     private function lineRejectionMessage(array $items): ?string
     {
@@ -333,6 +335,9 @@ class QuoteController extends Controller
         return null;
     }
 
+    /**
+     * @param  array<int, array<string, mixed>>  $items  Líneas ya validadas del request.
+     */
     private function syncItems(Quote $quote, array $items): void
     {
         $subtotal = 0;
