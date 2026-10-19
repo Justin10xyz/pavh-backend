@@ -109,11 +109,17 @@ class ProductVariant extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * @return BelongsTo<CommissionCategory, $this>
+     */
     public function commissionCategory(): BelongsTo
     {
         return $this->belongsTo(CommissionCategory::class);
@@ -137,6 +143,9 @@ class ProductVariant extends Model
         });
     }
 
+    /**
+     * @return HasMany<StockMovement, $this>
+     */
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);

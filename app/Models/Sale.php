@@ -70,23 +70,36 @@ class Sale extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Quote, $this>
+     */
     public function quote(): BelongsTo
     {
         return $this->belongsTo(Quote::class);
     }
 
-    // withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
-    // cliente aunque el cliente se haya dado de baja después.
+    /**
+     * withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
+     * cliente aunque el cliente se haya dado de baja después.
+     *
+     * @return BelongsTo<Customer, $this>
+     */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class)->withTrashed();
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * @return HasMany<SaleItem, $this>
+     */
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);

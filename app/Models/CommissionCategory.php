@@ -57,6 +57,9 @@ class CommissionCategory extends Model
         return $query->orderByRaw('tier is null')->orderBy('tier')->orderBy('code');
     }
 
+    /**
+     * @return HasMany<ProductVariant, $this>
+     */
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);

@@ -32,6 +32,9 @@ class QuoteStatus extends Model
 {
     use SerializesDatesInAppTimezone;
 
+    /**
+     * @return HasMany<Quote, $this>
+     */
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);

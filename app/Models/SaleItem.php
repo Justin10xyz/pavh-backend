@@ -56,16 +56,25 @@ class SaleItem extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Sale, $this>
+     */
     public function sale(): BelongsTo
     {
         return $this->belongsTo(Sale::class);
     }
 
+    /**
+     * @return BelongsTo<ProductVariant, $this>
+     */
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
     }
 
+    /**
+     * @return BelongsTo<SimpleProduct, $this>
+     */
     public function simpleProduct(): BelongsTo
     {
         return $this->belongsTo(SimpleProduct::class);

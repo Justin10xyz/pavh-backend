@@ -25,42 +25,6 @@ parameters:
 			path: app/Http/Controllers/Dashboard/DashboardController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:dateRange\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Dashboard/DashboardController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Inventory/ProductVariantController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Controllers/Inventory/SimpleProductController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasOne\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Quote/QuoteController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -73,19 +37,7 @@ parameters:
 			path: app/Http/Controllers/Quote/QuoteController.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 6
-			path: app/Http/Controllers/Sale/SaleController.php
-
-		-
 			message: '#^Using nullsafe property access on non\-nullable type App\\Models\\UnitType\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Http/Resources/Inventory/ProductVariantResource.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\:\:withTrashed\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Models/ProductVariant.php

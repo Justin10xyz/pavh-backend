@@ -74,30 +74,47 @@ class Quote extends Model
         ];
     }
 
-    // withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
-    // cliente aunque el cliente se haya dado de baja después.
+    /**
+     * withTrashed: el documento debe seguir mostrando (y reimprimiendo) a su
+     * cliente aunque el cliente se haya dado de baja después.
+     *
+     * @return BelongsTo<Customer, $this>
+     */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class)->withTrashed();
     }
 
+    /**
+     * @return BelongsTo<QuoteStatus, $this>
+     */
     public function quoteStatus(): BelongsTo
     {
         return $this->belongsTo(QuoteStatus::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * @return HasMany<QuoteItem, $this>
+     */
     public function items(): HasMany
     {
         return $this->hasMany(QuoteItem::class);
     }
 
-    // Venta en la que se convirtió (sales.quote_id). Solo existe en estado
-    // Convertida: una cotización se convierte una sola vez.
+    /**
+     * Venta en la que se convirtió (sales.quote_id). Solo existe en estado
+     * Convertida: una cotización se convierte una sola vez.
+     *
+     * @return HasOne<Sale, $this>
+     */
     public function sale(): HasOne
     {
         return $this->hasOne(Sale::class);

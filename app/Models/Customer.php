@@ -52,11 +52,17 @@ class Customer extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * @return HasMany<Quote, $this>
+     */
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);
     }
 
+    /**
+     * @return HasMany<Sale, $this>
+     */
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);

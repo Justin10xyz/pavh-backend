@@ -56,16 +56,25 @@ class QuoteItem extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Quote, $this>
+     */
     public function quote(): BelongsTo
     {
         return $this->belongsTo(Quote::class);
     }
 
+    /**
+     * @return BelongsTo<ProductVariant, $this>
+     */
     public function productVariant(): BelongsTo
     {
         return $this->belongsTo(ProductVariant::class);
     }
 
+    /**
+     * @return BelongsTo<SimpleProduct, $this>
+     */
     public function simpleProduct(): BelongsTo
     {
         return $this->belongsTo(SimpleProduct::class);
