@@ -23,6 +23,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *     'boxes' => ?int,           // variante: cajas completas (o piezas) vendidas/cotizadas; simple: null
  *     'quantity' => float,       // variante: m² que cubren esas cajas (por pieza: las piezas); simple: unidades
  *     'unit_price' => float,
+ *     'price_type' => 'retail' | 'wholesale', // wholesale solo en productos simples a mayoreo
  *     'line_total' => float,
  *   ], ...],
  *   'subtotal' => float,

@@ -1,0 +1,727 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Parameter \#2 \$values of method Illuminate\\Http\\JsonResponse\:\:header\(\) expects array\|string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Auth/AuthController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SaleItem\:\:\$boxes_sold\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Dashboard/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SaleItem\:\:\$quantity_sold\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Dashboard/DashboardController.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\SaleItem\:\:\$revenue\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Dashboard/DashboardController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:dateRange\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Dashboard/DashboardController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: app/Http/Controllers/Dashboard/DashboardController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Inventory/ProductVariantController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Controllers/Inventory/SimpleProductController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\HasOne\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Http/Controllers/Quote/QuoteController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: app/Http/Controllers/Quote/QuoteController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>code" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Quote/QuoteController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Quote/QuoteController.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\Relation\<\*, \*, \*\>\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: app/Http/Controllers/Sale/SaleController.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$address\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$neighborhood\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Customer\\CustomerResource\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Customer/CustomerResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CategoryResource\:\:\$code_prefix\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CategoryResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CategoryResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CategoryResource\:\:\$product_form_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$notes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$percentage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\CommissionCategoryResource\:\:\$tier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/CommissionCategoryResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$purchase_unit\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$supplier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$supplier_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$unitType\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductResource\:\:\$unit_type_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$boxes_per_pallet\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$color\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$commissionCategory\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$ett\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$kilos_per_box\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$m2_per_box\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$minimum_stock\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$pei\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$pieces_per_box\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$price_per_box\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$price_per_m2\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$size\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$stock_boxes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:\$supplier_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Call to an undefined method App\\Http\\Resources\\Inventory\\ProductVariantResource\:\:isLowStock\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/ProductVariantResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$category\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$category_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$price_wholesale\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SimpleProductResource\:\:\$stock_quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SimpleProductResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$resulting_stock\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$sale\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$source\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\StockMovementResource\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/StockMovementResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SupplierResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SupplierResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\SupplierResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/SupplierResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\UnitTypeResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/UnitTypeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Inventory\\UnitTypeResource\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Inventory/UnitTypeResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$boxes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$line_total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$price_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$productVariant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$product_variant_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$simpleProduct\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$simple_product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteItemResource\:\:\$unit_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$customer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$customer_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$folio\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$notes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$quoteStatus\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$quote_status_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$sale\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$subtotal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Quote\\QuoteResource\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Quote/QuoteResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$boxes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$line_total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$price_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$productVariant\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$product_variant_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$simpleProduct\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$simple_product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleItemResource\:\:\$unit_price\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleItemResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$created_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$created_by\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$customer\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$customer_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$folio\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$quote\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$quote_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$subtotal\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Access to an undefined property App\\Http\\Resources\\Sale\\SaleResource\:\:\$total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Resources/Sale/SaleResource.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\:\:withTrashed\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/ProductVariant.php

@@ -5,12 +5,54 @@ namespace App\Models;
 use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property string $folio
+ * @property int|null $customer_id
+ * @property int $quote_status_id
+ * @property string|null $notes
+ * @property numeric $subtotal
+ * @property numeric $total
+ * @property int|null $created_by
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read User|null $createdBy
+ * @property-read Customer|null $customer
+ * @property-read Collection<int, QuoteItem> $items
+ * @property-read int|null $items_count
+ * @property-read QuoteStatus $quoteStatus
+ * @property-read Sale|null $sale
+ *
+ * @method static Builder<static>|Quote forCustomer(?int $customerId)
+ * @method static Builder<static>|Quote newModelQuery()
+ * @method static Builder<static>|Quote newQuery()
+ * @method static Builder<static>|Quote onlyTrashed()
+ * @method static Builder<static>|Quote query()
+ * @method static Builder<static>|Quote whereCreatedAt($value)
+ * @method static Builder<static>|Quote whereCreatedBy($value)
+ * @method static Builder<static>|Quote whereCustomerId($value)
+ * @method static Builder<static>|Quote whereDeletedAt($value)
+ * @method static Builder<static>|Quote whereFolio($value)
+ * @method static Builder<static>|Quote whereId($value)
+ * @method static Builder<static>|Quote whereNotes($value)
+ * @method static Builder<static>|Quote whereQuoteStatusId($value)
+ * @method static Builder<static>|Quote whereSubtotal($value)
+ * @method static Builder<static>|Quote whereTotal($value)
+ * @method static Builder<static>|Quote whereUpdatedAt($value)
+ * @method static Builder<static>|Quote withTrashed(bool $withTrashed = true)
+ * @method static Builder<static>|Quote withoutTrashed()
+ *
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'folio',
     'customer_id',

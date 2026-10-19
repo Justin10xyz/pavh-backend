@@ -6,9 +6,41 @@ use App\Models\Concerns\SerializesDatesInAppTimezone;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
+/**
+ * @property int $id
+ * @property int|null $product_variant_id
+ * @property int|null $simple_product_id
+ * @property int $quantity
+ * @property string $type
+ * @property string $source
+ * @property int|null $sale_id
+ * @property int|null $resulting_stock
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property-read ProductVariant|null $productVariant
+ * @property-read Sale|null $sale
+ * @property-read SimpleProduct|null $simpleProduct
+ *
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereProductVariantId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereQuantity($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereResultingStock($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSaleId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSimpleProductId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSource($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereUpdatedAt($value)
+ *
+ * @mixin \Eloquent
+ */
 #[Fillable([
     'product_variant_id',
     'simple_product_id',

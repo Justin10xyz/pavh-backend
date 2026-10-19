@@ -38,6 +38,8 @@ class StoreSimpleProductRequest extends FormRequest
             'code' => ['nullable', 'string', 'max:50', 'regex:/^\S+$/', Rule::unique('simple_products', 'code')],
             'name' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],
+            // Opcional: null significa que el producto no se vende a mayoreo.
+            'price_wholesale' => ['nullable', 'numeric', 'min:0'],
             'description' => ['nullable', 'string'],
             'stock_quantity' => ['nullable', 'integer', 'min:0'],
         ];

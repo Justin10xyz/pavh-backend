@@ -24,12 +24,15 @@ class SaleItemResource extends JsonResource
                 'id' => $this->simpleProduct->id,
                 'name' => $this->simpleProduct->name,
                 'price' => $this->simpleProduct->price,
+                'price_wholesale' => $this->simpleProduct->price_wholesale,
             ] : null),
             // Líneas de variante: cajas (cantidad real) y los m² que cubren.
             // Líneas simples: boxes null, quantity en unidades.
             'boxes' => $this->boxes,
             'quantity' => $this->quantity,
             'unit_price' => $this->unit_price,
+            // retail|wholesale; las líneas de variante siempre son retail.
+            'price_type' => $this->price_type,
             'line_total' => $this->line_total,
         ];
     }
