@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Quote;
 
+use App\Models\Quote;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin Quote
+ */
 class QuoteResource extends JsonResource
 {
     /**
