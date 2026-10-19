@@ -157,7 +157,7 @@ Los tokens `commission-*` son la única paleta de catálogo: el negocio identifi
 | Login (`Login.vue`, card blanca)               | `logo-color-fondo-blanco.png` (`w-40`)            | Lockup completo con tagline; hay espacio y el fondo es blanco                   |
 | Sidebar expandido (`lg`+, fondo `primary`)     | `logo-sin-tagline-icono-color-nombre-blanco.png` (`h-16`) | Ícono a color + "INNOVA" en blanco; la tagline sería ilegible a ese tamaño |
 | Sidebar colapsado (< `lg`, `w-16`)             | `icono-color-transparente.png` (`w-10`)           | Solo el ícono, sin wordmark                                                     |
-| PDF de documentos (`pdf/document.blade.php`)   | `logo-sin-tagline-color-transparente.png` (`40pt`) | En media carta la tagline quedaría a ~2pt de alto                              |
+| PDF de documentos (`pdf/document.blade.php`)   | `logo-pdf-escala-grises_2.png` (`40pt`) | En media carta la tagline quedaría a ~2pt de alto; versión en grises sólidos sin texturas fotográficas, pensada para impresión en blanco y negro |
 
 - Un logo nuevo se elige según el fondo (blanco/claro → versión a color con "INNOVA" en negro; `primary` → versión con "INNOVA" en blanco) y con tagline solo si se lee al tamaño final.
 
