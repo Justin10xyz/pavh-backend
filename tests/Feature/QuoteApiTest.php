@@ -752,6 +752,9 @@ class QuoteApiTest extends TestCase
         $html = view('pdf.presupuesto', ['quote' => $captured])->render();
 
         $this->assertStringContainsString('PRESUPUESTO', $html);
+        // Encabezado compartido con el Comprobante: INNOVA y, más chico, Interceramic.
+        $this->assertStringContainsString('images/branding/logo-pdf-escala-grises.png', $html);
+        $this->assertStringContainsString('images/branding/interceramic-logo-pdf.png', $html);
         $this->assertStringContainsString('Descuento', $html);
         $this->assertStringContainsString('Costo de envío', $html);
         $this->assertStringContainsString('Anticipo', $html);

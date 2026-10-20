@@ -79,6 +79,25 @@ table {
     font-weight: bold;
 }
 
+.subdistributor td {
+    padding: 0;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+/*
+ * interceramic-logo-pdf.png es el logo oficial recortado a su contenido
+ * (288x46): el PNG original trae ~85% de margen transparente y a esta altura
+ * el logo quedaría ilegible. Se fija la altura (menos de 1/4 de la de INNOVA)
+ * y el ancho sale de su proporción; texto + logo (~154pt) caben en la
+ * columna del logo (28% de la página) sin invadir la del centro.
+ */
+.interceramic-logo {
+    height: 9pt;
+    width: {{ round(9 * 288 / 46, 1) }}pt;
+    margin-left: 3pt;
+}
+
 .representative {
     font-size: 6pt;
 }

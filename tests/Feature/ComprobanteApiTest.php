@@ -337,6 +337,10 @@ class ComprobanteApiTest extends TestCase
         $this->assertStringContainsString('$4,180.00', $text);
         $this->assertStringContainsString('$3,600.00', $text);
 
+        // Encabezado compartido: INNOVA y, más chico, Interceramic.
+        $this->assertStringContainsString('images/branding/logo-pdf-escala-grises.png', $html);
+        $this->assertStringContainsString('images/branding/interceramic-logo-pdf.png', $html);
+
         // El PDF real también se genera con esos datos.
         $this->assertStringStartsWith('%PDF-', (new ComprobantePdfGenerator)->generate($captured));
     }
