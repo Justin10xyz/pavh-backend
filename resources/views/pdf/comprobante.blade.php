@@ -14,153 +14,30 @@
 
         // Logo compacto (ícono + "INNOVA", 889x539): se fija la altura (~10%
         // del alto de página) y el ancho sale de su proporción real.
-        $logoHeight = round($page['height'] * 0.10);
-        $logoWidth = round($logoHeight * 889 / 539);
+        $logo = ['height' => round($page['height'] * 0.10)];
+        $logo['width'] = round($logo['height'] * 889 / 539);
 
-        /*
-         * Tamaño de la tabla de líneas según cuántas hay. Hasta
-         * ROWS_AT_FULL_SIZE se ve a tamaño normal; de ahí a ROWS_ON_ONE_PAGE
-         * la letra, el interlineado y el padding bajan en proporción hasta el piso legible,
-         * para que todo siga en una hoja. Con más líneas ya no se comprime:
-         * se reparte en varias hojas (al piso), ver $sheets.
-         *
-         * Las capacidades se midieron con líneas de un solo renglón; una
-         * descripción muy larga que se parta en dos ocupa más.
-         */
-        $items = array_values($comprobante['items']);
-        $itemCount = count($items);
-
-        $rowsAtFullSize = 6;
-        $rowsOnOnePage = 10;
-        $fullFont = 7;
-        $minFont = 6;
-        $fullPadding = 1.5;
-        $minPadding = 0.5;
-        $fullLineHeight = 1.15;
-        $minLineHeight = 1.0;
-
-        $shrink = min(1, max(0, ($itemCount - $rowsAtFullSize) / ($rowsOnOnePage - $rowsAtFullSize)));
-        $rowFont = round($fullFont - $shrink * ($fullFont - $minFont), 2);
-        $rowPadding = round($fullPadding - $shrink * ($fullPadding - $minPadding), 2);
-        $rowLineHeight = round($fullLineHeight - $shrink * ($fullLineHeight - $minLineHeight), 3);
-
-        /*
-         * Hojas: la primera lleva el encabezado completo y las siguientes uno
-         * compacto (folio, fecha, cliente). El pie (Cédula, totales, aviso
-         * legal) va solo en la última, que siempre lleva al menos una línea.
-         * Capacidades al piso de letra:
-         * - primera hoja sin pie: $rowsFirstSheet
-         * - hoja intermedia (encabezado compacto, sin pie): $rowsMiddleSheet
-         * - última hoja con encabezado compacto y pie: $rowsLastSheet
-         */
-        $rowsFirstSheet = 20;
-        $rowsMiddleSheet = 32;
-        $rowsLastSheet = 21;
-
-        if ($itemCount <= $rowsOnOnePage) {
-            $sheets = [$items];
-        } else {
-            $sheets = [array_splice($items, 0, min($rowsFirstSheet, count($items) - 1))];
-
-            while (count($items) > $rowsLastSheet) {
-                $sheets[] = array_splice($items, 0, min($rowsMiddleSheet, count($items) - 1));
-            }
-
-            $sheets[] = $items;
-        }
-
-        $sheetCount = count($sheets);
+        // Capacidades medidas con el encabezado y el pie de esta plantilla;
+        // ver PdfSheetLayout.
+        $layout = \App\Services\PdfSheetLayout::for(
+            $comprobante['items'],
+            rowsAtFullSize: 6,
+            rowsOnOnePage: 10,
+            rowsFirstSheet: 20,
+            rowsMiddleSheet: 32,
+            rowsLastSheet: 21,
+        );
+        $sheetCount = count($layout->sheets);
     @endphp
     <style>
-        /*
-         * Fuentes: mismas que pdf/document.blade.php (ver ahí por qué .woff y
-         * por qué el src va sin format()).
-         */
-        @font-face {
-            font-family: 'Inter';
-            font-weight: normal;
-            src: url('{{ resource_path('fonts/inter-latin-400-normal.woff') }}');
-        }
-        @font-face {
-            font-family: 'Inter';
-            font-weight: bold;
-            src: url('{{ resource_path('fonts/inter-latin-600-normal.woff') }}');
-        }
+        @include('pdf.partials.sheet-styles')
 
         /* Escala de grises: el comprobante se imprime en blanco y negro. */
-        @page {
-            margin: 16pt 20pt;
-        }
-
-        body {
-            font-family: 'Inter', Helvetica, Arial, sans-serif;
-            font-size: 7pt;
-            line-height: 1.15;
-            color: #1A1A1A;
-            margin: 0;
-        }
-
-        table {
-            border-collapse: collapse;
-        }
-
-        .sheet-break {
-            page-break-after: always;
-        }
-
-        .muted {
-            color: #555555;
-        }
-
-        .label {
-            font-size: 5.5pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.2pt;
-        }
-
-        .text-right {
-            text-align: right;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        /* Encabezado */
-        .header {
-            width: 100%;
-            margin-bottom: 6pt;
-        }
-
-        .header td {
-            vertical-align: top;
-        }
-
-        .logo {
-            width: {{ $logoWidth }}pt;
-            height: {{ $logoHeight }}pt;
-        }
-
-        .subdistributor {
-            margin-top: 3pt;
-            font-size: 6pt;
-            font-weight: bold;
-        }
-
-        .representative {
-            font-size: 6pt;
-        }
-
         .title {
             font-size: 9.5pt;
             font-weight: bold;
             letter-spacing: 0.4pt;
             margin-bottom: 3pt;
-        }
-
-        .business-line {
-            font-size: 6.5pt;
         }
 
         .info-box {
@@ -198,66 +75,6 @@
             font-size: 8pt;
             font-weight: bold;
             letter-spacing: 0.3pt;
-        }
-
-        /* Cliente */
-        .customer {
-            width: 100%;
-            border: 0.75pt solid #1A1A1A;
-            margin-bottom: 6pt;
-        }
-
-        .customer td {
-            padding: 1.5pt 4pt;
-            vertical-align: top;
-        }
-
-        .customer .label {
-            width: 44pt;
-        }
-
-        /* Líneas: letra y padding de las celdas según cuántas hay (ver arriba). */
-        .items {
-            width: 100%;
-            border: 0.75pt solid #1A1A1A;
-            margin-bottom: 6pt;
-        }
-
-        .items th {
-            font-size: 5.5pt;
-            font-weight: bold;
-            text-transform: uppercase;
-            padding: 2.5pt 4pt;
-            border-bottom: 0.75pt solid #1A1A1A;
-            border-right: 0.5pt solid #1A1A1A;
-        }
-
-        .items td {
-            font-size: {{ $rowFont }}pt;
-            line-height: {{ $rowLineHeight }};
-            padding: {{ $rowPadding }}pt 4pt;
-            vertical-align: top;
-            border-bottom: 0.5pt solid #BBBBBB;
-            border-right: 0.5pt solid #1A1A1A;
-        }
-
-        .items tr {
-            page-break-inside: avoid;
-        }
-
-        .items th:last-child,
-        .items td:last-child {
-            border-right: none;
-        }
-
-        /* Pie: no se parte entre páginas. */
-        .footer {
-            width: 100%;
-            page-break-inside: avoid;
-        }
-
-        .footer td {
-            vertical-align: top;
         }
 
         /*
@@ -304,29 +121,17 @@
     @php
         $business = $comprobante['business'];
         $customer = $comprobante['customer'];
-        $formatQuantity = fn (float $quantity, int $decimals) => rtrim(rtrim(number_format($quantity, $decimals), '0'), '.');
-
-        // Domicilio y contacto agrupados en renglones; los vacíos se omiten
-        // sin dejar separadores sueltos.
-        $joinFilled = fn (array $parts, string $glue) => collect($parts)->map(fn ($part) => trim((string) $part))->filter()->implode($glue);
-        $businessLines = array_filter([
-            $joinFilled([$business['address'] ?? null, filled($business['neighborhood'] ?? null) ? 'Col. '.$business['neighborhood'] : null], ', '),
-            $joinFilled([$business['city'] ?? null, filled($business['postal_code'] ?? null) ? 'C.P. '.$business['postal_code'] : null], ', '),
-            $joinFilled([$business['phone_primary'] ?? null, $business['phone_secondary'] ?? null], ' / '),
-            trim((string) ($business['email'] ?? '')),
-        ]);
+        $businessLines = \App\Services\PdfSheetLayout::businessLines($business);
         $hasPhone = filled($business['phone_primary'] ?? null) || filled($business['phone_secondary'] ?? null);
     @endphp
 
-    @foreach ($sheets as $sheetItems)
+    @foreach ($layout->sheets as $sheetItems)
         <div @class(['sheet-break' => ! $loop->last])>
             @if ($loop->first)
                 <table class="header">
                     <tr>
                         <td style="width: 28%;">
-                            <img class="logo" src="{{ resource_path('images/branding/logo-pdf-escala-grises.png') }}" alt="INNOVA">
-                            <div class="subdistributor">SUB-DISTRIBUIDOR AUTORIZADO</div>
-                            <div class="representative"><span class="label">*Representante:</span> Pedro López Laris</div>
+                            @include('pdf.partials.brand')
                         </td>
                         <td class="text-center" style="width: 44%;">
                             <div class="title">COMPROBANTE FISCAL SIMPLIFICADO</div>
@@ -365,27 +170,7 @@
                     </tr>
                 </table>
 
-                {{-- Etiquetas siempre impresas, como en el papel; sin cliente quedan en blanco. --}}
-                <table class="customer">
-                    <tr>
-                        <td class="label">Cliente:</td>
-                        <td style="width: 48%;">{{ $customer['name'] ?? '' }}</td>
-                        <td class="label">Colonia:</td>
-                        <td>{{ $customer['neighborhood'] ?? '' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Domicilio:</td>
-                        <td>{{ $customer['address'] ?? '' }}</td>
-                        <td class="label">C.P.:</td>
-                        <td>{{ $customer['postal_code'] ?? '' }}</td>
-                    </tr>
-                    <tr>
-                        <td class="label">Ciudad:</td>
-                        <td>{{ $customer['city'] ?? '' }}</td>
-                        <td class="label">Teléfono:</td>
-                        <td>{{ $customer['phone'] ?? '' }}</td>
-                    </tr>
-                </table>
+                @include('pdf.partials.customer')
             @else
                 <table class="compact-header">
                     <tr>
@@ -398,40 +183,7 @@
                 </table>
             @endif
 
-            {{-- Mismo criterio de cantidad que pdf/document.blade.php: variantes
-                 en cajas con los m² que cubren (precio por m²); productos simples
-                 y variantes por pieza en unidades. --}}
-            <table class="items">
-                <thead>
-                    <tr>
-                        <th style="width: 19%;">Cant.</th>
-                        <th>Descripción</th>
-                        <th class="text-right" style="width: 15%;">Valor unitario</th>
-                        <th class="text-right" style="width: 15%;">Importe</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($sheetItems as $item)
-                        <tr>
-                            <td>
-                                @if ($item['unit'] === 'uds')
-                                    {{ $formatQuantity($item['quantity'], 2) }} uds.
-                                @elseif ($item['boxes'] ?? null)
-                                    {{ $item['boxes'] }} {{ $item['boxes'] === 1 ? 'caja' : 'cajas' }}
-                                    <span class="muted">({{ $formatQuantity($item['quantity'], 3) }} m²)</span>
-                                @else
-                                    {{ $formatQuantity($item['quantity'], 3) }} m²
-                                @endif
-                            </td>
-                            <td>{{ $item['description'] }}</td>
-                            <td class="text-right">
-                                ${{ number_format($item['unit_price'], 2) }}@if ($item['unit'] === 'm2')<span class="muted">/m²</span>@endif
-                            </td>
-                            <td class="text-right">${{ number_format($item['line_total'], 2) }}</td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+            @include('pdf.partials.items-table', ['items' => $sheetItems])
 
             @if ($loop->last)
                 <table class="footer">

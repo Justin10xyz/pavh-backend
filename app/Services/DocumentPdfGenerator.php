@@ -5,12 +5,12 @@ namespace App\Services;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
- * Genera el PDF de una "nota" (venta o cotización) a partir de una estructura
- * neutral — no recibe modelos Eloquent, cada controlador arma los datos desde
- * su propio modelo:
+ * Genera el PDF de una "nota" de venta a partir de una estructura neutral — no
+ * recibe modelos Eloquent, el controlador arma los datos desde su modelo. La
+ * cotización tiene su propio formato (QuotePdfGenerator).
  *
  * [
- *   'document_type' => 'Venta' | 'Cotización',
+ *   'document_type' => 'Venta',
  *   'folio' => string,
  *   'date' => string, // ya formateada para mostrarse
  *   'customer' => [

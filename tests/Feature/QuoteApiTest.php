@@ -13,7 +13,7 @@ use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Services\DocumentPdfGenerator;
+use App\Services\QuotePdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -676,7 +676,7 @@ class QuoteApiTest extends TestCase
         $response = $this->get("/api/quotes/{$quoteId}/pdf")
             ->assertOk()
             ->assertHeader('Content-Type', 'application/pdf')
-            ->assertDownload('Cotizacion-COT-0001.pdf');
+            ->assertDownload('Presupuesto-COT-0001.pdf');
 
         $this->assertStringStartsWith('%PDF-', $response->streamedContent());
     }
@@ -696,9 +696,9 @@ class QuoteApiTest extends TestCase
         // Captura la estructura neutral que arma el controlador (el PDF real
         // viene comprimido por dompdf y no hay parser de PDF en el proyecto).
         $captured = null;
-        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
-            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $document) use (&$captured) {
-                $captured = $document;
+        $this->mock(QuotePdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $quote) use (&$captured) {
+                $captured = $quote;
 
                 return '%PDF-fake';
             });
@@ -710,14 +710,76 @@ class QuoteApiTest extends TestCase
         $this->assertSame('uds', $captured['items'][1]['unit']);
 
         // La plantilla real, con esa misma estructura.
-        $html = view('pdf.document', ['document' => $captured])->render();
+        $html = view('pdf.presupuesto', ['quote' => $captured])->render();
 
         $this->assertStringNotContainsString('Cant. (m²)', $html);
         $this->assertStringContainsString('>Cant.</th>', $html);
         // m2_per_box=1.0 en este helper: 3 cajas = 3 m²
         $this->assertMatchesRegularExpression('/\b3 cajas/u', $html);
-        $this->assertMatchesRegularExpression('/\b3 m²/u', $html);
+        $this->assertMatchesRegularExpression('/\(3 m²\)/u', $html);
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
+    }
+
+    public function test_quote_pdf_totals_box_shows_only_the_amounts_that_apply(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        // 10 cajas × 1 m² × 100 = 1000; total guardado 900 (con descuento).
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 10]],
+            'discount' => 100,
+            'shipping_cost' => 50,
+            'down_payment' => 1200,
+            'payment_terms' => 'credit',
+            'credit_due_date' => '2026-11-30',
+        ])->assertCreated()->json('data.id');
+
+        $captured = null;
+        $this->mock(QuotePdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $quote) use (&$captured) {
+                $captured = $quote;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/quotes/{$quoteId}/pdf")->assertOk();
+
+        // En el PDF el Total ya incluye el envío; el saldo es Total - Anticipo.
+        $this->assertSame(950.0, $captured['total']);
+        $this->assertSame(-250.0, $captured['balance']);
+
+        $html = view('pdf.presupuesto', ['quote' => $captured])->render();
+
+        $this->assertStringContainsString('PRESUPUESTO', $html);
+        $this->assertStringContainsString('Descuento', $html);
+        $this->assertStringContainsString('Costo de envío', $html);
+        $this->assertStringContainsString('Anticipo', $html);
+        $this->assertStringContainsString('-$250.00', $html);
+        $this->assertStringContainsString('Crédito (vence 30/11/2026)', $html);
+        // Campos exclusivos del Comprobante.
+        $this->assertStringNotContainsString('RFC', $html);
+        $this->assertStringNotContainsString('idCIF', $html);
+        $this->assertStringNotContainsString('Régimen', $html);
+        $this->assertStringNotContainsString('Lugar de expedición', $html);
+        $this->assertStringNotContainsString('Total con letra', $html);
+
+        // Sin descuento, envío ni anticipo: esos renglones no aparecen.
+        $html = view('pdf.presupuesto', ['quote' => [
+            ...$captured,
+            'discount' => 0.0,
+            'shipping_cost' => 0.0,
+            'down_payment' => 0.0,
+            'total' => 1000.0,
+            'balance' => 1000.0,
+            'payment_terms' => 'cash',
+            'credit_due_date' => null,
+        ]])->render();
+
+        $this->assertStringNotContainsString('Descuento', $html);
+        $this->assertStringNotContainsString('Costo de envío', $html);
+        $this->assertStringNotContainsString('Anticipo', $html);
+        $this->assertStringContainsString('Contado', $html);
     }
 
     public function test_it_quotes_variant_lines_by_whole_boxes(): void

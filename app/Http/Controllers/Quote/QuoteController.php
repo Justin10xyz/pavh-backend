@@ -7,6 +7,7 @@ use App\Http\Requests\Quote\StoreQuoteRequest;
 use App\Http\Requests\Quote\UpdateQuoteRequest;
 use App\Http\Resources\Quote\QuoteItemResource;
 use App\Http\Resources\Quote\QuoteResource;
+use App\Models\BusinessSetting;
 use App\Models\Customer;
 use App\Models\ProductVariant;
 use App\Models\Quote;
@@ -14,8 +15,8 @@ use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
 use App\Services\AmountInWords;
-use App\Services\DocumentPdfGenerator;
 use App\Services\QuoteFolioGenerator;
+use App\Services\QuotePdfGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -456,7 +457,12 @@ class QuoteController extends Controller
         ]);
     }
 
-    public function downloadPdf(Quote $quote, DocumentPdfGenerator $pdfGenerator): StreamedResponse
+    /**
+     * PDF del Presupuesto. Como el del comprobante, nunca se bloquea por datos
+     * faltantes: Configuración vacía o cotización sin cliente dejan espacios
+     * en blanco.
+     */
+    public function downloadPdf(Quote $quote, QuotePdfGenerator $pdfGenerator): StreamedResponse
     {
         // withTrashed: una cotización vieja se debe poder reimprimir aunque la
         // variante o su línea se hayan dado de baja después.
@@ -468,14 +474,24 @@ class QuoteController extends Controller
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
         ]);
 
+        $business = BusinessSetting::current();
+
         $pdf = $pdfGenerator->generate([
-            'document_type' => 'Cotización',
             'folio' => $quote->folio,
             'date' => $quote->created_at->format('d/m/Y'),
-            'customer' => $quote->customer?->only(['name', 'phone', 'email', 'address', 'neighborhood', 'city']),
+            'business' => $business->only([
+                'address',
+                'neighborhood',
+                'city',
+                'postal_code',
+                'phone_primary',
+                'phone_secondary',
+                'email',
+            ]),
+            'customer' => $quote->customer?->only(['name', 'address', 'neighborhood', 'city', 'postal_code', 'phone']),
             'items' => $quote->items->map(fn ($item) => [
                 // Producto simple: solo su nombre (no tiene línea/color/medida).
-                'variant_label' => $item->simpleProduct
+                'description' => $item->simpleProduct
                     ? $item->simpleProduct->name
                     : trim(implode(' ', [
                         $item->productVariant->product->name,
@@ -488,16 +504,24 @@ class QuoteController extends Controller
                 'boxes' => $item->boxes,
                 'quantity' => (float) $item->quantity,
                 'unit_price' => (float) $item->unit_price,
-                'price_type' => $item->price_type,
                 'line_total' => (float) $item->line_total,
             ])->all(),
             'subtotal' => (float) $quote->subtotal,
-            'total' => (float) $quote->total,
+            'discount' => (float) $quote->discount,
+            'shipping_cost' => (float) $quote->shipping_cost,
+            // `total` guardado ya trae el descuento pero no el envío; en el PDF
+            // el Total va después del envío, así que lo incluye, y el saldo
+            // queda como Total - Anticipo (mismo valor que balance()).
+            'total' => round((float) $quote->total + (float) $quote->shipping_cost, 2),
+            'down_payment' => (float) $quote->down_payment,
+            'balance' => $quote->balance(),
+            'payment_terms' => $quote->payment_terms,
+            'credit_due_date' => $quote->credit_due_date?->format('d/m/Y'),
         ]);
 
         return response()->streamDownload(
             fn () => print ($pdf),
-            "Cotizacion-{$quote->folio}.pdf",
+            "Presupuesto-{$quote->folio}.pdf",
             ['Content-Type' => 'application/pdf'],
         );
     }
