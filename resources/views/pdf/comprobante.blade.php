@@ -358,7 +358,6 @@
                                 <tr>
                                     <td>
                                         <div class="label">Régimen de actividad empresarial</div>
-                                        <div>{{ $business['business_regime'] ?? '' }}&nbsp;</div>
                                     </td>
                                 </tr>
                             </table>
