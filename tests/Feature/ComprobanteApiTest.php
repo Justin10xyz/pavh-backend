@@ -197,6 +197,44 @@ class ComprobanteApiTest extends TestCase
         $this->assertDatabaseCount('comprobantes', 0);
     }
 
+    public function test_quote_show_exposes_null_comprobante_before_conversion(): void
+    {
+        $quoteId = $this->createQuote();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante', null);
+    }
+
+    public function test_quote_show_exposes_its_comprobante_even_if_soft_deleted(): void
+    {
+        $quoteId = $this->createQuote();
+
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante.id', $comprobanteId)
+            ->assertJsonPath('data.comprobante.folio', 'CF-0001');
+
+        Comprobante::findOrFail($comprobanteId)->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante.folio', 'CF-0001');
+    }
+
+    public function test_quote_index_does_not_include_the_comprobante_relation(): void
+    {
+        $this->createQuote();
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.comprobante');
+    }
+
     public function test_it_rejects_a_second_conversion_of_the_same_quote(): void
     {
         $quoteId = $this->createQuote();
@@ -220,6 +258,68 @@ class ComprobanteApiTest extends TestCase
             ->assertJsonPath('message', $message);
 
         $this->assertSame(1, Comprobante::withTrashed()->count());
+    }
+
+    public function test_index_lists_comprobantes_latest_first_with_customer_only_on_request(): void
+    {
+        $firstQuoteId = $this->createQuote();
+        $secondQuoteId = $this->createQuote();
+
+        $this->postJson('/api/comprobantes', ['quote_id' => $firstQuoteId])->assertCreated();
+        $this->travel(1)->minutes();
+        $this->postJson('/api/comprobantes', ['quote_id' => $secondQuoteId])->assertCreated();
+
+        $this->getJson('/api/comprobantes')
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('data.0.folio', 'CF-0002')
+            ->assertJsonPath('data.1.folio', 'CF-0001')
+            ->assertJsonMissingPath('data.0.customer')
+            ->assertJsonMissingPath('data.0.items');
+
+        // Relación fuera de la whitelist: se ignora.
+        $this->getJson('/api/comprobantes?with=customer,items')
+            ->assertOk()
+            ->assertJsonPath('data.0.customer.name', 'Juan Pérez')
+            ->assertJsonMissingPath('data.0.items');
+    }
+
+    public function test_show_returns_lines_customer_and_source_quote(): void
+    {
+        $quoteId = $this->createQuote();
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId, 'date' => '2026-10-15'])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->getJson("/api/comprobantes/{$comprobanteId}")
+            ->assertOk()
+            ->assertJsonPath('data.folio', 'CF-0001')
+            ->assertJsonPath('data.date', '2026-10-15')
+            ->assertJsonPath('data.customer.name', 'Juan Pérez')
+            ->assertJsonPath('data.quote.id', $quoteId)
+            ->assertJsonPath('data.quote.folio', 'COT-0001')
+            ->assertJsonCount(2, 'data.items')
+            ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato')
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg')
+            ->assertJsonPath('data.subtotal', '4280.00')
+            ->assertJsonPath('data.total', '4180.00')
+            ->assertJsonPath('data.total_in_words', 'cuatro mil ciento ochenta pesos 00/100 M.N.');
+    }
+
+    public function test_show_still_returns_lines_of_soft_deleted_products(): void
+    {
+        $quoteId = $this->createQuote();
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->variant->delete();
+        $this->simpleProduct->delete();
+
+        $this->getJson("/api/comprobantes/{$comprobanteId}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato')
+            ->assertJsonPath('data.items.1.simple_product.name', 'Pegazulejo gris 20kg');
     }
 
     public function test_update_date_changes_only_the_date_without_restriction(): void

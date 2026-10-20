@@ -23,16 +23,23 @@ class ComprobanteResource extends JsonResource
             'folio' => $this->folio,
             'quote_id' => $this->quote_id,
             // Solo id+folio, para enlazar a la cotización de origen.
-            'quote' => $this->whenLoaded('quote', fn () => [
+            // null-safe por si la relación se carga sin withTrashed() y la
+            // cotización se dio de baja.
+            'quote' => $this->whenLoaded('quote', fn () => $this->quote ? [
                 'id' => $this->quote->id,
                 'folio' => $this->quote->folio,
-            ]),
+            ] : null),
             'customer_id' => $this->customer_id,
             'customer' => $this->whenLoaded('customer', fn () => $this->customer ? [
                 'id' => $this->customer->id,
                 'name' => $this->customer->name,
                 'phone' => $this->customer->phone,
                 'email' => $this->customer->email,
+                // Domicilio: lo mismo que imprime el PDF.
+                'address' => $this->customer->address,
+                'neighborhood' => $this->customer->neighborhood,
+                'city' => $this->customer->city,
+                'postal_code' => $this->customer->postal_code,
             ] : null),
             // Solo día: sin hora ni zona, para que no se recorra al serializar.
             'date' => $this->date->toDateString(),
