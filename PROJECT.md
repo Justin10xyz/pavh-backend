@@ -330,7 +330,7 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 
 **Frontend:**
 
-- **Hub** (`SettingsView.vue`, `/configuracion`): dos accesos, "Categorías de producto" y "Proveedores" — criterio de hub mínimo, se amplía solo cuando hay otra pantalla real
+- **Hub** (`SettingsView.vue`, `/configuracion`): tres accesos, "Categorías de producto", "Proveedores" y "Datos del negocio" (ver abajo) — criterio de hub mínimo, se amplía solo cuando hay otra pantalla real
 - **Listado** (`CategoriesSettingsView.vue`, `/configuracion/categorias`): columnas Nombre / Prefijo / Tipo, sobre `catalogs.categories` (patrón `initialized`, compartido con Inventario). Sin buscador ni filtros por el tamaño del catálogo
 - **Borrado** (en `CategoriesSettingsView.vue`, sin composable: un solo consumidor): ícono de basura junto al lápiz → `delete-summary` → si trae `blocked_message`, `ConfirmDialog` informativo ("No se puede eliminar", solo botón "Entendido", vía la opción propia `blocked` en `confirm.require()`); si no, confirmación normal → `DELETE` → `catalogs.removeCategory()` + toast "Categoría eliminada". Si el resumen falla se confirma igual y un 422 del `DELETE` se muestra como error arriba de la tabla; un 404 quita la fila igual ("La categoría ya no existe."). Sin columna de conteo de productos en el listado: `catalogs` no se refresca y el número quedaría viejo
 - **Diálogo crear/editar** (`CategoryFormDialog.vue`, en `src/components/widgets/dialogs/` — empezó en `src/views/settings/components/` y se movió al usarse también desde Inventario): detecta el modo por la prop `category`; al guardar actualiza `catalogs` in-place (`addCategory`/`updateCategory`) y emite `saved` con la categoría. También se abre desde los formularios de producto de Inventario (ver módulo 1) con la prop `fixedProductFormType`, que fija y bloquea el tipo y muestra un aviso de que editar/eliminar categorías se hace en Configuración → Categorías (texto, no enlace, para no sacar al usuario del formulario)
@@ -368,6 +368,19 @@ Vista rápida — el detalle completo de cada uno está en "Módulos" más abajo
 - **Listado** (`SuppliersSettingsView.vue`, `/configuracion/proveedores`, ruta `settings.suppliers` con el mismo `meta` que categorías): solo columna Nombre, sobre `catalogs.suppliers`. Mismo flujo de borrado (`delete-summary` → `ConfirmDialog` informativo si está bloqueado, si no confirmación → `DELETE` → `catalogs.removeSupplier()` + toast), mismo manejo de 422/404, "Nuevo proveedor" solo con `catalogs.initialized`
 - **Diálogo crear/editar** (`SupplierFormDialog.vue`, en `src/components/widgets/dialogs/`): copia de `CategoryFormDialog.vue` solo con `name`. Detecta el modo por la prop `supplier`, actualiza `catalogs` in-place (`addSupplier`/`updateSupplier`) y emite `saved`. Desde el formulario de piso se abre con la prop booleana `fromProductForm` en vez de `fixedProductFormType`, porque proveedor no tiene tipo que fijar: solo muestra el aviso de que editar/eliminar se hace en Configuración → Proveedores
 - Store `catalogs.js`: `addSupplier`/`updateSupplier`/`removeSupplier`, mismo patrón que las de categoría (mutación in-place, sin refetch)
+
+**Datos del negocio** — registro único (no es un catálogo) con los datos fiscales, domicilio y contacto que imprime el PDF del Comprobante (modelo y endpoints en `GUIA-TECNICA-COMPROBANTE-FISCAL.md` §2/§3 del backend):
+
+- **Pantalla** (`BusinessSettingsView.vue`, `/configuracion/datos-negocio`, ruta `settings.businessSettings`): edición directa, sin alta ni borrado (el backend bloquea ambos). Tercer acceso del hub. Una sola card con tres secciones (Datos fiscales / Domicilio / Contacto), campos generados desde una lista de secciones. Los 11 campos son opcionales (`nullable|string|max:255`): sin asterisco y sin validación local; vacío se envía como `null`
+- **Store** `businessSettings.js`: `settings` es un objeto (no arreglo), patrón `initialized` como `catalogs.js`; `updateBusinessSettings()` actualiza `settings` in-place con la respuesta del `PUT`
+- Guardar no navega: toast "Datos del negocio guardados" y la foto de cambios sin guardar se retoma de lo recién guardado. Confirmación de salida (`ConfirmDialog` + `beforeunload`) contra los valores recortados
+- **Pase de UX/UI de Datos del negocio** (análisis propio del código contra el checklist de `AGENT.md`, sin capturas):
+  - **Captura con teclado**: no tenía nada del esquema de los forms de captura larga. Ahora Enter avanza de campo en campo (`advanceOnEnter`/`advanceSelectOnEnter` de `lib/formKeyboard.js`) en vez de enviar a medio capturar; Ctrl/⌘+S y Ctrl/⌘+Enter guardan (`useSaveShortcut`, con `aria-keyshortcuts` en el botón) y `SaveShortcutHint.vue` va a la izquierda de las acciones. Al terminar la carga el foco va a "Lugar de expedición" — a diferencia de una edición normal (que solo enfoca en alta), esta pantalla no tiene otro propósito que capturar estos datos
+  - **Errores**: un 422 sin `errors` (solo `message`) no mostraba nada — se leía `errors ?? {}`, no se aplicaba ningún campo y tampoco se ponía el error general. Ahora, si ningún error cae bajo un campo del form, el `message` va al error general junto a las acciones; si sí, el foco va al primer campo inválido (`focusFirstInvalidField`). No hay validación local que enfocar (todo es opcional)
+  - **Correo**: el form no tenía `novalidate`, así que un correo sin formato válido lo bloqueaba el globo nativo del navegador, aunque el backend acepta cualquier texto ahí. Se agregó `novalidate` (mismo criterio que `Login.vue`); el `type="email"` se queda por el teclado en móvil
+  - **Secciones**: ya tenían su `<h2>` bajo el `<h1>` (no solo el divisor). Se agregó `aria-labelledby` en cada `<section>` para que el lector de pantalla las anuncie como regiones con su título
+  - Revisado y ya cumplía: la foto de cambios compara valores recortados (espacios no disparan el diálogo); grid `grid-cols-1 sm:grid-cols-2` dentro de `max-w-4xl`, usable desde `md`; ningún texto por debajo de `text-xs`; íconos de domicilio/teléfonos/correo con el patrón de `CustomerFormView.vue` (wrapper `relative`, ícono absoluto `pointer-events-none`, `pl-9`); sin hex sueltos (solo tokens de `@theme`); botón Guardar `h-10`, deshabilitado solo mientras guarda; carga con "Cargando datos del negocio…" en vez de inputs deshabilitados
+  - Se descartó a propósito: pasar RFC a mayúsculas al teclear — el backend no normaliza ese campo y, por convención, la normalización real va en `prepareForValidation()` del Form Request; si se quiere, va primero ahí
 
 ### Marca visible (INNOVA) — ✅ aplicada (backend + frontend)
 
@@ -471,7 +484,7 @@ El cliente renombró la marca visible de "PAVH" a **INNOVA** (logo: casita con m
 
 **Punto de Venta:**
 
-- **Confirmar con el cliente** (venta por caja completa): (1) si también se venden piezas sueltas de una caja abierta de un piso que se vende por m² — hoy esos pisos solo admiten cajas completas, y piezas sueltas cambiarían el modelo de línea. No confundir con la venta por pieza ya implementada, que es para pisos cuya unidad de venta es la pieza (mosaicos/decorados); (2) que el precio se maneja por m² y se cobra por caja completa (`price_per_box = price_per_m2 × m2_per_box`), como asumió la corrección
+- ~~Confirmar con el cliente (venta por caja completa)~~ ✅ (2026-10-17) — confirmado: nunca venden piezas sueltas de una caja abierta, siempre caja completa; el modelo actual ya refleja esto, no se requiere ningún cambio de código
 - Guardar los "m² requeridos" de una línea (`requested_m2`): hoy son solo ayuda de captura y se pierden al guardar, así que al editar una cotización o convertirla a venta solo quedan las cajas. Hace falta si se quiere que la cotización muestre "pidió 18 m² → 13 cajas"
 - Datos previos a la corrección de venta por caja: la migración llenó `boxes = ceil(m² / m2_per_box)` pero no reescribió `quantity` ni montos (documentos ya emitidos), así que esas líneas se ven como "4 cajas / 5 m²". Una línea cuya variante no tenía `m2_per_box` quedó con `boxes` null: se muestra solo en m², y si es de una cotización en Borrador hay que capturarle las cajas al editarla o convertirla. Solo afecta datos de desarrollo (no hay producción todavía)
 - Paginación del listado de ventas: `GET /api/sales` devuelve todo el periodo sin paginar; con "Todas" va a crecer sin límite. No urge todavía (el filtro por periodo acota los casos de uso diarios)
@@ -486,6 +499,14 @@ El cliente renombró la marca visible de "PAVH" a **INNOVA** (logo: casita con m
 - ~~Cancelación de cotización~~ ✅ — `PATCH /api/quotes/{id}/cancel` + botón con confirmación en el detalle
 - ~~Bug: cualquier error de submit en `QuoteFormView.vue` ocultaba todo el formulario~~ ✅ — separado en `loadError` (oculta el form) y `generalError` (solo submit)
 - ~~Bug: el listado cacheado no reflejaba "Convertida" tras convertir~~ ✅ — `quotes.markQuoteConverted()` desde `SaleFormView.vue`
+- **Presupuesto → Comprobante Fiscal Simplificado** (rediseño grande en curso, ver `claude/PLAN-COMPROBANTE-FISCAL.md` y `claude/GUIA-TECNICA-COMPROBANTE-FISCAL.md`):
+  backend y PDF de ambos documentos completos (Presupuesto rediseñado 2026-10-20
+  para hacer juego visual con el Comprobante). Falta un ajuste backend ya decidido
+  (`Quote::total` incluirá `shipping_cost`) y todo el frontend (formulario de
+  Presupuesto, marcar como pagado, conversión a Comprobante, listado/detalle,
+  Configuración). La reescritura completa de esta sección del módulo se difiere
+  hasta que el frontend también cierre, mismo criterio que el pase de UX/UI
+  transversal.
 
 **Clientes:**
 
@@ -510,7 +531,7 @@ El cliente renombró la marca visible de "PAVH" a **INNOVA** (logo: casita con m
 - Título de pestaña en vistas de detalle: el `afterEach` del router usa `meta.title`, que en los detalles es genérico ("Cotización", "Venta", "Cliente"), así que dos detalles abiertos se ven igual. Que cada detalle asigne `document.title` con su folio/nombre al cargar ("COT-0012 · INNOVA"). Detectado en el pase de UX/UI de Login; toca módulos ya cerrados
 - ~~Assets de la marca anterior sin uso tras el rebrand a INNOVA~~ ✅ — borrados `public/logo_pavh.ico`, `src/assets/logo_pavh.png`, `src/assets/provisional_logo.png` y `src/assets/logo.svg` (el de Vite); ningún archivo los referenciaba
 - `android-chrome-192x192.png`/`512x512.png` están en `public/` pero no se usan sin un `site.webmanifest` (ícono al instalar/agregar a inicio en Android). Agregarlo si se quiere ese caso
-- Pregunta de negocio pendiente (Cotizaciones/Ventas): Subtotal y Total siempre son iguales porque no se manejan impuestos — ¿se va a manejar IVA? Si no, mostrar solo "Total" en form, detalle y PDF
++ ~~Pregunta de negocio pendiente (Cotizaciones/Ventas): ¿se va a manejar IVA?~~ ✅ (2026-10-17) — resuelto con el cliente: no se maneja IVA por separado, los precios de catálogo ya lo incluyen. Pendiente de UI (no bloqueante, nuevo): como Subtotal y Total siempre son iguales, mostrar solo "Total" en form, detalle y PDF de Cotizaciones/Ventas
 - ~~Componentes grandes por dividir según la regla de `AGENT.md`: `SaleFormView.vue` (~1000 líneas), `QuoteFormView.vue` (~850) e `InventoryTable.vue` (~520)~~ ✅ (2026-10-16) — líneas compartidas en `documentLines.js` + `useLineProducts` + `DocumentLinesTable.vue`, `saleForm.js` + `SaleSummaryBar.vue` en Ventas y `VariantGroupPanel.vue` en Inventario (ver Inventario y Punto de Venta). `SaleFormView.vue` quedó en ~550 a propósito
 - `ProductController@index` arma `unit_type` en `ProductResource` con `$this->unitType->name` sin eager-loadear `unitType`: una consulta extra por producto en el listado de Inventario (N+1). No rompe nada; detectado al corregir la carga de `commissionCategory` en el mismo `index`
 - Dashboard "Productos más vendidos": `quantity_sold` suma unidades distintas según la fila (m², piezas o unidades) y el widget muestra cajas con m² debajo para toda variante. Una fila de piso por pieza no distingue que sus "cajas" son piezas
