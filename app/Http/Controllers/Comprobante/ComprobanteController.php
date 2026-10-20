@@ -13,11 +13,49 @@ use App\Services\AmountInWords;
 use App\Services\ComprobanteFolioGenerator;
 use App\Services\ComprobantePdfGenerator;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ComprobanteController extends Controller
 {
+    public function index(Request $request): AnonymousResourceCollection
+    {
+        $allowedRelations = [
+            'customer' => 'customer',
+        ];
+
+        $with = collect(explode(',', $request->query('with', '')))
+            ->map(fn ($relation) => trim($relation))
+            ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
+            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
+            ->all();
+
+        $comprobantes = Comprobante::query()
+            ->when($with !== [], fn ($query) => $query->with($with))
+            ->latest()
+            ->get();
+
+        return ComprobanteResource::collection($comprobantes);
+    }
+
+    public function show(Comprobante $comprobante): ComprobanteResource
+    {
+        // withTrashed: un comprobante emitido se debe poder consultar aunque
+        // la variante, el producto o la cotización de origen se den de baja
+        // después (el cliente ya lo trae la relación del modelo).
+        $comprobante->load([
+            'customer',
+            'quote' => fn ($query) => $query->withTrashed(),
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product' => fn ($query) => $query->withTrashed(),
+            'items.productVariant.product.unitType',
+            'items.simpleProduct' => fn ($query) => $query->withTrashed(),
+        ]);
+
+        return new ComprobanteResource($comprobante);
+    }
     /**
      * Convierte una cotización pagada en comprobante. No recibe líneas ni
      * montos: copia quote_items y subtotal/total de la cotización tal cual (ya

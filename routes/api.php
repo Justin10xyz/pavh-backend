@@ -52,7 +52,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
 
     Route::get('/comprobantes/{comprobante}/pdf', [ComprobanteController::class, 'downloadPdf']);
+    Route::get('/comprobantes', [ComprobanteController::class, 'index']);
     Route::post('/comprobantes', [ComprobanteController::class, 'store']);
+    Route::get('/comprobantes/{comprobante}', [ComprobanteController::class, 'show']);
     Route::patch('/comprobantes/{comprobante}', [ComprobanteController::class, 'updateDate']);
 
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
