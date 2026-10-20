@@ -2,7 +2,7 @@
 
 Referencia técnica de este módulo para cualquier programador o IA que lo retome: qué hace, cómo está modelado, qué endpoints existen, qué reglas de negocio aplican y por qué. Se actualiza al cierre de cada paso de construcción. Complementa a `PROJECT.md`/`AGENT.md` (convenciones generales del proyecto) y a `claude/PLAN-COMPROBANTE-FISCAL.md` (historial de decisiones de la sesión de diseño, con más contexto narrativo que este documento).
 
-**Estado al 2026-10-19**: backend de Presupuesto/Comprobante completo (Pasos 1-3) y probado. Configuración de datos fijos del negocio también lista (Paso 4a). Falta: plantilla PDF del Comprobante, y todo el frontend.
+**Estado al 2026-10-19**: backend de Presupuesto/Comprobante/Configuración completo y probado, incluida la plantilla PDF del Comprobante. Falta: datos reales de la Cédula de Identificación Fiscal (RFC/idCIF/QR), el rediseño del PDF de Presupuesto/Cotización (para que haga juego con el nuevo Comprobante), y todo el frontend.
 
 ---
 
@@ -47,29 +47,36 @@ Reemplaza, para este flujo, el rol que hoy cumple la conversión Cotización→V
 | `customer_id` | nullable (mismo criterio que `quotes`/`sales`). |
 | `date` | La única columna editable después de creado, sin límite, vía `PATCH /comprobantes/{id}`. |
 | `subtotal`, `total` | Copiados tal cual del Presupuesto al convertir — **no se recalculan**, son una foto del momento. |
-| `total_in_words` | Calculado al crear, con `App\Services\AmountInWords::pesos()` (servicio propio, sin librería externa — maneja "un/veintiún" antes de "mil"/"pesos", "cien/ciento", y "un millón de pesos" con el "de" solo en millones exactos). |
+| `total_in_words` | Calculado al crear, con `App\Services\AmountInWords::pesos()` (servicio propio, sin librería externa — maneja "un/veintiún" antes de "mil"/"pesos", "cien/ciento", y "un millón de pesos" con el "de" solo en millones exactos; probado hasta $99,999,999.99). |
 | `created_by`, SoftDeletes | Igual que `quotes`/`sales`. |
 
 **Decisión de diseño explícita**: `comprobantes` NO duplica `discount`/`down_payment`/`shipping_cost`/`payment_terms` de `quotes`. El Comprobante real (visto en la plantilla física de Interceramic) no muestra ese desglose — solo Total y Total con letra, porque para cuando se genera, el Presupuesto ya está pagado al 100%. Si algún día hiciera falta ver ese desglose histórico, se consulta vía `Comprobante::quote` (la relación sigue viva mientras el Presupuesto no se borre).
 
 ### `comprobante_items` (nueva)
 
-Misma forma que `quote_items`. Se llenan copiando `quote_items` tal cual en `POST /comprobantes` — **no se reciben en el payload**, a diferencia de Cotización→Venta (que sí permite ajustar cantidades/precios al convertir). Aquí no hay ningún caso de uso para re-editar al convertir: es solo "ya se pagó, generar el recibo tal cual se cotizó".
+Misma forma que `quote_items`. Se llenan copiando `quote_items` tal cual en `POST /comprobantes` — **no se reciben en el payload** de creación. No hay ningún caso de uso para re-editar al convertir: es solo "ya se pagó, generar el recibo tal cual se cotizó".
 
 ### `stock_movements` — columna agregada
 
-`quote_id` (nullable) + parámetro opcional `?Quote $quote` en `StockMovement::record()`. Permite que un movimiento con `source: 'quote_payment'` diga de qué Presupuesto vino, igual que `sale_id` en los movimientos de venta. **Todavía no expuesto en `StockMovementResource`** (pendiente, no bloqueante).
+`quote_id` (nullable) + parámetro opcional `?Quote $quote` en `StockMovement::record()`. **Todavía no expuesto en `StockMovementResource`** (pendiente, no bloqueante).
 
 ### `business_settings` (nueva, Configuración — registro único)
 
-Datos fijos del negocio que aparecen en el Comprobante y no cambian por documento: Lugar de expedición, Régimen de Actividad Empresarial, y los datos de la Cédula de Identificación Fiscal (RFC e idCIF).
+Datos fijos del negocio, editables desde el sistema (`GET`/`PUT /api/business-settings`), sin necesitar un deploy para cambiarlos.
 
 | Columna | Tipo | Notas |
 | --- | --- | --- |
-| `place_of_issue` | string nullable, max 255 | Lugar de expedición. |
-| `business_regime` | string nullable, max 255 | Régimen de Actividad Empresarial. |
-| `tax_id` | string nullable, max 255 | RFC. |
-| `tax_id_number` | string nullable, max 255 | idCIF (Cédula de Identificación Fiscal). |
+| `place_of_issue` | string nullable, max 255 | Lugar de expedición. Se usa en el PDF. |
+| `business_regime` | string nullable, max 255 | Existe en el modelo, pero **ya no se imprime en el PDF** (ver §3 y Decisiones — en el papel real esa línea es solo una etiqueta, nunca se llena). |
+| `tax_id` | string nullable, max 255 | RFC. Se usa en el PDF (caja de Cédula Fiscal) cuando tiene valor. |
+| `tax_id_number` | string nullable, max 255 | idCIF. Igual que `tax_id`. |
+| `address` | string nullable, max 255 | Se usa en el PDF. |
+| `neighborhood` | string nullable, max 255 | Se usa en el PDF. |
+| `city` | string nullable, max 255 | Se usa en el PDF. |
+| `postal_code` | string nullable, max 255 | Se usa en el PDF. |
+| `phone_primary` | string nullable, max 255 | Se usa en el PDF. |
+| `phone_secondary` | string nullable, max 255 | Se usa en el PDF. |
+| `email` | string nullable, max 255 | Se usa en el PDF. Sin validación de formato de correo, mismo criterio que los demás campos. |
 
 Es una tabla singleton, no un catálogo: siempre hay exactamente un registro (id 1).
 
@@ -77,60 +84,87 @@ Es una tabla singleton, no un catálogo: siempre hay exactamente un registro (id
 - Cualquier alta se fuerza al id 1 (un segundo `create()` falla por llave primaria duplicada) y el evento `deleting` siempre se cancela (`delete()` devuelve `false`) — no hay manera de tener un segundo registro ni de borrarlo.
 - Un campo que no viene en el `PUT` se queda como estaba; para vaciarlo hay que mandarlo explícitamente como `null`.
 
-**Pendiente, deliberadamente fuera de alcance por ahora**: el archivo/imagen del QR de la Cédula de Identificación Fiscal — no se agregó manejo de archivo todavía porque no se tiene el archivo real; se agregará como un campo aparte (probablemente de imagen) cuando esté disponible.
+**Datos reales ya cargados** (vía `PUT /api/business-settings`, sin necesitar frontend): `address`, `neighborhood`, `city`, `postal_code`, `phone_primary`, `phone_secondary`, `email` — Justin los proporcionó y se cargaron directo por API.
+
+**Pendiente**: `place_of_issue`, `business_regime` (su texto real, aunque ya no se imprima — útil tenerlo igual), `tax_id`, `tax_id_number`, y el archivo/imagen del QR de la Cédula de Identificación Fiscal (este último no tiene columna todavía — se agregará como campo de imagen aparte cuando exista el archivo real).
 
 ## 3. Endpoints
 
 | Método y ruta | Qué hace | Guards |
 | --- | --- | --- |
-| `PATCH /quotes/{quote}/mark-paid` | Confirma el pago de un Presupuesto. Descuenta stock (agregado por producto, `hasSufficientStock()` antes de mutar, `StockMovement::record(source: 'quote_payment', quote: $quote)`), guarda `paid_at`/`paid_by`. Bloquea la cotización y sus productos en orden de id (evita doble pago concurrente). | `Quote::markPaidBlockedMessage()`: rechaza si no está en Borrador o si ya tiene `paid_at`. También rechaza si una línea referencia un producto dado de baja, o una variante sin `boxes` capturado (dato viejo anterior a la venta por caja). |
-| `GET /quotes/{id}/to-comprobante` | Solo lectura, prellena cliente/fecha de hoy/líneas/subtotal/total/total_in_words para que el frontend lo muestre antes de confirmar. Mismo espíritu que `GET /quotes/{id}/convert` (ya existente para Venta). | `Quote::comprobanteConversionBlockedMessage()`: rechaza si `paid_at` es null, o si ya tiene Comprobante. |
-| `POST /comprobantes` | Recibe `quote_id` + `date` opcional (default `now()`). Dentro de transacción: bloquea la cotización, vuelve a revisar el guard (no confía solo en el `GET`), copia líneas/montos, genera folio, calcula `total_in_words`. | Mismo guard que el `GET`, revalidado server-side. |
-| `PATCH /comprobantes/{id}` | Único campo editable: `date`. Sin ningún guard de "ya no se puede editar" — es deliberadamente editable sin límite. | `UpdateComprobanteDateRequest`, solo acepta `date`. |
+| `PATCH /quotes/{quote}/mark-paid` | Confirma el pago de un Presupuesto. Descuenta stock (agregado por producto, `hasSufficientStock()` antes de mutar, `StockMovement::record(source: 'quote_payment', quote: $quote)`), guarda `paid_at`/`paid_by`. Bloquea la cotización y sus productos en orden de id (evita doble pago concurrente). | `Quote::markPaidBlockedMessage()`: rechaza si no está en Borrador o si ya tiene `paid_at`. También rechaza si una línea referencia un producto dado de baja, o una variante sin `boxes` capturado. |
+| `GET /quotes/{id}/to-comprobante` | Solo lectura, prellena cliente/fecha de hoy/líneas/subtotal/total/total_in_words. | `Quote::comprobanteConversionBlockedMessage()`: rechaza si `paid_at` es null, o si ya tiene Comprobante. |
+| `POST /comprobantes` | Recibe `quote_id` + `date` opcional (default `now()`). Dentro de transacción: bloquea la cotización, revalida el guard, copia líneas/montos, genera folio, calcula `total_in_words`. | Mismo guard que el `GET`, revalidado server-side. |
+| `PATCH /comprobantes/{id}` | Único campo editable: `date`. Sin ningún guard de inmutabilidad — deliberadamente editable sin límite. | `UpdateComprobanteDateRequest`, solo acepta `date`. |
 | `DELETE /quotes/{id}` | (Ya existía, ahora con guard agregado) | Rechaza 422 "Esta cotización ya fue pagada y no se puede eliminar." si `paid_at` no es null. |
 | `GET /api/business-settings` | Devuelve el registro actual (siempre existe gracias a `current()`). | — |
-| `PUT /api/business-settings` | Actualiza los 4 campos de Configuración. | `UpdateBusinessSettingRequest`: los 4 campos `nullable\|string\|max:255`. Sin ruta de alta ni de borrado (`POST`/`DELETE` responden 405). |
+| `PUT /api/business-settings` | Actualiza los campos de Configuración. | `UpdateBusinessSettingRequest`: todos `nullable\|string\|max:255`. Sin ruta de alta ni de borrado (`POST`/`DELETE` responden 405). |
+| `GET /comprobantes/{id}/pdf` | Genera y descarga el PDF del Comprobante (ver §4 para el detalle de la plantilla). Nunca se bloquea por datos faltantes en Configuración o por falta de cliente — siempre responde 200 si el Comprobante existe. | — |
 
-Efecto secundario de marcar como pagada: `Quote::conversionBlockedMessage()` (conversión a Venta), el guard de cancelación, y el guard de `update` ahora también rechazan una cotización con `paid_at` — evita descuadrar el stock (pagarla y luego convertirla a Venta, o editarla/cancelarla, dejaría el stock mal contado).
+Efecto secundario de marcar como pagada: `Quote::conversionBlockedMessage()` (conversión a Venta), el guard de cancelación, y el guard de `update` ahora también rechazan una cotización con `paid_at`.
 
-## 4. Reglas de negocio (resumen)
+## 4. La plantilla PDF del Comprobante
+
+`App\Services\ComprobantePdfGenerator` + vista `resources/views/pdf/comprobante.blade.php`, usando dompdf con el mismo patrón/fuentes que ya usaba el PDF de Cotización/Venta (**ese PDF existente NO se tocó** — sigue igual que antes; su rediseño queda pendiente, ver §6).
+
+- **Tamaño de página**: media carta horizontal (612 × 396 pt / 5.5 × 8.5 in), confirmado contra el papel real del talonario.
+- **Encabezado**: logo de **INNOVA** en escala de grises (`resources/images/branding/`, decisión consciente de usar la marca propia del cliente en vez de reproducir el logo de Interceramic del papel físico), "SUB-DISTRIBUIDOR AUTORIZADO" y "*REPRESENTANTE: Pedro López Laris" — ambos **fijos en la plantilla**, no vienen de Configuración (el representante no cambia). Al centro, título + dirección/contacto de `business_settings` (cada línea solo si tiene valor). A la derecha, caja con FOLIO, Lugar de expedición, Fecha, y la etiqueta "RÉGIMEN DE ACTIVIDAD EMPRESARIAL" — **esta última sin ningún valor impreso debajo**, igual que en el papel real donde esa línea nunca se llena.
+- **Caja de Cédula de Identificación Fiscal**: ~27% del ancho × ~22% del alto de página, esquina inferior izquierda. Muestra RFC e idCIF de `business_settings` solo cuando tienen valor; si no, queda vacía (sin inventar contenido ni placeholder de texto).
+- **Tabla de líneas**: CANT. (con el mismo criterio que la nota de venta — cajas+m² para piso, unidades para productos simples), DESCRIPCIÓN, VALOR UNITARIO, IMPORTE.
+- **Auto-ajuste por cantidad de líneas**: con 2-6 líneas, tamaño normal. De 7 a ~12 líneas, reduce progresivamente fuente/alto de fila (con un piso mínimo legible) para seguir cabiendo en una sola hoja. Más allá de ese máximo, pasa a una segunda hoja con un encabezado compacto repetido (folio/fecha/cliente/"Hoja X de Y") — el pie (Cédula, Total con letra, Total, aviso legal) solo se imprime en la última hoja, nunca partido entre hojas.
+- **Pie**: "TOTAL CON LETRA" y "TOTAL" (probado hasta $99,999,999.99 sin desbordar su caja), y el aviso legal fijo, texto verbatim:
+
+  > EL PRESENTE COMPROBANTE ACREDITA LA LEGITIMA PROPIEDAD DE LOS BIENES DE QUIEN LOS POSEÉ Y/O LA OPERACIÓN COMERCIAL REALIZADA. PARA SU EXPEDICIÓN SE CUMPLE CON LO PREVISTO EN LA REGLA DE CARÁCTER GENERAL I.2.7.1.22. DE LA RESOLUCIÓN MISCELANEA PARA EL 2014 CON RELACIÓN A LO ESTABLECIDO EN EL ARTÍCULO 29-A DEL CÓDIGO FISCAL DE LA FEDERACIÓN PARA LOS COMPROBANTES FISCALES. PARA PODER DEDUCIRSE O ACREDITARSE FISCALMENTE LAS CANTIDADES AMPARADAS EN ESTE COMPROBANTE SIMPLIFICADO DEBERÁ SOLICITAR OPORTUNAMENTE SE LE RESTITUYA POR UN COMPROBANTE FISCAL DIGITAL POR INTERNET DENTRO DEL PLAZO QUE ESTIPULE EL PROVEEDOR.
+
+Tests de feature cubren: 200 + content-type PDF con Configuración vacía, 200 sin cliente, y que el folio/aviso legal/datos de Configuración/RFC/idCIF/total con letra/importes aparecen en el HTML de la plantilla (la revisión se hace sobre el HTML, no sobre el PDF binario, porque dompdf comprime el texto).
+
+## 5. Reglas de negocio (resumen)
 
 - Relación Presupuesto↔Comprobante: **1 a 1**, forzada por el UNIQUE en `comprobante.quote_id`.
 - El stock se descuenta **al marcar como pagado**, nunca al generar el Comprobante ni al crear/editar el Presupuesto.
-- "Marcar como pagado" es un paso de negocio propio, independiente en el tiempo de "generar Comprobante" (pueden pasar semanas entre uno y otro — el pago ocurre cuando el cliente paga, el Comprobante hasta el cierre de mes).
-- El plazo de crédito es variable (`credit_due_date` capturado a mano, no un cálculo de N días fijos).
-- `Saldo` puede ser negativo (anticipo mayor a lo debido) — no se valida ni rechaza, es un estado válido.
-- `Total = Subtotal − Descuento` sí se valida: un descuento que dejara `Total` negativo se rechaza con 422 antes de escribir nada.
-- Venta (POS) sigue existiendo tal cual, sin tocar — es una tercera vía, no la prioridad de este trabajo.
+- "Marcar como pagado" es un paso de negocio propio, independiente en el tiempo de "generar Comprobante".
+- El plazo de crédito es variable (`credit_due_date` capturado a mano).
+- `Saldo` puede ser negativo — no se valida ni rechaza.
+- `Total = Subtotal − Descuento` sí se valida: un descuento que dejara `Total` negativo se rechaza con 422.
+- Venta (POS) sigue existiendo tal cual, sin tocar.
 - No es un CFDI real — no hay conexión con Factura Digital (factdigital.com) en este módulo.
-- Los datos fijos del negocio (Configuración) son un registro único, editable desde cualquier parte del sistema, no capturados por documento.
+- Los datos fijos del negocio (Configuración) son un registro único, editable desde el sistema (ya sea por API directa o, más adelante, por su propia pantalla).
 
-## 5. Decisiones y su razón
+## 6. Decisiones y su razón
 
 | Decisión | Razón |
 | --- | --- |
-| `comprobantes.quote_id` UNIQUE en vez de una tabla puente N:N | Confirmado con el cliente: cada Presupuesto pagado genera su propio Comprobante individual (1 a 1); lo que se "junta" al cierre de mes es un resumen externo (folio + total), no un documento nuevo en el sistema. |
-| `comprobantes` no copia discount/down_payment/shipping_cost/payment_terms | El Comprobante real no los muestra (solo Total y Total con letra); copiarlos sería dato muerto. |
-| Stock se descuenta en `mark-paid`, no en la conversión a Comprobante | El pago es el evento de negocio real que compromete la mercancía; el Comprobante es solo un trámite contable posterior, a veces mucho después. |
-| `paid_at`/`paid_by` en vez de reusar el `status` (quote_statuses) existente | `status` (Borrador/Convertida/Cancelada) ya tiene un significado específico ligado a la conversión a Venta; mezclarlo con "pagado" habría sido ambiguo. Son dos conceptos independientes que pueden convivir (una cotización puede estar "Borrador" y "pagada" a la vez). |
-| `Saldo` negativo permitido, sin validar | Decisión de negocio explícita: un anticipo mayor al total es un caso real (el negocio le queda debiendo al cliente), no un error de captura. |
-| `PATCH /comprobantes/{id}` solo acepta `date`, sin guard de inmutabilidad | Decisión de negocio explícita: la fecha debe poder ajustarse sin límite para cuadrar el cierre de mes, a diferencia del resto de documentos del sistema (Cotización/Venta), que se vuelven inmutables al concretarse. |
-| `AmountInWords::pesos()` propio, sin librería externa | No existía ninguna utilidad de número a letras en el proyecto; el caso (pesos mexicanos con centavos) es acotado y no justifica una dependencia nueva. |
-| Líneas de `comprobante_items` copiadas server-side, no recibidas en el payload | A diferencia de Cotización→Venta, aquí no hay ningún requisito de re-editar cantidades/precios al convertir — es solo generar el recibo de lo ya pagado. |
-| `business_settings` como tabla singleton (forzada a id 1) en vez de un `config`/`.env` | Son datos que el cliente puede necesitar corregir él mismo desde el sistema (cambio de régimen, por ejemplo), no constantes de despliegue; una tabla con endpoints permite eso sin tocar código. |
+| `comprobantes.quote_id` UNIQUE en vez de una tabla puente N:N | Confirmado con el cliente: 1 a 1; lo que se "junta" al cierre de mes es un resumen externo, no un documento nuevo en el sistema. |
+| `comprobantes` no copia discount/down_payment/shipping_cost/payment_terms | El Comprobante real no los muestra; copiarlos sería dato muerto. |
+| Stock se descuenta en `mark-paid`, no en la conversión a Comprobante | El pago es el evento de negocio real que compromete la mercancía. |
+| `paid_at`/`paid_by` en vez de reusar `status` | Son dos conceptos independientes que pueden convivir. |
+| `Saldo` negativo permitido, sin validar | Un anticipo mayor al total es un caso real de negocio. |
+| `PATCH /comprobantes/{id}` solo acepta `date`, sin guard de inmutabilidad | La fecha debe poder ajustarse sin límite para cuadrar el cierre de mes. |
+| `AmountInWords::pesos()` propio, sin librería externa | Caso acotado, no justifica una dependencia nueva. |
+| Líneas de `comprobante_items` copiadas server-side | No hay requisito de re-editar al convertir. |
+| `business_settings` como tabla singleton en vez de `config`/`.env` | El cliente puede necesitar corregir estos datos él mismo desde el sistema. |
+| Logo de INNOVA en vez del logo de Interceramic en el PDF | Decisión consciente de usar la marca propia del negocio en el documento generado por el sistema, en vez de reproducir el logo de un tercero (Interceramic) tal cual aparece en el papel físico original. |
+| "*REPRESENTANTE" fijo en la plantilla, no en Configuración | Confirmado: el representante (Pedro López Laris) no cambia; no amerita ser un campo editable. |
+| "RÉGIMEN DE ACTIVIDAD EMPRESARIAL" se imprime solo como etiqueta, sin valor | En el papel físico real esa línea nunca se llena a mano — es solo el encabezado de la casilla. El campo `business_regime` se queda en el modelo por si se necesita después, pero no se imprime. |
+| Auto-ajuste de fuente hasta ~12 líneas, luego segunda hoja con encabezado repetido | 6 líneas resultó insuficiente para el caso común (una compra de piso casi siempre lleva piso + pegazulejo + boquilla + accesorios); seguir reduciendo la fuente sin límite compromete legibilidad e impresión. |
 
-## 6. Pendientes conocidos
+## 7. Pendientes conocidos
 
 - `StockMovementResource` no expone todavía `quote_id`.
-- Configuración: el archivo/imagen del QR de la Cédula de Identificación Fiscal — sin construir. Pendiente que Justin comparta el archivo real.
-- Plantilla PDF del Comprobante — sin construir (incluye el aviso legal fijo, transcrito en `claude/PLAN-COMPROBANTE-FISCAL.md`).
-- Todo el frontend: formulario de Presupuesto con los campos nuevos, acción "Marcar como pagado", pantalla de conversión a Comprobante, listado/detalle de Comprobantes, pantalla de Configuración.
+- Datos reales pendientes en `business_settings`: `place_of_issue`, `business_regime` (su texto, aunque no se imprima), `tax_id`, `tax_id_number`, y el archivo/imagen del QR de la Cédula Fiscal (sin columna todavía).
+- **Rediseño del PDF de Presupuesto/Cotización**: el PDF existente de Cotización/Venta no se tocó en este trabajo — sigue con su diseño anterior. Ahora que el Comprobante tiene una plantilla nueva (logo INNOVA, media carta horizontal, etc.), queda pendiente decidir si el PDF de Presupuesto se rediseña para hacer juego, y resolverlo como un paso aparte.
+- Todo el frontend: formulario de Presupuesto con los campos nuevos, acción "Marcar como pagado", pantalla de conversión a Comprobante, listado/detalle de Comprobantes, pantalla de Configuración (aunque los datos ya se pueden cargar por API mientras tanto).
 
-## 7. Historial de pasos de construcción
+## 8. Historial de pasos de construcción
 
 | Paso | Fecha | Contenido |
 | --- | --- | --- |
-| 1 | 2026-10-19 | Esquema base: columnas nuevas en `quotes`/`customers`, tabla `comprobantes`/`comprobante_items`, modelos, `ComprobanteFolioGenerator`. Sin endpoints de negocio todavía. 299→311 tests. |
-| 2 | 2026-10-19 | "Marcar como pagado": `paid_at`/`paid_by`, `PATCH /quotes/{id}/mark-paid`, descuento de stock, `Quote::balance()`, recálculo de `total`, bloqueo de edición/cancelación/conversión-a-venta de una cotización pagada. 311→336 tests. |
-| 3 | 2026-10-19 | Conversión a Comprobante: `GET /quotes/{id}/to-comprobante`, `POST /comprobantes`, `PATCH /comprobantes/{id}` (fecha), `AmountInWords::pesos()`. Más dos ajustes: `DELETE /quotes/{id}` bloqueado si pagada, `credit_due_date` se limpia en `update` al pasar a `cash`. 336 tests. |
-| 4a | 2026-10-19 | Mismo ajuste de `credit_due_date` aplicado también en `store`. Configuración: tabla/modelo `business_settings` (registro único), `GET`/`PUT /api/business-settings`, sin manejo de archivo del QR todavía. 336→342 tests. |
+| 1 | 2026-10-19 | Esquema base: columnas nuevas en `quotes`/`customers`, tabla `comprobantes`/`comprobante_items`, modelos, `ComprobanteFolioGenerator`. 299→311 tests. |
+| 2 | 2026-10-19 | "Marcar como pagado": `paid_at`/`paid_by`, `PATCH /quotes/{id}/mark-paid`, descuento de stock, `Quote::balance()`, recálculo de `total`, bloqueos de edición/cancelación/conversión-a-venta. 311→336 tests. |
+| 3 | 2026-10-19 | Conversión a Comprobante: `GET /quotes/{id}/to-comprobante`, `POST /comprobantes`, `PATCH /comprobantes/{id}` (fecha), `AmountInWords::pesos()`. 336 tests. |
+| 4a | 2026-10-19 | `credit_due_date` también limpiado en `store`. Configuración: `business_settings` (registro único), `GET`/`PUT /api/business-settings`. 336→342 tests. |
+| 4b | 2026-10-19 | Esta guía técnica copiada a la raíz del repo (sin cambios de código). |
+| 5 | 2026-10-19 | Primera versión de la plantilla PDF del Comprobante (`GET /comprobantes/{id}/pdf`), `business_settings` ampliado con 7 campos de dirección/contacto. Página en carta vertical (provisional), espacios reservados para logo y Cédula Fiscal. 342→346 tests. |
+| 5b | 2026-10-19 | Página corregida a media carta horizontal (tamaño real del talonario), proporciones de la caja de Cédula Fiscal reescaladas, logo real de INNOVA insertado, "*REPRESENTANTE" fijado a "Pedro López Laris". Ajuste puramente visual, sin cambios a los tests. |
+| 5c/5d | 2026-10-19 | Corregido el desbordamiento del monto en la caja de TOTAL. Auto-ajuste de fuente/alto de fila hasta ~12 líneas de producto, y segunda hoja con encabezado compacto repetido (folio/fecha/cliente/"Hoja X de Y") cuando se rebasa ese máximo — probado hasta con un total de $99,999,999.99. |
+| 5e | 2026-10-19 | "RÉGIMEN DE ACTIVIDAD EMPRESARIAL" se deja solo como etiqueta fija, sin imprimir ningún valor debajo (así es en el papel físico real). |
