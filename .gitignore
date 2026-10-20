@@ -32,3 +32,6 @@ Thumbs.db
 
 #test
 cookies.txt
+
+# PDFs de muestra generados localmente para revisión visual
+/sample_pdf/
