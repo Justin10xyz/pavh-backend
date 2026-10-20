@@ -29,7 +29,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   'subtotal' => float,
  *   'discount' => float,      // 0 si no aplica; solo se muestra si > 0
  *   'shipping_cost' => float, // 0 si no aplica; solo se muestra si > 0
- *   'total' => float,         // subtotal - descuento + envío
+ *   'total' => float,         // quotes.total tal cual: subtotal - descuento + envío
  *   'down_payment' => float,  // 0 si no aplica; solo se muestra si > 0
  *   'balance' => float,       // total - anticipo; puede ser negativo
  *   'payment_terms' => 'cash' | 'credit',

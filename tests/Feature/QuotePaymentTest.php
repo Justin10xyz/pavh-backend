@@ -304,6 +304,96 @@ class QuotePaymentTest extends TestCase
             ->assertJsonPath('data.total', '0.00');
     }
 
+    public function test_total_includes_shipping_cost_on_create_and_update(): void
+    {
+        $variant = $this->createVariant('Taupe', null, 100.00);
+
+        // 5 cajas × 1 m² × $100 = $500 - $80 + $120.50 = $540.50
+        $quoteId = $this->postJson('/api/quotes', [
+            'discount' => 80,
+            'shipping_cost' => 120.50,
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.subtotal', '500.00')
+            ->assertJsonPath('data.total', '540.50')
+            ->assertJsonPath('data.balance', '540.50')
+            ->json('data.id');
+
+        // Sin shipping_cost en el payload se conserva el guardado: $300 - $80 + $120.50.
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.total', '340.50');
+
+        // shipping_cost null = no aplica: total = subtotal - descuento.
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'shipping_cost' => null,
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.shipping_cost', null)
+            ->assertJsonPath('data.total', '220.00');
+    }
+
+    public function test_shipping_cost_does_not_cover_a_discount_greater_than_the_subtotal(): void
+    {
+        $variant = $this->createVariant('Taupe', null, 100.00);
+
+        // subtotal 500 - 600 + 200 = 100 >= 0, pero el descuento sigue siendo
+        // mayor que el subtotal.
+        $this->postJson('/api/quotes', [
+            'discount' => 600,
+            'shipping_cost' => 200,
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'El descuento ($600.00) no puede ser mayor que el subtotal ($500.00).');
+
+        $this->assertSame(0, Quote::count());
+
+        $quoteId = $this->createQuote(
+            [['product_variant_id' => $variant->id, 'boxes' => 5]],
+            ['discount' => 400, 'shipping_cost' => 500],
+        );
+
+        $this->putJson("/api/quotes/{$quoteId}", [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'El descuento ($400.00) no puede ser mayor que el subtotal ($300.00).');
+
+        $this->assertSame('600.00', Quote::find($quoteId)->total);
+    }
+
+    public function test_migration_moves_shipping_into_total_without_changing_balance(): void
+    {
+        $variant = $this->createVariant('Taupe', null, 100.00);
+
+        $withShippingId = $this->createQuote(
+            [['product_variant_id' => $variant->id, 'boxes' => 10]],
+            ['discount' => 100, 'shipping_cost' => 150, 'down_payment' => 300],
+        );
+        $withoutShippingId = $this->createQuote(
+            [['product_variant_id' => $variant->id, 'boxes' => 10]],
+            ['discount' => 100],
+        );
+
+        // Estado previo: total sin envío y saldo viejo (total + envío - anticipo) = 750.
+        $migration = require database_path('migrations/2026_10_20_000001_include_shipping_cost_in_quotes_total.php');
+        $migration->down();
+
+        $this->assertSame('900.00', Quote::find($withShippingId)->total);
+        $this->assertSame('900.00', Quote::find($withoutShippingId)->total);
+
+        $migration->up();
+
+        $this->assertSame('1050.00', Quote::find($withShippingId)->total);
+        $this->assertSame(750.00, Quote::find($withShippingId)->balance());
+        $this->assertSame('900.00', Quote::find($withoutShippingId)->total);
+    }
+
     public function test_it_rejects_a_discount_greater_than_the_subtotal(): void
     {
         $variant = $this->createVariant('Taupe', null, 100.00);
@@ -349,7 +439,7 @@ class QuotePaymentTest extends TestCase
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 10]],
         ])
             ->assertCreated()
-            ->assertJsonPath('data.total', '900.00')
+            ->assertJsonPath('data.total', '1050.00')
             ->assertJsonPath('data.shipping_cost', '150.00')
             ->assertJsonPath('data.down_payment', '300.00')
             ->assertJsonPath('data.balance', '750.00')
@@ -367,16 +457,16 @@ class QuotePaymentTest extends TestCase
             ->assertJsonPath('data.balance', '200.00');
     }
 
-    public function test_balance_treats_null_shipping_cost_and_down_payment_as_zero(): void
+    public function test_balance_is_total_minus_down_payment_without_adding_shipping_again(): void
     {
         $cases = [
-            // [total, shipping_cost, down_payment, balance esperado]
+            // [total (ya con envío), shipping_cost, down_payment, balance esperado]
             [1000, null, null, 1000.00],
-            [1000, 250.50, null, 1250.50],
+            [1250.50, 250.50, null, 1250.50],
             [1000, null, 400, 600.00],
-            [1000, 250.50, 400, 850.50],
+            [1250.50, 250.50, 400, 850.50],
             [0, null, null, 0.00],
-            [99.99, 0.01, 50, 50.00],
+            [100, 0.01, 50, 50.00],
         ];
 
         foreach ($cases as [$total, $shippingCost, $downPayment, $expected]) {

@@ -81,6 +81,7 @@ class QuoteController extends Controller
         $lines = $this->resolveLines($data['items']);
         $subtotal = $this->linesSubtotal($lines);
         $discount = $data['discount'] ?? null;
+        $shippingCost = $data['shipping_cost'] ?? null;
 
         if ($message = $this->discountRejectionMessage($subtotal, $discount)) {
             return response()->json(['message' => $message], 422);
@@ -92,13 +93,13 @@ class QuoteController extends Controller
             $data['credit_due_date'] = null;
         }
 
-        $quote = DB::transaction(function () use ($data, $lines, $subtotal, $discount, $request, $folioGenerator) {
+        $quote = DB::transaction(function () use ($data, $lines, $subtotal, $discount, $shippingCost, $request, $folioGenerator) {
             $draftStatus = QuoteStatus::where('name', 'Borrador')->firstOrFail();
 
             $data['folio'] = $folioGenerator->generate();
             $data['quote_status_id'] = $draftStatus->id;
             $data['subtotal'] = $subtotal;
-            $data['total'] = $this->totalFor($subtotal, $discount);
+            $data['total'] = $this->totalFor($subtotal, $discount, $shippingCost);
             $data['created_by'] = $request->user()->id;
 
             $quote = Quote::create($data);
@@ -153,6 +154,7 @@ class QuoteController extends Controller
         $subtotal = $this->linesSubtotal($lines);
         // discount es `sometimes`: si no llega se conserva el guardado.
         $discount = array_key_exists('discount', $data) ? $data['discount'] : $quote->discount;
+        $shippingCost = array_key_exists('shipping_cost', $data) ? $data['shipping_cost'] : $quote->shipping_cost;
 
         if ($message = $this->discountRejectionMessage($subtotal, $discount)) {
             return response()->json(['message' => $message], 422);
@@ -163,11 +165,11 @@ class QuoteController extends Controller
             $data['credit_due_date'] = null;
         }
 
-        DB::transaction(function () use ($quote, $data, $lines, $subtotal, $discount) {
+        DB::transaction(function () use ($quote, $data, $lines, $subtotal, $discount, $shippingCost) {
             $quote->update([
                 ...$data,
                 'subtotal' => $subtotal,
-                'total' => $this->totalFor($subtotal, $discount),
+                'total' => $this->totalFor($subtotal, $discount, $shippingCost),
             ]);
 
             $quote->items()->delete();
@@ -509,10 +511,7 @@ class QuoteController extends Controller
             'subtotal' => (float) $quote->subtotal,
             'discount' => (float) $quote->discount,
             'shipping_cost' => (float) $quote->shipping_cost,
-            // `total` guardado ya trae el descuento pero no el envío; en el PDF
-            // el Total va después del envío, así que lo incluye, y el saldo
-            // queda como Total - Anticipo (mismo valor que balance()).
-            'total' => round((float) $quote->total + (float) $quote->shipping_cost, 2),
+            'total' => (float) $quote->total,
             'down_payment' => (float) $quote->down_payment,
             'balance' => $quote->balance(),
             'payment_terms' => $quote->payment_terms,
@@ -624,20 +623,27 @@ class QuoteController extends Controller
     }
 
     /**
+     * Total = subtotal - descuento + envío; descuento o envío null (no aplica)
+     * cuentan como 0. Es el mismo Total que muestra el PDF y que copia el
+     * comprobante.
+     *
      * TODO: tax si aplica en el futuro
      */
-    private function totalFor(float $subtotal, mixed $discount): float
+    private function totalFor(float $subtotal, mixed $discount, mixed $shippingCost): float
     {
-        return round($subtotal - (float) $discount, 2);
+        return round($subtotal - (float) $discount + (float) $shippingCost, 2);
     }
 
     /**
      * Va en el controlador y no en el Form Request: depende del subtotal ya
      * calculado de las líneas, no del payload crudo.
+     *
+     * Se evalúa contra subtotal - descuento, no contra el total: el envío no
+     * debe poder "tapar" un descuento mayor que el subtotal.
      */
     private function discountRejectionMessage(float $subtotal, mixed $discount): ?string
     {
-        if ($this->totalFor($subtotal, $discount) >= 0) {
+        if (round($subtotal - (float) $discount, 2) >= 0) {
             return null;
         }
 

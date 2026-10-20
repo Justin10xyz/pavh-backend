@@ -244,12 +244,12 @@ class Quote extends Model
     }
 
     /**
-     * Saldo pendiente: total (ya con descuento) + envío - anticipo. Envío o
-     * anticipo null (no aplica) cuentan como 0.
+     * Saldo pendiente: total (ya con descuento y envío) - anticipo. Anticipo
+     * null (no aplica) cuenta como 0.
      */
     public function balance(): float
     {
-        return round((float) $this->total + (float) $this->shipping_cost - (float) $this->down_payment, 2);
+        return round((float) $this->total - (float) $this->down_payment, 2);
     }
 
     /**

@@ -110,6 +110,24 @@ class ComprobanteApiTest extends TestCase
         $this->assertDatabaseCount('comprobantes', 0);
     }
 
+    public function test_store_copies_the_quote_total_with_shipping_cost_included(): void
+    {
+        $quoteId = $this->postJson('/api/quotes', [
+            'discount' => 100,
+            'shipping_cost' => 250,
+            'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 10]],
+        ])->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/quotes/{$quoteId}/mark-paid")->assertOk();
+
+        // 3,600.00 - 100 + 250 = 3,750.00
+        $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->assertJsonPath('data.subtotal', '3600.00')
+            ->assertJsonPath('data.total', '3750.00')
+            ->assertJsonPath('data.total_in_words', 'tres mil setecientos cincuenta pesos 00/100 M.N.');
+    }
+
     public function test_store_copies_lines_and_amounts_as_is_and_generates_folio(): void
     {
         $quoteId = $this->createQuote();
