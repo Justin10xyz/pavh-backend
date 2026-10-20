@@ -30,9 +30,9 @@ Reemplaza, para este flujo, el rol que hoy cumple la conversión Cotización→V
 | `paid_at` | timestamp nullable | Se llena solo vía `PATCH /quotes/{id}/mark-paid`. |
 | `paid_by` | FK nullable a `users` | Igual patrón que `created_by`. |
 
-`total` ya no es siempre igual a `subtotal`: ahora `total = subtotal - discount`. `subtotal` sigue siendo la suma de líneas, sin cambios.
+`total` ya no es siempre igual a `subtotal`: ahora `total = subtotal - discount + shipping_cost` (`QuoteController::totalFor()`, nulls como 0). `subtotal` sigue siendo la suma de líneas, sin cambios.
 
-`Quote::balance()`: `total + shipping_cost - down_payment`, tratando nulls como 0. **Puede dar negativo a propósito** (un anticipo mayor al total/envío no se rechaza — el negocio le queda debiendo al cliente). No se persiste, se calcula al vuelo y se expone en `QuoteResource`.
+`Quote::balance()`: `total - down_payment` (el envío ya viene incluido en `total`), tratando nulls como 0. **Puede dar negativo a propósito** (un anticipo mayor al total no se rechaza — el negocio le queda debiendo al cliente). No se persiste, se calcula al vuelo y se expone en `QuoteResource`.
 
 ### `customers` — columna agregada
 
@@ -125,7 +125,8 @@ Tests de feature cubren: 200 + content-type PDF con Configuración vacía, 200 s
 - "Marcar como pagado" es un paso de negocio propio, independiente en el tiempo de "generar Comprobante".
 - El plazo de crédito es variable (`credit_due_date` capturado a mano).
 - `Saldo` puede ser negativo — no se valida ni rechaza.
-- `Total = Subtotal − Descuento` sí se valida: un descuento que dejara `Total` negativo se rechaza con 422.
+- `Total = Subtotal − Descuento + Envío`, y `Saldo = Total − Anticipo`.
+- El descuento sí se valida: si `Subtotal − Descuento` queda negativo se rechaza con 422 (`QuoteController::discountRejectionMessage()`, sin `errors`). Se compara contra `Subtotal − Descuento` y no contra el `Total`, para que el envío no pueda "tapar" un descuento mayor que el subtotal.
 - Venta (POS) sigue existiendo tal cual, sin tocar.
 - No es un CFDI real — no hay conexión con Factura Digital (factdigital.com) en este módulo.
 - Los datos fijos del negocio (Configuración) son un registro único, editable desde el sistema (ya sea por API directa o, más adelante, por su propia pantalla).

@@ -52,6 +52,12 @@ class QuoteResource extends JsonResource
                 'id' => $this->sale->id,
                 'folio' => $this->sale->folio,
             ] : null),
+            // Igual que `sale`: id+folio del comprobante generado, null si la
+            // relación se cargó pero la cotización no se ha convertido.
+            'comprobante' => $this->whenLoaded('comprobante', fn () => $this->comprobante ? [
+                'id' => $this->comprobante->id,
+                'folio' => $this->comprobante->folio,
+            ] : null),
             // Un Resource no pasa por serializeDate(); mismo formato que SerializesDatesInAppTimezone.
             'created_at' => $this->created_at?->toIso8601String(),
         ];

@@ -65,6 +65,9 @@ class QuoteController extends Controller
             // withTrashed: el detalle debe seguir indicando a qué venta se
             // convirtió aunque esa venta se dé de baja después.
             'sale' => fn ($query) => $query->withTrashed(),
+            // Mismo criterio: uno dado de baja sigue ocupando el quote_id
+            // (UNIQUE), así que el detalle debe seguir mostrándolo.
+            'comprobante' => fn ($query) => $query->withTrashed(),
         ]);
 
         return new QuoteResource($quote);

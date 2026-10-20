@@ -197,6 +197,44 @@ class ComprobanteApiTest extends TestCase
         $this->assertDatabaseCount('comprobantes', 0);
     }
 
+    public function test_quote_show_exposes_null_comprobante_before_conversion(): void
+    {
+        $quoteId = $this->createQuote();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante', null);
+    }
+
+    public function test_quote_show_exposes_its_comprobante_even_if_soft_deleted(): void
+    {
+        $quoteId = $this->createQuote();
+
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante.id', $comprobanteId)
+            ->assertJsonPath('data.comprobante.folio', 'CF-0001');
+
+        Comprobante::findOrFail($comprobanteId)->delete();
+
+        $this->getJson("/api/quotes/{$quoteId}")
+            ->assertOk()
+            ->assertJsonPath('data.comprobante.folio', 'CF-0001');
+    }
+
+    public function test_quote_index_does_not_include_the_comprobante_relation(): void
+    {
+        $this->createQuote();
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.comprobante');
+    }
+
     public function test_it_rejects_a_second_conversion_of_the_same_quote(): void
     {
         $quoteId = $this->createQuote();
