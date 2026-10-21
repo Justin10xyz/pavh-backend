@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Inventory;
 
+use App\Models\UnitType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin UnitType
+ */
 class UnitTypeResource extends JsonResource
 {
     /**

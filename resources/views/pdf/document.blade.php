@@ -64,9 +64,11 @@
         }
 
         /*
-         * Logo sin tagline: en media carta el lockup completo dejaría "PISOS Y
-         * ACABADOS" a ~2pt de alto (ilegible), y además trae mucho aire arriba.
-         * Solo se fija la altura; dompdf conserva la proporción (890x539).
+         * Logo sin tagline y en escala de grises: en media carta el lockup
+         * completo dejaría "PISOS Y ACABADOS" a ~2pt de alto (ilegible), y las
+         * texturas fotográficas del logo a color se vuelven una mancha al
+         * imprimir en blanco y negro. Solo se fija la altura; dompdf conserva
+         * la proporción (148x90).
          */
         .logo {
             height: 40pt;
@@ -154,7 +156,7 @@
     <table class="header">
         <tr>
             <td>
-                <img class="logo" src="{{ resource_path('images/branding/logo-sin-tagline-color-transparente.png') }}" alt="INNOVA">
+                <img class="logo" src="{{ resource_path('images/branding/logo-pdf-escala-grises_2.png') }}" alt="INNOVA">
             </td>
             <td class="text-right">
                 <div class="document-type">{{ $document['document_type'] }}</div>

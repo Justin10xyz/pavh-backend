@@ -7,11 +7,14 @@ use App\Http\Requests\Inventory\StoreProductRequest;
 use App\Http\Requests\Inventory\UpdateProductRequest;
 use App\Http\Resources\Inventory\ProductResource;
 use App\Models\Product;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 
 class ProductController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): AnonymousResourceCollection
     {
         $products = Product::query()
             // Mismo eager loading que show(): sin `commissionCategory`, el listado de
@@ -22,7 +25,7 @@ class ProductController extends Controller
         return ProductResource::collection($products);
     }
 
-    public function show(Request $request, Product $product)
+    public function show(Request $request, Product $product): ProductResource
     {
         if ($request->query('with') === 'variants') {
             $product->load('variants.commissionCategory');
@@ -31,14 +34,14 @@ class ProductController extends Controller
         return new ProductResource($product);
     }
 
-    public function store(StoreProductRequest $request)
+    public function store(StoreProductRequest $request): ProductResource
     {
         $product = Product::create($request->validated());
 
         return new ProductResource($product);
     }
 
-    public function update(UpdateProductRequest $request, Product $product)
+    public function update(UpdateProductRequest $request, Product $product): ProductResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -52,7 +55,7 @@ class ProductController extends Controller
         return new ProductResource($product);
     }
 
-    public function destroy(Product $product)
+    public function destroy(Product $product): Response
     {
         $product->delete();
 

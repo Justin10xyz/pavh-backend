@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Quote;
 
+use App\Models\Quote;
 use App\Models\SimpleProduct;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -34,6 +35,10 @@ class StoreQuoteRequest extends FormRequest
      * simples: elige su precio de menudeo o de mayoreo. En variantes se
      * rechaza (`prohibits`), igual que `boxes` en líneas simples.
      *
+     * discount/down_payment/shipping_cost son opcionales (null = no aplica).
+     * `payment_terms` (cash|credit) no admite null: si no llega, la columna
+     * queda en su default `cash`. Con `credit` se exige `credit_due_date`.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
@@ -41,6 +46,11 @@ class StoreQuoteRequest extends FormRequest
         return [
             'customer_id' => ['nullable', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
             'notes' => ['nullable', 'string'],
+            'discount' => ['nullable', 'numeric', 'min:0'],
+            'down_payment' => ['nullable', 'numeric', 'min:0'],
+            'shipping_cost' => ['nullable', 'numeric', 'min:0'],
+            'payment_terms' => ['sometimes', 'string', Rule::in(Quote::PAYMENT_TERMS)],
+            'credit_due_date' => ['nullable', 'required_if:payment_terms,credit', 'date'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id,items.*.price_type', 'integer', Rule::exists('product_variants', 'id')->withoutTrashed()],
             'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'prohibits:items.*.boxes', 'integer', Rule::exists('simple_products', 'id')->withoutTrashed()],

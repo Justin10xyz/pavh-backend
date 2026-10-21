@@ -29,6 +29,7 @@ class StoreCustomerRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'neighborhood' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
+            'postal_code' => ['nullable', 'string', 'max:10'],
         ];
     }
 }

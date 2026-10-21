@@ -7,22 +7,25 @@ use App\Http\Requests\Inventory\StoreCategoryRequest;
 use App\Http\Requests\Inventory\UpdateCategoryRequest;
 use App\Http\Resources\Inventory\CategoryResource;
 use App\Models\Category;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Response;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(): AnonymousResourceCollection
     {
         return CategoryResource::collection(Category::all());
     }
 
-    public function store(StoreCategoryRequest $request)
+    public function store(StoreCategoryRequest $request): JsonResponse
     {
         $category = Category::create($request->validated())->refresh();
 
         return (new CategoryResource($category))->response()->setStatusCode(201);
     }
 
-    public function update(UpdateCategoryRequest $request, Category $category)
+    public function update(UpdateCategoryRequest $request, Category $category): CategoryResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -39,7 +42,7 @@ class CategoryController extends Controller
     // Soft delete (ver la migración de deleted_at). Se vuelve a validar aquí
     // aunque el frontend consulte antes delete-summary: entre una y otra
     // pudieron agregarse productos.
-    public function destroy(Category $category)
+    public function destroy(Category $category): JsonResponse|Response
     {
         if ($message = $category->deletionBlockedMessage()) {
             return response()->json(['message' => $message], 422);
@@ -54,7 +57,7 @@ class CategoryController extends Controller
      * Payload de solo lectura para el diálogo de borrado: con productos activos
      * el frontend muestra el motivo en vez de pedir confirmación.
      */
-    public function deleteSummary(Category $category)
+    public function deleteSummary(Category $category): JsonResponse
     {
         return response()->json([
             'data' => [

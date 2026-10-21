@@ -44,11 +44,17 @@ class Category extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
+    /**
+     * @return HasMany<SimpleProduct, $this>
+     */
     public function simpleProducts(): HasMany
     {
         return $this->hasMany(SimpleProduct::class);

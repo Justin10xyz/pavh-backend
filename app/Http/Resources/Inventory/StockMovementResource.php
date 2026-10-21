@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Inventory;
 
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin StockMovement
+ */
 class StockMovementResource extends JsonResource
 {
     /**

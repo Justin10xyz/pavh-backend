@@ -19,6 +19,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $address
  * @property string|null $neighborhood
  * @property string|null $city
+ * @property string|null $postal_code
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property Carbon|null $deleted_at
@@ -41,27 +42,38 @@ use Illuminate\Support\Carbon;
  * @method static Builder<static>|Customer whereName($value)
  * @method static Builder<static>|Customer whereNeighborhood($value)
  * @method static Builder<static>|Customer wherePhone($value)
+ * @method static Builder<static>|Customer wherePostalCode($value)
  * @method static Builder<static>|Customer whereUpdatedAt($value)
  * @method static Builder<static>|Customer withTrashed(bool $withTrashed = true)
  * @method static Builder<static>|Customer withoutTrashed()
  *
  * @mixin \Eloquent
  */
-#[Fillable(['name', 'phone', 'email', 'address', 'neighborhood', 'city'])]
+#[Fillable(['name', 'phone', 'email', 'address', 'neighborhood', 'city', 'postal_code'])]
 class Customer extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * @return HasMany<Quote, $this>
+     */
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);
     }
 
+    /**
+     * @return HasMany<Sale, $this>
+     */
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
     }
 
+    /**
+     * @param  Builder<Customer>  $query
+     * @return Builder<Customer>
+     */
     public function scopeSearch(Builder $query, string $term): Builder
     {
         return $query->where(function (Builder $query) use ($term) {

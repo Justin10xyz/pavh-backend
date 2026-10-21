@@ -80,8 +80,12 @@ class SimpleProduct extends Model
         ];
     }
 
-    // withTrashed: un producto dado de baja puede seguir en una categoría ya
-    // eliminada (solo se bloquea con productos activos).
+    /**
+     * withTrashed: un producto dado de baja puede seguir en una categoría ya
+     * eliminada (solo se bloquea con productos activos).
+     *
+     * @return BelongsTo<Category, $this>
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class)->withTrashed();
@@ -124,6 +128,9 @@ class SimpleProduct extends Model
         return "El producto {$this->name} no tiene precio de mayoreo configurado.";
     }
 
+    /**
+     * @return HasMany<StockMovement, $this>
+     */
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);

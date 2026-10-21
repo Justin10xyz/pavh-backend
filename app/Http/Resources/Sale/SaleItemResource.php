@@ -3,9 +3,13 @@
 namespace App\Http\Resources\Sale;
 
 use App\Http\Resources\Inventory\ProductVariantResource;
+use App\Models\SaleItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin SaleItem
+ */
 class SaleItemResource extends JsonResource
 {
     /**
