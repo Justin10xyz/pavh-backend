@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources\Inventory;
 
+use App\Models\SimpleProduct;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin SimpleProduct
+ */
 class SimpleProductResource extends JsonResource
 {
     /**

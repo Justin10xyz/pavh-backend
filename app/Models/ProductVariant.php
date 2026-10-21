@@ -109,11 +109,17 @@ class ProductVariant extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
+    /**
+     * @return BelongsTo<CommissionCategory, $this>
+     */
     public function commissionCategory(): BelongsTo
     {
         return $this->belongsTo(CommissionCategory::class);
@@ -122,6 +128,9 @@ class ProductVariant extends Model
     /**
      * Sin seguimiento de stock (stock_boxes null) nunca es "bajo stock",
      * aunque tenga mínimo configurado.
+     *
+     * @param  Builder<ProductVariant>  $query
+     * @return Builder<ProductVariant>
      */
     public function scopeLowStock(Builder $query): Builder
     {
@@ -130,6 +139,10 @@ class ProductVariant extends Model
             ->whereColumn('stock_boxes', '<=', 'minimum_stock');
     }
 
+    /**
+     * @param  Builder<ProductVariant>  $query
+     * @return Builder<ProductVariant>
+     */
     public function scopeByCategory(Builder $query, int $categoryId): Builder
     {
         return $query->whereHas('product', function (Builder $query) use ($categoryId) {
@@ -137,6 +150,9 @@ class ProductVariant extends Model
         });
     }
 
+    /**
+     * @return HasMany<StockMovement, $this>
+     */
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);

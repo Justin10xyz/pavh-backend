@@ -278,47 +278,15 @@ class WholesalePriceTest extends TestCase
 
     public function test_pdf_lines_include_price_type(): void
     {
+        // Solo la nota de venta: el Presupuesto usa la tabla del Comprobante,
+        // que no distingue mayoreo.
         $simpleProduct = $this->createSimpleProduct();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [
-                ['product_variant_id' => $this->variant->id, 'boxes' => 2],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'price_type' => 'wholesale'],
-            ],
-        ])->assertCreated()->json('data.id');
 
         $saleId = $this->postJson('/api/sales', [
-            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 1, 'unit_price' => 150, 'price_type' => 'wholesale']],
-        ])->assertCreated()->json('data.id');
-
-        $captured = [];
-        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
-            $mock->shouldReceive('generate')->twice()->andReturnUsing(function (array $document) use (&$captured) {
-                $captured[] = $document;
-
-                return '%PDF-fake';
-            });
-        });
-
-        $this->get("/api/quotes/{$quoteId}/pdf")->assertOk();
-        $this->get("/api/sales/{$saleId}/pdf")->assertOk();
-
-        $this->assertSame('retail', $captured[0]['items'][0]['price_type']);
-        $this->assertSame('wholesale', $captured[0]['items'][1]['price_type']);
-        $this->assertSame('wholesale', $captured[1]['items'][0]['price_type']);
-
-        // La plantilla real anota "Mayoreo" solo en la línea que lo trae.
-        $html = view('pdf.document', ['document' => $captured[0]])->render();
-
-        $this->assertSame(1, substr_count($html, 'Mayoreo'));
-    }
-
-    public function test_pdf_template_does_not_mention_wholesale_on_retail_lines(): void
-    {
-        $simpleProduct = $this->createSimpleProduct();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2]],
+            'items' => [
+                ['product_variant_id' => $this->variant->id, 'boxes' => 2, 'unit_price' => 100],
+                ['simple_product_id' => $simpleProduct->id, 'quantity' => 1, 'unit_price' => 150, 'price_type' => 'wholesale'],
+            ],
         ])->assertCreated()->json('data.id');
 
         $captured = null;
@@ -330,8 +298,14 @@ class WholesalePriceTest extends TestCase
             });
         });
 
-        $this->get("/api/quotes/{$quoteId}/pdf")->assertOk();
+        $this->get("/api/sales/{$saleId}/pdf")->assertOk();
 
-        $this->assertStringNotContainsString('Mayoreo', view('pdf.document', ['document' => $captured])->render());
+        $this->assertSame('retail', $captured['items'][0]['price_type']);
+        $this->assertSame('wholesale', $captured['items'][1]['price_type']);
+
+        // La plantilla real anota "Mayoreo" solo en la línea que lo trae.
+        $html = view('pdf.document', ['document' => $captured])->render();
+
+        $this->assertSame(1, substr_count($html, 'Mayoreo'));
     }
 }

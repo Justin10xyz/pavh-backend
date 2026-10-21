@@ -32,6 +32,9 @@ class UnitType extends Model
 {
     use SerializesDatesInAppTimezone;
 
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

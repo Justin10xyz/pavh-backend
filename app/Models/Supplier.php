@@ -38,6 +38,9 @@ class Supplier extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

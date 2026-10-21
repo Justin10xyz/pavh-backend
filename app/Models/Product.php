@@ -50,20 +50,31 @@ class Product extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
 
-    // withTrashed: un producto dado de baja puede seguir con un proveedor ya
-    // eliminado (solo se bloquea con productos activos).
+    /**
+     * withTrashed: un producto dado de baja puede seguir con un proveedor ya
+     * eliminado (solo se bloquea con productos activos).
+     *
+     * @return BelongsTo<Supplier, $this>
+     */
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class)->withTrashed();
     }
 
-    // withTrashed: un producto dado de baja puede seguir en una categoría ya
-    // eliminada (solo se bloquea con productos activos).
+    /**
+     * withTrashed: un producto dado de baja puede seguir en una categoría ya
+     * eliminada (solo se bloquea con productos activos).
+     *
+     * @return BelongsTo<Category, $this>
+     */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class)->withTrashed();
     }
 
+    /**
+     * @return BelongsTo<UnitType, $this>
+     */
     public function unitType(): BelongsTo
     {
         return $this->belongsTo(UnitType::class);
@@ -100,6 +111,9 @@ class Product extends Model
         return "No se puede cambiar la unidad de venta: el producto ya tiene {$detail}.";
     }
 
+    /**
+     * @return HasMany<ProductVariant, $this>
+     */
     public function variants(): HasMany
     {
         return $this->hasMany(ProductVariant::class);
