@@ -56,6 +56,7 @@ class ComprobanteController extends Controller
 
         return new ComprobanteResource($comprobante);
     }
+
     /**
      * Convierte una cotización pagada en comprobante. No recibe líneas ni
      * montos: copia quote_items y subtotal/total de la cotización tal cual (ya
