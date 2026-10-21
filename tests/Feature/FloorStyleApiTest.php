@@ -54,6 +54,95 @@ class FloorStyleApiTest extends TestCase
         $this->getJson('/api/floor-styles')->assertUnauthorized();
     }
 
+    public function test_a_product_without_floor_style_shows_null(): void
+    {
+        $product = $this->createProduct(null);
+
+        $this->getJson("/api/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.floor_style_id', null)
+            ->assertJsonPath('data.floor_style', null);
+    }
+
+    public function test_a_product_keeps_showing_its_deleted_floor_style(): void
+    {
+        $floorStyle = FloorStyle::create(['name' => 'Madera']);
+        $product = $this->createProduct($floorStyle);
+        $floorStyle->delete();
+
+        $this->getJson("/api/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.floor_style_id', $floorStyle->id)
+            ->assertJsonPath('data.floor_style', 'Madera');
+
+        $this->getJson('/api/products')
+            ->assertOk()
+            ->assertJsonPath('data.0.floor_style', 'Madera');
+    }
+
+    public function test_it_creates_a_product_with_a_floor_style(): void
+    {
+        $floorStyle = FloorStyle::create(['name' => 'Madera']);
+
+        $this->postJson('/api/products', $this->productPayload(['floor_style_id' => $floorStyle->id]))
+            ->assertCreated()
+            ->assertJsonPath('data.floor_style_id', $floorStyle->id)
+            ->assertJsonPath('data.floor_style', 'Madera');
+    }
+
+    public function test_it_creates_a_product_without_a_floor_style(): void
+    {
+        $this->postJson('/api/products', $this->productPayload())
+            ->assertCreated()
+            ->assertJsonPath('data.floor_style_id', null);
+    }
+
+    public function test_it_rejects_creating_a_product_with_a_deleted_floor_style(): void
+    {
+        $deleted = FloorStyle::create(['name' => 'Viejo']);
+        $deleted->delete();
+
+        $this->postJson('/api/products', $this->productPayload(['floor_style_id' => $deleted->id]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['floor_style_id']);
+    }
+
+    public function test_it_assigns_and_clears_the_floor_style_of_a_product(): void
+    {
+        $product = $this->createProduct(null);
+        $floorStyle = FloorStyle::create(['name' => 'Madera']);
+
+        $this->putJson("/api/products/{$product->id}", ['floor_style_id' => $floorStyle->id])
+            ->assertOk()
+            ->assertJsonPath('data.floor_style', 'Madera');
+
+        $this->putJson("/api/products/{$product->id}", ['floor_style_id' => null])
+            ->assertOk()
+            ->assertJsonPath('data.floor_style_id', null)
+            ->assertJsonPath('data.floor_style', null);
+    }
+
+    public function test_it_keeps_the_floor_style_when_updating_other_fields(): void
+    {
+        $floorStyle = FloorStyle::create(['name' => 'Madera']);
+        $product = $this->createProduct($floorStyle);
+
+        $this->putJson("/api/products/{$product->id}", ['name' => 'Creato 2'])
+            ->assertOk()
+            ->assertJsonPath('data.floor_style_id', $floorStyle->id);
+    }
+
+    public function test_it_rejects_assigning_a_deleted_floor_style_to_a_product(): void
+    {
+        $product = $this->createProduct(null);
+        $deleted = FloorStyle::create(['name' => 'Viejo']);
+        $deleted->delete();
+
+        $this->putJson("/api/products/{$product->id}", ['floor_style_id' => $deleted->id])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['floor_style_id']);
+    }
+
     public function test_it_creates_a_floor_style(): void
     {
         $this->postJson('/api/floor-styles', ['name' => 'Cemento'])
@@ -203,15 +292,31 @@ class FloorStyleApiTest extends TestCase
             ->assertJsonPath('data.blocked_message', null);
     }
 
-    private function createProduct(FloorStyle $floorStyle): Product
+    private function createProduct(?FloorStyle $floorStyle): Product
     {
         return Product::create([
             'supplier_id' => Supplier::firstOrCreate(['name' => 'Interceramic'])->id,
-            'floor_style_id' => $floorStyle->id,
+            'floor_style_id' => $floorStyle?->id,
             'category_id' => Category::firstOrCreate(['name' => 'Pisos'], ['code_prefix' => 'PI'])->id,
             'unit_type_id' => UnitType::firstOrCreate(['name' => 'm2'])->id,
             'name' => 'Creato',
             'purchase_unit' => 'Caja',
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @return array<string, mixed>
+     */
+    private function productPayload(array $overrides = []): array
+    {
+        return [
+            'supplier_id' => Supplier::firstOrCreate(['name' => 'Interceramic'])->id,
+            'category_id' => Category::firstOrCreate(['name' => 'Pisos'], ['code_prefix' => 'PI'])->id,
+            'unit_type_id' => UnitType::firstOrCreate(['name' => 'm2'])->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'Caja',
+            ...$overrides,
+        ];
     }
 }
