@@ -205,6 +205,11 @@ return [
                 'unique' => 'Ya existe un proveedor con ese nombre.',
             ],
         ],
+        'floor_styles' => [
+            'name' => [
+                'unique' => 'Ya existe un estilo de piso con ese nombre.',
+            ],
+        ],
     ],
 
     /*
