@@ -29,7 +29,7 @@ use Illuminate\Support\Carbon;
  * @property-read Customer|null $customer
  * @property-read Collection<int, ComprobanteItem> $items
  * @property-read int|null $items_count
- * @property-read Quote $quote
+ * @property-read Quote|null $quote
  *
  * @method static Builder<static>|Comprobante newModelQuery()
  * @method static Builder<static>|Comprobante newQuery()
