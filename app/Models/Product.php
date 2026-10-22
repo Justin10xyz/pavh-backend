@@ -126,6 +126,25 @@ class Product extends Model
     }
 
     /**
+     * Guard de DELETE /products/{id}/variants (borrar una medida completa):
+     * mismo criterio que el DELETE de una sola variante, el producto no se
+     * puede quedar sin variantes activas. Las dadas de baja (soft delete) no
+     * cuentan.
+     *
+     * @param  array<int, int>  $variantIds
+     */
+    public function variantGroupDeletionBlockedMessage(array $variantIds): ?string
+    {
+        $remaining = $this->variants()->whereNotIn('id', $variantIds)->count();
+
+        if ($remaining <= 0) {
+            return 'Es la única medida de este producto; borra el producto completo en su lugar.';
+        }
+
+        return null;
+    }
+
+    /**
      * @return HasMany<ProductVariant, $this>
      */
     public function variants(): HasMany
