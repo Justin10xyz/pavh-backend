@@ -46,7 +46,7 @@ class StoreProductVariantRequest extends FormRequest
         $soldByPiece = $this->productIsSoldByPiece();
 
         return [
-            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'product_id' => ['required', 'integer', Rule::exists('products', 'id')->withoutTrashed()],
             'color' => ['required', 'string'],
             'size' => ['required', 'string'],
             'price_per_m2' => $soldByPiece ? ['prohibited'] : ['required', 'numeric'],
@@ -66,7 +66,7 @@ class StoreProductVariantRequest extends FormRequest
 
     /**
      * Un product_id inválido o inexistente cae en las reglas de m2 (las de
-     * siempre): su error ya lo reporta exists:products,id.
+     * siempre): su error ya lo reporta el exists de product_id.
      */
     private function productIsSoldByPiece(): bool
     {

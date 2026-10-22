@@ -113,11 +113,15 @@ class ProductVariant extends Model
     }
 
     /**
+     * withTrashed: una línea de cotización o venta debe seguir mostrando (y
+     * reimprimiendo) el nombre del piso aunque el piso se haya dado de baja
+     * después. Mismo criterio que Quote::customer().
+     *
      * @return BelongsTo<Product, $this>
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     /**
@@ -148,8 +152,10 @@ class ProductVariant extends Model
      */
     public function scopeByCategory(Builder $query, int $categoryId): Builder
     {
+        // withoutTrashed(): product() incluye pisos dados de baja, pero el filtro
+        // por categoría solo debe ver pisos activos (como antes).
         return $query->whereHas('product', function (Builder $query) use ($categoryId) {
-            $query->where('category_id', $categoryId);
+            $query->withoutTrashed()->where('category_id', $categoryId);
         });
     }
 

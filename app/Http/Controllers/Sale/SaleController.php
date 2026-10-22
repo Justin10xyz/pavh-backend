@@ -30,7 +30,12 @@ class SaleController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => ['items.productVariant', 'items.simpleProduct'],
+            // Mismo criterio que show(): withTrashed para variantes dadas de baja.
+            'items' => [
+                'items.productVariant' => fn ($query) => $query->withTrashed(),
+                'items.productVariant.product.unitType',
+                'items.simpleProduct',
+            ],
             'quote' => 'quote',
         ];
 
