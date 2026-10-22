@@ -191,6 +191,11 @@ return [
         'items.*.simple_product_id' => [
             'exists' => 'El producto seleccionado no está disponible.',
         ],
+        // DELETE /products/{id}/variants: exists acotado al producto y sin las ya dadas de baja.
+        'variant_ids.*' => [
+            'exists' => 'La variante :input no existe, no pertenece a este producto o ya fue eliminada.',
+            'distinct' => 'La variante :input viene repetida.',
+        ],
 
         // unique de `name` por catálogo. Varios Form Requests validan un campo
         // `name`, así que estas claves (tabla.campo) no se aplican solas: cada
@@ -257,6 +262,8 @@ return [
         'supplier_id' => 'proveedor',
         'type' => 'tipo de movimiento',
         'unit_type_id' => 'tipo de unidad',
+        'variant_ids' => 'variantes',
+        'variant_ids.*' => 'variante',
 
         // Líneas de cotizaciones y ventas: Laravel busca la clave con comodín,
         // no el último segmento, así que cada campo anidado va explícito.

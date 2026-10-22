@@ -33,7 +33,13 @@ class QuoteController extends Controller
         ]);
 
         $allowedRelations = [
-            'items' => ['items.productVariant', 'items.simpleProduct'],
+            // withTrashed: una línea sigue mostrando su variante (y el piso, vía
+            // product()) aunque se hayan dado de baja después.
+            'items' => [
+                'items.productVariant' => fn ($query) => $query->withTrashed(),
+                'items.productVariant.product.unitType',
+                'items.simpleProduct',
+            ],
             'customer' => 'customer',
             'quoteStatus' => 'quoteStatus',
         ];
@@ -55,9 +61,10 @@ class QuoteController extends Controller
 
     public function show(Quote $quote): QuoteResource
     {
+        // withTrashed: el detalle sigue mostrando la variante y su piso aunque
+        // se hayan dado de baja después (product() ya incluye pisos borrados).
         $quote->load([
-            'items.productVariant',
-            'items.productVariant.product',
+            'items.productVariant' => fn ($query) => $query->withTrashed(),
             'items.productVariant.product.unitType',
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
             'customer',
