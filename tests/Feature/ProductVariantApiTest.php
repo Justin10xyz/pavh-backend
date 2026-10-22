@@ -335,4 +335,75 @@ class ProductVariantApiTest extends TestCase
 
         $this->assertSame('30X30', ProductVariant::find($variantId)->size);
     }
+
+    public function test_face_count_accepts_null_zero_and_positive_values(): void
+    {
+        $product = Product::create([
+            'supplier_id' => Supplier::create(['name' => 'Interceramic'])->id,
+            'category_id' => Category::create(['name' => 'Floor', 'code_prefix' => 'PIS'])->id,
+            'unit_type_id' => UnitType::create(['name' => 'm2'])->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $payload = [
+            'product_id' => $product->id,
+            'size' => '30X60',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ];
+
+        $ids = [];
+        foreach (['Taupe' => null, 'Gray' => 0, 'Beige' => 12] as $color => $faceCount) {
+            $ids[$color] = $this->postJson('/api/product-variants', [...$payload, 'color' => $color, 'face_count' => $faceCount])
+                ->assertCreated()
+                ->assertJsonPath('data.face_count', $faceCount)
+                ->json('data.id');
+
+            $this->assertSame($faceCount, ProductVariant::find($ids[$color])->face_count);
+        }
+
+        $variantId = $ids['Taupe'];
+
+        foreach ([0, 8, null] as $faceCount) {
+            $this->putJson("/api/product-variants/{$variantId}", ['face_count' => $faceCount])
+                ->assertOk()
+                ->assertJsonPath('data.face_count', $faceCount);
+
+            $this->assertSame($faceCount, ProductVariant::find($variantId)->face_count);
+        }
+    }
+
+    public function test_face_count_rejects_negative_values(): void
+    {
+        $product = Product::create([
+            'supplier_id' => Supplier::create(['name' => 'Interceramic'])->id,
+            'category_id' => Category::create(['name' => 'Floor', 'code_prefix' => 'PIS'])->id,
+            'unit_type_id' => UnitType::create(['name' => 'm2'])->id,
+            'name' => 'Creato',
+            'purchase_unit' => 'caja',
+        ]);
+
+        $payload = [
+            'product_id' => $product->id,
+            'color' => 'Taupe',
+            'size' => '30X60',
+            'price_per_m2' => 359.00,
+            'price_per_box' => 516.96,
+        ];
+
+        $this->postJson('/api/product-variants', [...$payload, 'face_count' => -1])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['face_count']);
+
+        $variantId = $this->postJson('/api/product-variants', [...$payload, 'face_count' => 4])
+            ->assertCreated()
+            ->json('data.id');
+
+        $this->putJson("/api/product-variants/{$variantId}", ['face_count' => -3])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['face_count']);
+
+        $this->assertSame(4, ProductVariant::find($variantId)->face_count);
+    }
 }

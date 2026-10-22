@@ -35,6 +35,7 @@ class ProductVariantResource extends JsonResource
             'low_stock' => $this->isLowStock(),
             'pei' => $this->pei,
             'ett' => $this->ett,
+            'face_count' => $this->face_count,
             'commission_category' => $this->whenLoaded('commissionCategory', fn () => $this->commissionCategory ? [
                 'id' => $this->commissionCategory->id,
                 'code' => $this->commissionCategory->code,

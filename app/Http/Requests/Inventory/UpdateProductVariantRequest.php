@@ -52,6 +52,7 @@ class UpdateProductVariantRequest extends FormRequest
             'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
             'pei' => ['sometimes', 'nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => ['sometimes', 'nullable', 'integer', 'between:1,4'],
+            'face_count' => ['sometimes', 'nullable', 'integer', 'min:0'],
         ];
     }
 }
