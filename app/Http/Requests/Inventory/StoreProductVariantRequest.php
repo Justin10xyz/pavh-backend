@@ -37,6 +37,7 @@ class StoreProductVariantRequest extends FormRequest
      * padre (product_id del mismo payload). Un piso por pieza solo lleva
      * price_per_box (el precio por pieza); price_per_m2, m2_per_box, pei y
      * ett no aplican y se prohíben para no guardar datos sin sentido.
+     * face_count sí aplica a ambos tipos.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -59,6 +60,7 @@ class StoreProductVariantRequest extends FormRequest
             'commission_category_id' => ['nullable', 'exists:commission_categories,id'],
             'pei' => $soldByPiece ? ['prohibited'] : ['nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => $soldByPiece ? ['prohibited'] : ['nullable', 'integer', 'between:1,4'],
+            'face_count' => ['nullable', 'integer', 'min:0'],
         ];
     }
 

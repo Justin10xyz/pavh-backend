@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $commission_category_id
  * @property string|null $pei
  * @property int|null $ett
+ * @property int|null $face_count
  * @property string $color
  * @property string $size
  * @property numeric|null $price_per_m2
@@ -51,6 +52,7 @@ use Illuminate\Support\Carbon;
  * @method static Builder<static>|ProductVariant whereCreatedAt($value)
  * @method static Builder<static>|ProductVariant whereDeletedAt($value)
  * @method static Builder<static>|ProductVariant whereEtt($value)
+ * @method static Builder<static>|ProductVariant whereFaceCount($value)
  * @method static Builder<static>|ProductVariant whereId($value)
  * @method static Builder<static>|ProductVariant whereKilosPerBox($value)
  * @method static Builder<static>|ProductVariant whereM2PerBox($value)
@@ -76,6 +78,7 @@ use Illuminate\Support\Carbon;
     'commission_category_id',
     'pei',
     'ett',
+    'face_count',
     'color',
     'size',
     'price_per_m2',
