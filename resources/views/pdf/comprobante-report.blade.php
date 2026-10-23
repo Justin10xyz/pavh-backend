@@ -93,8 +93,11 @@
             @if ($loop->first)
                 <table class="header">
                     <tr>
+                        {{-- Solo INNOVA, sin pdf.partials.brand: Interceramic y el
+                             representante son para documentos que ve el cliente, y
+                             este reporte es interno. --}}
                         <td style="width: 32%;">
-                            @include('pdf.partials.brand')
+                            <img class="logo" src="{{ resource_path('images/branding/logo-pdf-escala-grises.png') }}" alt="INNOVA">
                         </td>
                         <td class="text-center" style="width: 46%;">
                             <div class="title">REPORTE DE COMPROBANTES</div>

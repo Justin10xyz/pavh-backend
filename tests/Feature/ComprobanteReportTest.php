@@ -399,7 +399,12 @@ class ComprobanteReportTest extends TestCase
         $this->assertSame(['CF-0001', 'CF-0003', 'CF-0002'], array_column($report['items'], 'folio'));
 
         $this->assertStringContainsString('REPORTE DE COMPROBANTES', $text);
-        $this->assertStringContainsString('SUB-DISTRIBUIDOR AUTORIZADO', $text);
+        // Reporte interno: solo el logo INNOVA, sin Interceramic ni representante.
+        $html = view('pdf.comprobante-report', ['report' => $report])->render();
+        $this->assertStringContainsString('images/branding/logo-pdf-escala-grises.png', $html);
+        $this->assertStringNotContainsString('images/branding/interceramic-logo-pdf.png', $html);
+        $this->assertStringNotContainsString('SUB-DISTRIBUIDOR AUTORIZADO', $text);
+        $this->assertStringNotContainsString('Representante', $text);
         $this->assertStringContainsString('Generado: 23/10/2026 12:34', $text);
         $this->assertStringContainsString('CF-0001 01/10/2026 Juan Pérez $1,000.00 $1,000.00', $text);
         $this->assertStringContainsString('CF-0002 31/10/2026 Juan Pérez $200.00 $180.00', $text);
