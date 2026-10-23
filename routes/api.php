@@ -59,6 +59,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::patch('/comprobantes/{comprobante}', [ComprobanteController::class, 'updateDate']);
 
     Route::get('/reports/comprobantes', [ComprobanteReportController::class, 'comprobantes']);
+    Route::get('/reports/comprobantes/csv', [ComprobanteReportController::class, 'csv']);
 
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 
