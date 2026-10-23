@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Report\ComprobanteReportRequest;
 use App\Http\Resources\Report\ComprobanteReportItemResource;
 use App\Models\Comprobante;
+use App\Services\ComprobanteReportPdfGenerator;
+use App\Services\SpanishMonthName;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Carbon;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ComprobanteReportController extends Controller
@@ -49,7 +52,7 @@ class ComprobanteReportController extends Controller
                 fputcsv($handle, [
                     $comprobante->folio,
                     $comprobante->date->toDateString(),
-                    $comprobante->customer?->name ?? 'Sin cliente',
+                    $comprobante->customer->name ?? 'Sin cliente',
                     $comprobante->subtotal,
                     $comprobante->total,
                 ], escape: '');
@@ -65,6 +68,35 @@ class ComprobanteReportController extends Controller
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Mismas filas y totales que comprobantes(); 'Sin cliente' con el mismo
+     * criterio que csv().
+     */
+    public function pdf(ComprobanteReportRequest $request, ComprobanteReportPdfGenerator $pdfGenerator): StreamedResponse
+    {
+        $data = $request->validated();
+        $comprobantes = $this->comprobantesFor($data);
+
+        $pdf = $pdfGenerator->generate([
+            'period_label' => SpanishMonthName::periodLabel(Carbon::parse($data['from']), Carbon::parse($data['to'])),
+            'generated_at' => now()->format('d/m/Y H:i'),
+            'items' => $comprobantes->map(fn (Comprobante $comprobante) => [
+                'folio' => $comprobante->folio,
+                'date' => $comprobante->date->format('d/m/Y'),
+                'customer' => $comprobante->customer->name ?? 'Sin cliente',
+                'subtotal' => $comprobante->subtotal,
+                'total' => $comprobante->total,
+            ])->all(),
+            'summary' => $this->summaryFor($comprobantes),
+        ]);
+
+        return response()->streamDownload(
+            fn () => print ($pdf),
+            "Reporte-Comprobantes-{$data['from']}-a-{$data['to']}.pdf",
+            ['Content-Type' => 'application/pdf'],
+        );
     }
 
     /**

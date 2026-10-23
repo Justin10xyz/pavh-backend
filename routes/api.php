@@ -60,6 +60,7 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
 
     Route::get('/reports/comprobantes', [ComprobanteReportController::class, 'comprobantes']);
     Route::get('/reports/comprobantes/csv', [ComprobanteReportController::class, 'csv']);
+    Route::get('/reports/comprobantes/pdf', [ComprobanteReportController::class, 'pdf']);
 
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 

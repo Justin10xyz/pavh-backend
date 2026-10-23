@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\User;
+use App\Services\ComprobanteReportPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -64,6 +65,40 @@ class ComprobanteReportTest extends TestCase
             fn (string $line) => str_getcsv($line, escape: ''),
             explode("\n", rtrim($body, "\n")),
         );
+    }
+
+    /**
+     * Estructura que el controlador le pasa al generador del PDF (el generador
+     * se sustituye: dompdf comprime el texto y no se puede buscar en el binario).
+     *
+     * @return array<string, mixed>
+     */
+    private function capturePdfReport(string $query): array
+    {
+        $captured = null;
+        $this->mock(ComprobanteReportPdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $report) use (&$captured) {
+                $captured = $report;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/reports/comprobantes/pdf?{$query}")->assertOk();
+
+        return $captured;
+    }
+
+    /**
+     * Texto visible de la plantilla del PDF, con los espacios colapsados.
+     *
+     * @param  array<string, mixed>  $report
+     */
+    private function pdfText(array $report): string
+    {
+        $html = view('pdf.comprobante-report', ['report' => $report])->render();
+
+        return preg_replace('/\s+/u', ' ', html_entity_decode(strip_tags($html)));
     }
 
     public function test_it_lists_the_comprobantes_in_the_range_with_their_summary(): void
@@ -313,5 +348,146 @@ class ComprobanteReportTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         $this->getJson('/api/reports/comprobantes/csv?from=2026-10-01&to=2026-10-31')->assertUnauthorized();
+    }
+
+    public function test_pdf_downloads_with_the_expected_filename_and_content_type(): void
+    {
+        $this->createComprobante('CF-0001', '2026-10-10', 100, 100);
+
+        $response = $this->get('/api/reports/comprobantes/pdf?from=2026-10-01&to=2026-10-31')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf')
+            ->assertDownload('Reporte-Comprobantes-2026-10-01-a-2026-10-31.pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+    }
+
+    public function test_pdf_for_a_month_without_comprobantes_is_still_generated(): void
+    {
+        $this->createComprobante('CF-0001', '2026-09-10', 100, 100);
+
+        $response = $this->get('/api/reports/comprobantes/pdf?from=2026-10-01&to=2026-10-31')
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $this->assertStringStartsWith('%PDF-', $response->streamedContent());
+
+        $report = $this->capturePdfReport('from=2026-10-01&to=2026-10-31');
+        $text = $this->pdfText($report);
+
+        $this->assertSame([], $report['items']);
+        $this->assertStringContainsString('Sin comprobantes en este periodo.', $text);
+        $this->assertStringContainsString('0 comprobantes', $text);
+        $this->assertStringContainsString('Subtotal: $0.00', $text);
+        $this->assertStringContainsString('Total: $0.00', $text);
+    }
+
+    public function test_pdf_shows_the_rows_and_the_same_totals_as_the_summary(): void
+    {
+        $customer = Customer::create(['name' => 'Juan Pérez']);
+        $this->createComprobante('CF-0002', '2026-10-31', 200, 180, $customer);
+        $this->createComprobante('CF-0001', '2026-10-01', 1000, 1000, $customer);
+        $this->createComprobante('CF-0003', '2026-10-15', 0.10, 0.10);
+
+        $summary = $this->getJson('/api/reports/comprobantes?from=2026-10-01&to=2026-10-31')->json('summary');
+
+        $this->travelTo('2026-10-23 12:34:00');
+        $report = $this->capturePdfReport('from=2026-10-01&to=2026-10-31');
+        $text = $this->pdfText($report);
+
+        $this->assertSame($summary, $report['summary']);
+        $this->assertSame(['CF-0001', 'CF-0003', 'CF-0002'], array_column($report['items'], 'folio'));
+
+        $this->assertStringContainsString('REPORTE DE COMPROBANTES', $text);
+        $this->assertStringContainsString('SUB-DISTRIBUIDOR AUTORIZADO', $text);
+        $this->assertStringContainsString('Generado: 23/10/2026 12:34', $text);
+        $this->assertStringContainsString('CF-0001 01/10/2026 Juan Pérez $1,000.00 $1,000.00', $text);
+        $this->assertStringContainsString('CF-0002 31/10/2026 Juan Pérez $200.00 $180.00', $text);
+        $this->assertStringContainsString('3 comprobantes', $text);
+        $this->assertStringContainsString('Subtotal: $1,200.10', $text);
+        $this->assertStringContainsString('Total: $1,180.10', $text);
+    }
+
+    public function test_pdf_shows_sin_cliente_for_a_comprobante_without_customer(): void
+    {
+        $this->createComprobante('CF-0001', '2026-10-10', 100, 100);
+
+        $report = $this->capturePdfReport('from=2026-10-01&to=2026-10-31');
+
+        $this->assertSame('Sin cliente', $report['items'][0]['customer']);
+        $this->assertStringContainsString('CF-0001 10/10/2026 Sin cliente', $this->pdfText($report));
+    }
+
+    public function test_pdf_period_label_shows_the_month_for_a_range_within_one_month(): void
+    {
+        // No tiene que ser el mes completo.
+        $report = $this->capturePdfReport('from=2026-10-05&to=2026-10-20');
+
+        $this->assertSame('Octubre 2026', $report['period_label']);
+        $this->assertStringContainsString('Octubre 2026', $this->pdfText($report));
+    }
+
+    public function test_pdf_period_label_shows_the_date_range_for_a_range_across_months(): void
+    {
+        $report = $this->capturePdfReport('from=2026-10-15&to=2026-11-14');
+
+        $this->assertSame('15/10/2026 – 14/11/2026', $report['period_label']);
+        $this->assertStringContainsString('15/10/2026 – 14/11/2026', $this->pdfText($report));
+
+        // Mismo mes de distinto año tampoco es "un mes".
+        $this->assertSame('01/10/2025 – 31/10/2026', $this->capturePdfReport('from=2025-10-01&to=2026-10-31')['period_label']);
+    }
+
+    public function test_pdf_splits_many_comprobantes_into_sheets_with_the_footer_only_on_the_last(): void
+    {
+        $items = array_map(fn (int $i) => [
+            'folio' => sprintf('CF-%04d', $i),
+            'date' => '15/10/2026',
+            'customer' => 'Juan Pérez',
+            'subtotal' => '100.00',
+            'total' => '100.00',
+        ], range(1, 100));
+
+        $text = $this->pdfText([
+            'period_label' => 'Octubre 2026',
+            'generated_at' => '23/10/2026 12:00',
+            'items' => $items,
+            'summary' => ['count' => 100, 'subtotal' => '10000.00', 'total' => '10000.00'],
+        ]);
+
+        $this->assertStringContainsString('Hoja 1 de 2', $text);
+        $this->assertStringContainsString('Hoja 2 de 2', $text);
+        $this->assertStringContainsString('CF-0100', $text);
+        $this->assertSame(1, substr_count($text, '100 comprobantes'));
+        $this->assertLessThan(strpos($text, '100 comprobantes'), strpos($text, 'Hoja 2 de 2'));
+    }
+
+    public function test_pdf_requires_from_and_to(): void
+    {
+        $this->getJson('/api/reports/comprobantes/pdf')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['from', 'to']);
+
+        $this->getJson('/api/reports/comprobantes/pdf?from=2026-10-01')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('to');
+
+        $this->getJson('/api/reports/comprobantes/pdf?to=2026-10-31')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('from');
+    }
+
+    public function test_pdf_to_cannot_be_before_from(): void
+    {
+        $this->getJson('/api/reports/comprobantes/pdf?from=2026-10-31&to=2026-10-01')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('to');
+    }
+
+    public function test_pdf_requires_authentication(): void
+    {
+        $this->app['auth']->forgetGuards();
+
+        $this->getJson('/api/reports/comprobantes/pdf?from=2026-10-01&to=2026-10-31')->assertUnauthorized();
     }
 }
