@@ -40,15 +40,21 @@ class QuoteController extends Controller
                 'items.productVariant.product.unitType',
                 'items.simpleProduct',
             ],
-            'customer' => 'customer',
-            'quoteStatus' => 'quoteStatus',
+            'customer' => ['customer'],
+            'quoteStatus' => ['quoteStatus'],
+            // Para indicar en el listado si una pagada ya tiene comprobante.
+            // withTrashed por el mismo criterio que show: uno dado de baja
+            // sigue ocupando el quote_id. Solo lo que usa QuoteResource.
+            'comprobante' => ['comprobante' => fn ($query) => $query->withTrashed()->select(['id', 'quote_id', 'folio'])],
         ];
 
+        // Se combinan como arreglos (no flatMap) para conservar la llave de
+        // las relaciones con closure.
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
-            ->all();
+            ->unique()
+            ->reduce(fn (array $carry, $relation) => [...$carry, ...$allowedRelations[$relation]], []);
 
         $quotes = Quote::query()
             ->when($with !== [], fn ($query) => $query->with($with))
@@ -129,16 +135,17 @@ class QuoteController extends Controller
 
     public function update(UpdateQuoteRequest $request, Quote $quote): QuoteResource|JsonResponse
     {
-        if ($quote->quoteStatus->name !== 'Borrador') {
-            return response()->json([
-                'message' => 'Solo se pueden editar cotizaciones en estado Borrador.',
-            ], 422);
-        }
-
-        // Pagada: su stock ya se descontó según las líneas actuales.
+        // Pagada: su stock ya se descontó según las líneas actuales. Va antes
+        // del guard de estado para dar el mensaje específico.
         if ($quote->paid_at !== null) {
             return response()->json([
                 'message' => 'Esta cotización ya fue pagada y no se puede editar.',
+            ], 422);
+        }
+
+        if ($quote->quoteStatus->name !== 'Borrador') {
+            return response()->json([
+                'message' => 'Solo se pueden editar cotizaciones en estado Borrador.',
             ], 422);
         }
 
@@ -194,14 +201,12 @@ class QuoteController extends Controller
 
     public function destroy(Quote $quote): Response|JsonResponse
     {
-        // Pagada: su stock ya se descontó; mismo guard que editar/cancelar.
-        if ($quote->paid_at !== null) {
-            return response()->json([
-                'message' => 'Esta cotización ya fue pagada y no se puede eliminar.',
-            ], 422);
+        if ($message = $quote->deletionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
         }
 
-        $quote->items()->delete();
+        // Soft delete: las líneas se conservan para que restore() regrese la
+        // cotización completa.
         $quote->delete();
 
         return response()->noContent();
@@ -318,7 +323,10 @@ class QuoteController extends Controller
                 }
             }
 
+            $paidStatus = QuoteStatus::where('name', 'Pagada')->firstOrFail();
+
             $quote->update([
+                'quote_status_id' => $paidStatus->id,
                 'paid_at' => now(),
                 'paid_by' => $request->user()->id,
             ]);

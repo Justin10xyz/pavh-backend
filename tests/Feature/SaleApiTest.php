@@ -31,7 +31,7 @@ class SaleApiTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
     }

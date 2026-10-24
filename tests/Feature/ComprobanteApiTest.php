@@ -36,7 +36,7 @@ class ComprobanteApiTest extends TestCase
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
-        foreach (['Borrador', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 
@@ -91,6 +91,40 @@ class ComprobanteApiTest extends TestCase
         }
 
         return $quoteId;
+    }
+
+    public function test_quote_index_includes_the_comprobante_only_when_requested(): void
+    {
+        $withComprobante = $this->createQuote();
+        $folio = $this->postJson('/api/comprobantes', ['quote_id' => $withComprobante])
+            ->assertCreated()
+            ->json('data.folio');
+
+        $withoutComprobante = $this->createQuote(); // pagada, sin comprobante
+
+        $quotes = collect($this->getJson('/api/quotes?with=comprobante')->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertNull($quotes[$withoutComprobante]['comprobante']);
+        $this->assertSame($folio, $quotes[$withComprobante]['comprobante']['folio']);
+        $this->assertSame(['id', 'folio'], array_keys($quotes[$withComprobante]['comprobante']));
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.comprobante');
+    }
+
+    public function test_quote_index_includes_a_soft_deleted_comprobante(): void
+    {
+        $quoteId = $this->createQuote();
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        Comprobante::findOrFail($comprobanteId)->delete();
+
+        $this->getJson('/api/quotes?with=comprobante')
+            ->assertOk()
+            ->assertJsonPath('data.0.comprobante.id', $comprobanteId);
     }
 
     public function test_to_comprobante_prefills_the_paid_quote_without_mutating(): void
@@ -431,8 +465,9 @@ class ComprobanteApiTest extends TestCase
         $this->assertStringContainsString('Villa Hidalgo, Jal.', $text);
         $this->assertStringContainsString('Av. Hidalgo 123', $text);
         $this->assertStringContainsString('Tel. 495 123 4567', $text);
-        $this->assertStringContainsString('XAXX010101000', $text);
-        $this->assertStringContainsString('12345678901', $text);
+        // La cédula es una imagen fija: el PDF ya no imprime RFC/idCIF de Configuración.
+        $this->assertStringNotContainsString('XAXX010101000', $text);
+        $this->assertStringNotContainsString('12345678901', $text);
         $this->assertStringContainsString('cuatro mil ciento ochenta pesos 00/100 M.N.', $text);
         $this->assertStringContainsString('$4,180.00', $text);
         $this->assertStringContainsString('$3,600.00', $text);
@@ -440,8 +475,35 @@ class ComprobanteApiTest extends TestCase
         // Encabezado compartido: INNOVA y, más chico, Interceramic.
         $this->assertStringContainsString('images/branding/logo-pdf-escala-grises.png', $html);
         $this->assertStringContainsString('images/branding/interceramic-logo-pdf.png', $html);
+        $this->assertStringContainsString('images/branding/cedula_fiscal_final_bw.png', $html);
 
         // El PDF real también se genera con esos datos.
         $this->assertStringStartsWith('%PDF-', (new ComprobantePdfGenerator)->generate($captured));
+    }
+
+    public function test_comprobante_pdf_shows_cedula_fiscal_without_tax_settings(): void
+    {
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $this->createQuote()])
+            ->assertCreated()
+            ->json('data.id');
+
+        $captured = null;
+        $this->mock(ComprobantePdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $comprobante) use (&$captured) {
+                $captured = $comprobante;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/comprobantes/{$comprobanteId}/pdf")->assertOk();
+
+        $this->assertNull($captured['business']['tax_id']);
+        $this->assertNull($captured['business']['tax_id_number']);
+
+        $html = view('pdf.comprobante', ['comprobante' => $captured])->render();
+
+        // Asset fijo: aparece aunque Configuración no tenga RFC/idCIF.
+        $this->assertStringContainsString('images/branding/cedula_fiscal_final_bw.png', $html);
     }
 }

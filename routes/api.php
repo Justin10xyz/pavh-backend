@@ -13,6 +13,7 @@ use App\Http\Controllers\Inventory\SimpleProductController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
 use App\Http\Controllers\Quote\QuoteController;
+use App\Http\Controllers\Report\ComprobanteReportController;
 use App\Http\Controllers\Sale\SaleController;
 use App\Http\Controllers\Settings\BusinessSettingController;
 use Illuminate\Http\Request;
@@ -59,6 +60,10 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::post('/comprobantes', [ComprobanteController::class, 'store']);
     Route::get('/comprobantes/{comprobante}', [ComprobanteController::class, 'show']);
     Route::patch('/comprobantes/{comprobante}', [ComprobanteController::class, 'updateDate']);
+
+    Route::get('/reports/comprobantes', [ComprobanteReportController::class, 'comprobantes']);
+    Route::get('/reports/comprobantes/csv', [ComprobanteReportController::class, 'csv']);
+    Route::get('/reports/comprobantes/pdf', [ComprobanteReportController::class, 'pdf']);
 
     Route::get('/dashboard/top-products', [DashboardController::class, 'topProducts']);
 

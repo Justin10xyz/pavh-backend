@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property-read int|null $items_count
  * @property-read Quote|null $quote
  *
+ * @method static Builder<static>|Comprobante dateRange(?string $from, ?string $to)
  * @method static Builder<static>|Comprobante newModelQuery()
  * @method static Builder<static>|Comprobante newQuery()
  * @method static Builder<static>|Comprobante onlyTrashed()
@@ -98,5 +99,21 @@ class Comprobante extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ComprobanteItem::class);
+    }
+
+    /**
+     * Filtra por la fecha del documento (date), no por created_at: la fecha de
+     * un comprobante es editable y es la que cuenta para el periodo. Ambos
+     * límites son inclusivos; un límite nulo no filtra (igual que
+     * Sale::dateRange()).
+     *
+     * @param  Builder<Comprobante>  $query
+     * @return Builder<Comprobante>
+     */
+    public function scopeDateRange(Builder $query, ?string $from, ?string $to): Builder
+    {
+        return $query
+            ->when($from, fn (Builder $query) => $query->whereDate('date', '>=', $from))
+            ->when($to, fn (Builder $query) => $query->whereDate('date', '<=', $to));
     }
 }

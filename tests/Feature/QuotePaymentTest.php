@@ -34,7 +34,7 @@ class QuotePaymentTest extends TestCase
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
-        foreach (['Borrador', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 
@@ -100,7 +100,7 @@ class QuotePaymentTest extends TestCase
 
         $this->patchJson("/api/quotes/{$quoteId}/mark-paid")
             ->assertOk()
-            ->assertJsonPath('data.status', 'Borrador')
+            ->assertJsonPath('data.status', 'Pagada')
             ->assertJsonPath('data.paid_by', $this->user->id)
             ->assertJsonPath('data.paid_at', fn ($paidAt) => $paidAt !== null);
 

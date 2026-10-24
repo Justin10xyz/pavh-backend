@@ -12,6 +12,12 @@
         $cifWidth = round($page['width'] * 0.27);
         $cifHeight = round($page['height'] * 0.22);
 
+        // Imagen de la cédula (2148x1450): más angosta que la caja, así que se
+        // ajusta por alto al interior de la caja (sin borde ni padding) y el
+        // ancho sale de su proporción real.
+        $cifImage = ['height' => $cifHeight - 8];
+        $cifImage['width'] = round($cifImage['height'] * 2148 / 1450);
+
         // Logo compacto (ícono + "INNOVA", 889x539): se fija la altura (~10%
         // del alto de página) y el ancho sale de su proporción real.
         $logo = ['height' => round($page['height'] * 0.10)];
@@ -78,17 +84,22 @@
         }
 
         /*
-         * Cédula de Identificación Fiscal: espacio completo reservado (logos
-         * SHCP/SAT, QR, RFC, idCIF). Por ahora solo el texto de RFC/idCIF
-         * cuando existe en Configuración; el QR se agrega con su archivo.
-         * El borde y el padding van dentro de las medidas de la caja.
+         * Cédula de Identificación Fiscal: recorte fijo de la Constancia de
+         * Situación Fiscal (logos SHCP/SAT, QR, RFC, idCIF); no depende de
+         * Configuración. El borde y el padding van dentro de las medidas de
+         * la caja.
          */
         .cif-box {
             width: {{ $cifWidth - 8 }}pt;
             height: {{ $cifHeight - 8 }}pt;
             border: 0.75pt solid #1A1A1A;
             padding: 3.25pt;
-            font-size: 6.5pt;
+            text-align: center;
+        }
+
+        .cif-image {
+            width: {{ $cifImage['width'] }}pt;
+            height: {{ $cifImage['height'] }}pt;
         }
 
         /*
@@ -190,12 +201,7 @@
                     <tr>
                         <td rowspan="2" style="width: {{ $cifWidth }}pt; padding-right: 6pt;">
                             <div class="cif-box">
-                                @if (filled($business['tax_id'] ?? null))
-                                    <div><span class="label">RFC:</span> {{ $business['tax_id'] }}</div>
-                                @endif
-                                @if (filled($business['tax_id_number'] ?? null))
-                                    <div><span class="label">idCIF:</span> {{ $business['tax_id_number'] }}</div>
-                                @endif
+                                <img class="cif-image" src="{{ resource_path('images/branding/cedula_fiscal_final_bw.png') }}" alt="Cédula de Identificación Fiscal">
                             </div>
                         </td>
                         <td style="padding-right: 6pt;">
