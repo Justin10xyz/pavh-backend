@@ -29,7 +29,7 @@ class QuoteApiTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
     }
@@ -509,7 +509,7 @@ class QuoteApiTest extends TestCase
             ->assertJsonPath('data.0.status', 'Borrador');
     }
 
-    public function test_it_soft_deletes_a_quote_and_its_items(): void
+    public function test_it_soft_deletes_a_quote_keeping_its_items(): void
     {
         $variant = $this->createVariant('Taupe', 100.00);
 
@@ -522,7 +522,62 @@ class QuoteApiTest extends TestCase
         $this->deleteJson("/api/quotes/{$quoteId}")->assertNoContent();
 
         $this->assertSoftDeleted('quotes', ['id' => $quoteId]);
-        $this->assertDatabaseCount('quote_items', 0);
+        $this->assertDatabaseCount('quote_items', 1);
+
+        $this->getJson("/api/quotes/{$quoteId}")->assertNotFound();
+
+        Quote::withTrashed()->findOrFail($quoteId)->restore();
+
+        $this->assertCount(1, Quote::findOrFail($quoteId)->items);
+    }
+
+    public function test_a_cancelled_quote_can_be_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/quotes/{$quoteId}/cancel")->assertOk();
+
+        $this->deleteJson("/api/quotes/{$quoteId}")->assertNoContent();
+
+        $this->assertSoftDeleted('quotes', ['id' => $quoteId]);
+    }
+
+    public function test_a_converted_quote_cannot_be_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100]);
+
+        $this->deleteJson("/api/quotes/{$quoteId}")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta y no se puede eliminar.');
+
+        $this->assertNotSoftDeleted('quotes', ['id' => $quoteId]);
+    }
+
+    public function test_a_quote_whose_sale_was_soft_deleted_cannot_be_deleted(): void
+    {
+        $variant = $this->createVariant('Taupe', 100.00);
+
+        $quoteId = $this->postJson('/api/quotes', [
+            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
+        ])->assertCreated()->json('data.id');
+
+        Sale::create(['folio' => 'VEN-0001', 'quote_id' => $quoteId, 'subtotal' => 100, 'total' => 100])->delete();
+
+        $this->deleteJson("/api/quotes/{$quoteId}")
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta y no se puede eliminar.');
+
+        $this->assertNotSoftDeleted('quotes', ['id' => $quoteId]);
     }
 
     public function test_it_creates_a_quote_with_a_simple_product_line(): void

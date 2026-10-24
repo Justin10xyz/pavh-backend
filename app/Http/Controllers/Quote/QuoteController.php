@@ -122,16 +122,17 @@ class QuoteController extends Controller
 
     public function update(UpdateQuoteRequest $request, Quote $quote): QuoteResource|JsonResponse
     {
-        if ($quote->quoteStatus->name !== 'Borrador') {
-            return response()->json([
-                'message' => 'Solo se pueden editar cotizaciones en estado Borrador.',
-            ], 422);
-        }
-
-        // Pagada: su stock ya se descontó según las líneas actuales.
+        // Pagada: su stock ya se descontó según las líneas actuales. Va antes
+        // del guard de estado para dar el mensaje específico.
         if ($quote->paid_at !== null) {
             return response()->json([
                 'message' => 'Esta cotización ya fue pagada y no se puede editar.',
+            ], 422);
+        }
+
+        if ($quote->quoteStatus->name !== 'Borrador') {
+            return response()->json([
+                'message' => 'Solo se pueden editar cotizaciones en estado Borrador.',
             ], 422);
         }
 
@@ -187,14 +188,12 @@ class QuoteController extends Controller
 
     public function destroy(Quote $quote): Response|JsonResponse
     {
-        // Pagada: su stock ya se descontó; mismo guard que editar/cancelar.
-        if ($quote->paid_at !== null) {
-            return response()->json([
-                'message' => 'Esta cotización ya fue pagada y no se puede eliminar.',
-            ], 422);
+        if ($message = $quote->deletionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
         }
 
-        $quote->items()->delete();
+        // Soft delete: las líneas se conservan para que restore() regrese la
+        // cotización completa.
         $quote->delete();
 
         return response()->noContent();
@@ -311,7 +310,10 @@ class QuoteController extends Controller
                 }
             }
 
+            $paidStatus = QuoteStatus::where('name', 'Pagada')->firstOrFail();
+
             $quote->update([
+                'quote_status_id' => $paidStatus->id,
                 'paid_at' => now(),
                 'paid_by' => $request->user()->id,
             ]);
