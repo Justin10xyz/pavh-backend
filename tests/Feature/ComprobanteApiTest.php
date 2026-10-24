@@ -431,8 +431,9 @@ class ComprobanteApiTest extends TestCase
         $this->assertStringContainsString('Villa Hidalgo, Jal.', $text);
         $this->assertStringContainsString('Av. Hidalgo 123', $text);
         $this->assertStringContainsString('Tel. 495 123 4567', $text);
-        $this->assertStringContainsString('XAXX010101000', $text);
-        $this->assertStringContainsString('12345678901', $text);
+        // La cédula es una imagen fija: el PDF ya no imprime RFC/idCIF de Configuración.
+        $this->assertStringNotContainsString('XAXX010101000', $text);
+        $this->assertStringNotContainsString('12345678901', $text);
         $this->assertStringContainsString('cuatro mil ciento ochenta pesos 00/100 M.N.', $text);
         $this->assertStringContainsString('$4,180.00', $text);
         $this->assertStringContainsString('$3,600.00', $text);
@@ -440,8 +441,35 @@ class ComprobanteApiTest extends TestCase
         // Encabezado compartido: INNOVA y, más chico, Interceramic.
         $this->assertStringContainsString('images/branding/logo-pdf-escala-grises.png', $html);
         $this->assertStringContainsString('images/branding/interceramic-logo-pdf.png', $html);
+        $this->assertStringContainsString('images/branding/cedula_fiscal_final_bw.png', $html);
 
         // El PDF real también se genera con esos datos.
         $this->assertStringStartsWith('%PDF-', (new ComprobantePdfGenerator)->generate($captured));
+    }
+
+    public function test_comprobante_pdf_shows_cedula_fiscal_without_tax_settings(): void
+    {
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $this->createQuote()])
+            ->assertCreated()
+            ->json('data.id');
+
+        $captured = null;
+        $this->mock(ComprobantePdfGenerator::class, function ($mock) use (&$captured) {
+            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $comprobante) use (&$captured) {
+                $captured = $comprobante;
+
+                return '%PDF-fake';
+            });
+        });
+
+        $this->get("/api/comprobantes/{$comprobanteId}/pdf")->assertOk();
+
+        $this->assertNull($captured['business']['tax_id']);
+        $this->assertNull($captured['business']['tax_id_number']);
+
+        $html = view('pdf.comprobante', ['comprobante' => $captured])->render();
+
+        // Asset fijo: aparece aunque Configuración no tenga RFC/idCIF.
+        $this->assertStringContainsString('images/branding/cedula_fiscal_final_bw.png', $html);
     }
 }
