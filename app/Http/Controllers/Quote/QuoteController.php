@@ -34,15 +34,21 @@ class QuoteController extends Controller
 
         $allowedRelations = [
             'items' => ['items.productVariant', 'items.simpleProduct'],
-            'customer' => 'customer',
-            'quoteStatus' => 'quoteStatus',
+            'customer' => ['customer'],
+            'quoteStatus' => ['quoteStatus'],
+            // Para indicar en el listado si una pagada ya tiene comprobante.
+            // withTrashed por el mismo criterio que show: uno dado de baja
+            // sigue ocupando el quote_id. Solo lo que usa QuoteResource.
+            'comprobante' => ['comprobante' => fn ($query) => $query->withTrashed()->select(['id', 'quote_id', 'folio'])],
         ];
 
+        // Se combinan como arreglos (no flatMap) para conservar la llave de
+        // las relaciones con closure.
         $with = collect(explode(',', $request->query('with', '')))
             ->map(fn ($relation) => trim($relation))
             ->filter(fn ($relation) => array_key_exists($relation, $allowedRelations))
-            ->flatMap(fn ($relation) => (array) $allowedRelations[$relation])
-            ->all();
+            ->unique()
+            ->reduce(fn (array $carry, $relation) => [...$carry, ...$allowedRelations[$relation]], []);
 
         $quotes = Quote::query()
             ->when($with !== [], fn ($query) => $query->with($with))

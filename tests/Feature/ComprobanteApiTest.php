@@ -93,6 +93,40 @@ class ComprobanteApiTest extends TestCase
         return $quoteId;
     }
 
+    public function test_quote_index_includes_the_comprobante_only_when_requested(): void
+    {
+        $withComprobante = $this->createQuote();
+        $folio = $this->postJson('/api/comprobantes', ['quote_id' => $withComprobante])
+            ->assertCreated()
+            ->json('data.folio');
+
+        $withoutComprobante = $this->createQuote(); // pagada, sin comprobante
+
+        $quotes = collect($this->getJson('/api/quotes?with=comprobante')->assertOk()->json('data'))->keyBy('id');
+
+        $this->assertNull($quotes[$withoutComprobante]['comprobante']);
+        $this->assertSame($folio, $quotes[$withComprobante]['comprobante']['folio']);
+        $this->assertSame(['id', 'folio'], array_keys($quotes[$withComprobante]['comprobante']));
+
+        $this->getJson('/api/quotes')
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.comprobante');
+    }
+
+    public function test_quote_index_includes_a_soft_deleted_comprobante(): void
+    {
+        $quoteId = $this->createQuote();
+        $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
+            ->assertCreated()
+            ->json('data.id');
+
+        Comprobante::findOrFail($comprobanteId)->delete();
+
+        $this->getJson('/api/quotes?with=comprobante')
+            ->assertOk()
+            ->assertJsonPath('data.0.comprobante.id', $comprobanteId);
+    }
+
     public function test_to_comprobante_prefills_the_paid_quote_without_mutating(): void
     {
         $quoteId = $this->createQuote();
