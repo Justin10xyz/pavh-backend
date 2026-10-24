@@ -187,14 +187,12 @@ class QuoteController extends Controller
 
     public function destroy(Quote $quote): Response|JsonResponse
     {
-        // Pagada: su stock ya se descontó; mismo guard que editar/cancelar.
-        if ($quote->paid_at !== null) {
-            return response()->json([
-                'message' => 'Esta cotización ya fue pagada y no se puede eliminar.',
-            ], 422);
+        if ($message = $quote->deletionBlockedMessage()) {
+            return response()->json(['message' => $message], 422);
         }
 
-        $quote->items()->delete();
+        // Soft delete: las líneas se conservan para que restore() regrese la
+        // cotización completa.
         $quote->delete();
 
         return response()->noContent();

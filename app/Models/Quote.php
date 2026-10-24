@@ -226,6 +226,29 @@ class Quote extends Model
     }
 
     /**
+     * No se puede eliminar una cotización pagada (su stock ya se descontó) ni
+     * una que ya originó una venta o un comprobante: esos documentos la
+     * referencian. Cuenta también ventas y comprobantes dados de baja, que
+     * se siguen pudiendo consultar con su cotización.
+     */
+    public function deletionBlockedMessage(): ?string
+    {
+        if ($this->paid_at !== null) {
+            return 'Esta cotización ya fue pagada y no se puede eliminar.';
+        }
+
+        if ($this->sale()->withTrashed()->exists()) {
+            return 'Esta cotización ya fue convertida a venta y no se puede eliminar.';
+        }
+
+        if ($this->comprobante()->withTrashed()->exists()) {
+            return 'Esta cotización ya tiene un comprobante y no se puede eliminar.';
+        }
+
+        return null;
+    }
+
+    /**
      * Solo una cotización pagada genera comprobante, y a lo más uno. Cuenta
      * también un comprobante dado de baja: el índice UNIQUE de
      * comprobantes.quote_id lo incluye, así que tampoco deja generar otro.
