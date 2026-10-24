@@ -26,6 +26,7 @@ class UpdateProductRequest extends FormRequest
         return [
             'name' => ['sometimes', 'string'],
             'supplier_id' => ['sometimes', 'integer', Rule::exists('suppliers', 'id')->withoutTrashed()],
+            'floor_style_id' => ['nullable', 'integer', Rule::exists('floor_styles', 'id')->withoutTrashed()],
             'category_id' => ['sometimes', 'integer', Rule::exists('categories', 'id')->withoutTrashed()],
             'unit_type_id' => ['sometimes', 'integer', 'exists:unit_types,id'],
             'purchase_unit' => ['sometimes', 'string'],

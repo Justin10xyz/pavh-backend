@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $supplier_id
+ * @property int|null $floor_style_id
  * @property int $category_id
  * @property int $unit_type_id
  * @property string $name
@@ -23,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Category|null $category
  * @property-read Supplier|null $supplier
+ * @property-read FloorStyle|null $floorStyle
  * @property-read UnitType $unitType
  * @property-read Collection<int, ProductVariant> $variants
  * @property-read int|null $variants_count
@@ -34,6 +36,7 @@ use Illuminate\Support\Carbon;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereCategoryId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereCreatedAt($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereDeletedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereFloorStyleId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product whereName($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|Product wherePurchaseUnit($value)
@@ -45,7 +48,7 @@ use Illuminate\Support\Carbon;
  *
  * @mixin \Eloquent
  */
-#[Fillable(['supplier_id', 'category_id', 'unit_type_id', 'name', 'purchase_unit'])]
+#[Fillable(['supplier_id', 'floor_style_id', 'category_id', 'unit_type_id', 'name', 'purchase_unit'])]
 class Product extends Model
 {
     use SerializesDatesInAppTimezone, SoftDeletes;
@@ -59,6 +62,17 @@ class Product extends Model
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class)->withTrashed();
+    }
+
+    /**
+     * withTrashed: un producto dado de baja puede seguir con un estilo de piso
+     * ya eliminado (solo se bloquea con productos activos).
+     *
+     * @return BelongsTo<FloorStyle, $this>
+     */
+    public function floorStyle(): BelongsTo
+    {
+        return $this->belongsTo(FloorStyle::class)->withTrashed();
     }
 
     /**
@@ -109,6 +123,25 @@ class Product extends Model
         $detail = $count === 1 ? '1 variante registrada' : "{$count} variantes registradas";
 
         return "No se puede cambiar la unidad de venta: el producto ya tiene {$detail}.";
+    }
+
+    /**
+     * Guard de DELETE /products/{id}/variants (borrar una medida completa):
+     * mismo criterio que el DELETE de una sola variante, el producto no se
+     * puede quedar sin variantes activas. Las dadas de baja (soft delete) no
+     * cuentan.
+     *
+     * @param  array<int, int>  $variantIds
+     */
+    public function variantGroupDeletionBlockedMessage(array $variantIds): ?string
+    {
+        $remaining = $this->variants()->whereNotIn('id', $variantIds)->count();
+
+        if ($remaining <= 0) {
+            return 'Es la única medida de este producto; borra el producto completo en su lugar.';
+        }
+
+        return null;
     }
 
     /**

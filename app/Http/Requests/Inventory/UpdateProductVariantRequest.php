@@ -39,7 +39,7 @@ class UpdateProductVariantRequest extends FormRequest
         // stock_boxes no se acepta aquí (validated() lo descarta si llega): el
         // stock solo cambia por PATCH .../stock, que deja historial.
         return [
-            'product_id' => ['sometimes', 'integer', 'exists:products,id'],
+            'product_id' => ['sometimes', 'integer', Rule::exists('products', 'id')->withoutTrashed()],
             'color' => ['sometimes', 'string'],
             'size' => ['sometimes', 'string'],
             'price_per_m2' => ['sometimes', 'numeric'],
@@ -52,6 +52,7 @@ class UpdateProductVariantRequest extends FormRequest
             'commission_category_id' => ['sometimes', 'nullable', 'exists:commission_categories,id'],
             'pei' => ['sometimes', 'nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => ['sometimes', 'nullable', 'integer', 'between:1,4'],
+            'face_count' => ['sometimes', 'nullable', 'integer', 'min:0'],
         ];
     }
 }

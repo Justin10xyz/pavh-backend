@@ -106,6 +106,20 @@ class PieceSoldVariantTest extends TestCase
         $this->assertDatabaseCount('product_variants', 0);
     }
 
+    public function test_it_accepts_face_count_on_a_piece_variant(): void
+    {
+        $product = $this->createProduct('pieza');
+
+        $this->postJson('/api/product-variants', [
+            'product_id' => $product->id,
+            'color' => 'Azul',
+            'size' => '20x20',
+            'price_per_box' => 85.50,
+            'face_count' => 6,
+        ])->assertCreated()
+            ->assertJsonPath('data.face_count', 6);
+    }
+
     public function test_it_requires_price_per_box_on_a_piece_variant(): void
     {
         $product = $this->createProduct('pieza');
@@ -236,6 +250,19 @@ class PieceSoldVariantTest extends TestCase
         ])->assertOk();
 
         $this->assertEqualsWithDelta(92.00, (float) $variant->fresh()->price_per_box, 0.0001);
+    }
+
+    public function test_it_edits_face_count_on_a_piece_variant(): void
+    {
+        $variant = $this->createPieceVariant();
+
+        foreach ([0, 5, null] as $faceCount) {
+            $this->putJson("/api/product-variants/{$variant->id}", ['face_count' => $faceCount])
+                ->assertOk()
+                ->assertJsonPath('data.face_count', $faceCount);
+
+            $this->assertSame($faceCount, $variant->fresh()->face_count);
+        }
     }
 
     public function test_m2_variant_edits_are_unchanged(): void

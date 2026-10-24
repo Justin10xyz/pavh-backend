@@ -6,6 +6,7 @@ use App\Http\Controllers\Customer\CustomerController;
 use App\Http\Controllers\Dashboard\DashboardController;
 use App\Http\Controllers\Inventory\CategoryController;
 use App\Http\Controllers\Inventory\CommissionCategoryController;
+use App\Http\Controllers\Inventory\FloorStyleController;
 use App\Http\Controllers\Inventory\ProductController;
 use App\Http\Controllers\Inventory\ProductVariantController;
 use App\Http\Controllers\Inventory\SimpleProductController;
@@ -24,6 +25,8 @@ Route::post('/logout', [AuthController::class, 'logout'])->middleware('auth:sanc
 Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/user', fn (Request $request) => $request->user());
 
+    Route::get('/products/{product}/delete-summary', [ProductController::class, 'deleteSummary']);
+    Route::delete('/products/{product}/variants', [ProductVariantController::class, 'destroyGroup']);
     Route::apiResource('products', ProductController::class);
 
     Route::get('/commission-categories', [CommissionCategoryController::class, 'index']);
@@ -73,6 +76,12 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::put('/suppliers/{supplier}', [SupplierController::class, 'update']);
     Route::get('/suppliers/{supplier}/delete-summary', [SupplierController::class, 'deleteSummary']);
     Route::delete('/suppliers/{supplier}', [SupplierController::class, 'destroy']);
+
+    Route::get('/floor-styles', [FloorStyleController::class, 'index']);
+    Route::post('/floor-styles', [FloorStyleController::class, 'store']);
+    Route::put('/floor-styles/{floorStyle}', [FloorStyleController::class, 'update']);
+    Route::get('/floor-styles/{floorStyle}/delete-summary', [FloorStyleController::class, 'deleteSummary']);
+    Route::delete('/floor-styles/{floorStyle}', [FloorStyleController::class, 'destroy']);
 
     Route::get('/business-settings', [BusinessSettingController::class, 'show']);
     Route::put('/business-settings', [BusinessSettingController::class, 'update']);

@@ -20,6 +20,7 @@ use Illuminate\Support\Carbon;
  * @property int|null $commission_category_id
  * @property string|null $pei
  * @property int|null $ett
+ * @property int|null $face_count
  * @property string $color
  * @property string $size
  * @property numeric|null $price_per_m2
@@ -51,6 +52,7 @@ use Illuminate\Support\Carbon;
  * @method static Builder<static>|ProductVariant whereCreatedAt($value)
  * @method static Builder<static>|ProductVariant whereDeletedAt($value)
  * @method static Builder<static>|ProductVariant whereEtt($value)
+ * @method static Builder<static>|ProductVariant whereFaceCount($value)
  * @method static Builder<static>|ProductVariant whereId($value)
  * @method static Builder<static>|ProductVariant whereKilosPerBox($value)
  * @method static Builder<static>|ProductVariant whereM2PerBox($value)
@@ -76,6 +78,7 @@ use Illuminate\Support\Carbon;
     'commission_category_id',
     'pei',
     'ett',
+    'face_count',
     'color',
     'size',
     'price_per_m2',
@@ -110,11 +113,15 @@ class ProductVariant extends Model
     }
 
     /**
+     * withTrashed: una línea de cotización o venta debe seguir mostrando (y
+     * reimprimiendo) el nombre del piso aunque el piso se haya dado de baja
+     * después. Mismo criterio que Quote::customer().
+     *
      * @return BelongsTo<Product, $this>
      */
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     /**
@@ -145,8 +152,10 @@ class ProductVariant extends Model
      */
     public function scopeByCategory(Builder $query, int $categoryId): Builder
     {
+        // withoutTrashed(): product() incluye pisos dados de baja, pero el filtro
+        // por categoría solo debe ver pisos activos (como antes).
         return $query->whereHas('product', function (Builder $query) use ($categoryId) {
-            $query->where('category_id', $categoryId);
+            $query->withoutTrashed()->where('category_id', $categoryId);
         });
     }
 

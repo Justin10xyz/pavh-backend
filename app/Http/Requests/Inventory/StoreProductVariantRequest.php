@@ -37,6 +37,7 @@ class StoreProductVariantRequest extends FormRequest
      * padre (product_id del mismo payload). Un piso por pieza solo lleva
      * price_per_box (el precio por pieza); price_per_m2, m2_per_box, pei y
      * ett no aplican y se prohíben para no guardar datos sin sentido.
+     * face_count sí aplica a ambos tipos.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -45,7 +46,7 @@ class StoreProductVariantRequest extends FormRequest
         $soldByPiece = $this->productIsSoldByPiece();
 
         return [
-            'product_id' => ['required', 'integer', 'exists:products,id'],
+            'product_id' => ['required', 'integer', Rule::exists('products', 'id')->withoutTrashed()],
             'color' => ['required', 'string'],
             'size' => ['required', 'string'],
             'price_per_m2' => $soldByPiece ? ['prohibited'] : ['required', 'numeric'],
@@ -59,12 +60,13 @@ class StoreProductVariantRequest extends FormRequest
             'commission_category_id' => ['nullable', 'exists:commission_categories,id'],
             'pei' => $soldByPiece ? ['prohibited'] : ['nullable', Rule::in(ProductVariant::PEI_VALUES)],
             'ett' => $soldByPiece ? ['prohibited'] : ['nullable', 'integer', 'between:1,4'],
+            'face_count' => ['nullable', 'integer', 'min:0'],
         ];
     }
 
     /**
      * Un product_id inválido o inexistente cae en las reglas de m2 (las de
-     * siempre): su error ya lo reporta exists:products,id.
+     * siempre): su error ya lo reporta el exists de product_id.
      */
     private function productIsSoldByPiece(): bool
     {

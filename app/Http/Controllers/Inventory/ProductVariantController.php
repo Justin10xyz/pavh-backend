@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Inventory\AdjustStockRequest;
+use App\Http\Requests\Inventory\DestroyVariantGroupRequest;
 use App\Http\Requests\Inventory\StoreProductVariantRequest;
 use App\Http\Requests\Inventory\UpdateProductVariantRequest;
 use App\Http\Resources\Inventory\ProductVariantResource;
@@ -88,6 +89,28 @@ class ProductVariantController extends Controller
         }
 
         $productVariant->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Borra una medida completa (todos sus colores) cuando el proveedor la
+     * descontinuó. Cada variante se da de baja igual que en destroy(), con
+     * delete() sobre el modelo (soft delete): cotizaciones y ventas que ya la
+     * referencian la siguen viendo con withTrashed().
+     */
+    public function destroyGroup(DestroyVariantGroupRequest $request, Product $product): JsonResponse|Response
+    {
+        $variantIds = $request->validated('variant_ids');
+
+        if ($message = $product->variantGroupDeletionBlockedMessage($variantIds)) {
+            return response()->json(['message' => $message], 422);
+        }
+
+        DB::transaction(function () use ($product, $variantIds) {
+            $product->variants()->whereIn('id', $variantIds)->get()
+                ->each(fn (ProductVariant $variant) => $variant->delete());
+        });
 
         return response()->noContent();
     }
