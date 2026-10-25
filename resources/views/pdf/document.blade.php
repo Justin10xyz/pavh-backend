@@ -194,8 +194,8 @@
     </div>
 
     {{-- Cada línea trae su unidad. Variantes: cajas (lo que se entrega y cobra)
-         y debajo los m² que cubren; el precio va por m². Productos simples y
-         variantes por pieza: unidades.
+         y debajo los m² que cubren; el precio va por m² y debajo por caja.
+         Productos simples y variantes por pieza: unidades.
          Una línea de variante sin `boxes` (registros previos al cambio a cajas)
          muestra solo sus m². --}}
     <table class="items">
@@ -223,6 +223,10 @@
                     </td>
                     <td class="text-right">
                         ${{ number_format($item['unit_price'], 2) }}@if ($item['unit'] === 'm2')<span class="muted">/m²</span>@endif
+                        @if ($item['unit'] === 'm2' && ($item['boxes'] ?? null))
+                            {{-- Precio por caja derivado de la línea, no del precio vigente de la variante. --}}
+                            <div class="muted">${{ number_format(round($item['unit_price'] * $item['quantity'] / $item['boxes'], 2), 2) }}/caja</div>
+                        @endif
                         @if (($item['price_type'] ?? null) === 'wholesale')
                             <div class="muted">Mayoreo</div>
                         @endif

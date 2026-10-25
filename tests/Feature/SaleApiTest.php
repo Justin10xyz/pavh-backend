@@ -1003,12 +1003,15 @@ class SaleApiTest extends TestCase
         $this->assertNull($captured['items'][1]['boxes']);
         $this->assertSame('Pegazulejo gris 20kg', $captured['items'][1]['variant_label']);
 
-        // Variante: cajas como cantidad, m² que cubren debajo y precio por m².
+        // Variante: cajas como cantidad, m² que cubren debajo y precio por m²
+        // con el precio por caja debajo (1.44 m²/caja × $100).
         $html = view('pdf.document', ['document' => $captured])->render();
 
         $this->assertMatchesRegularExpression('/\b2 cajas/u', $html);
         $this->assertMatchesRegularExpression('/2\.88 m²/u', $html);
         $this->assertMatchesRegularExpression('/\$100\.00<span class="muted">\/m²<\/span>/u', $html);
+        $this->assertMatchesRegularExpression('/\$144\.00\/caja/u', $html);
+        $this->assertSame(1, substr_count($html, '/caja'));
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
     }
 

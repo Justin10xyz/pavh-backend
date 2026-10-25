@@ -773,6 +773,10 @@ class QuoteApiTest extends TestCase
         $this->assertMatchesRegularExpression('/\b3 cajas/u', $html);
         $this->assertMatchesRegularExpression('/\(3 m²\)/u', $html);
         $this->assertMatchesRegularExpression('/\b3 uds\./u', $html);
+        // Valor unitario: por m² y por caja, solo en la línea de variante.
+        $this->assertMatchesRegularExpression('/\$100\.00<span class="muted">\/m²<\/span>/u', $html);
+        $this->assertMatchesRegularExpression('/\$100\.00<span class="muted">\/caja<\/span>/u', $html);
+        $this->assertSame(1, substr_count($html, '/caja'));
     }
 
     public function test_quote_pdf_totals_box_shows_only_the_amounts_that_apply(): void
