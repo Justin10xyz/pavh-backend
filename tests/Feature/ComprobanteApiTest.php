@@ -36,7 +36,7 @@ class ComprobanteApiTest extends TestCase
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 

@@ -5,8 +5,18 @@
     (['width' => pt, 'height' => pt]).
 --}}
 /*
- * Fuentes: mismas que pdf/document.blade.php (ver ahí por qué .woff y
- * por qué el src va sin format()).
+ * Fuentes: mismas que el frontend (Inter), copiadas de @fontsource a
+ * resources/fonts. dompdf no soporta woff2, por eso se usan los .woff (subset
+ * latin, que cubre acentos y ñ). Si una fuente no carga, dompdf cae a
+ * Helvetica.
+ *
+ * Ojo: NO agregar format('woff') al src — el parser de @font-face de dompdf
+ * 3.x descarta en silencio cualquier fuente cuyo format() no sea 'truetype'.
+ * Sin format() la toma como truetype y php-font-lib detecta que es WOFF por
+ * el encabezado del archivo.
+ *
+ * Inter 600 se registra como 'bold' porque dompdf solo distingue
+ * normal/bold.
  */
 @font-face {
     font-family: 'Inter';

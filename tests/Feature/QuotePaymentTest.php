@@ -34,7 +34,7 @@ class QuotePaymentTest extends TestCase
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 
@@ -117,7 +117,6 @@ class QuotePaymentTest extends TestCase
             'quantity' => 7,
             'source' => 'quote_payment',
             'quote_id' => $quoteId,
-            'sale_id' => null,
             'resulting_stock' => 3,
         ]);
         $this->assertDatabaseHas('stock_movements', [
@@ -231,10 +230,9 @@ class QuotePaymentTest extends TestCase
         $this->assertSame(10, ProductVariant::withTrashed()->find($variant->id)->stock_boxes);
     }
 
-    public function test_a_paid_quote_cannot_be_edited_cancelled_or_converted(): void
+    public function test_a_paid_quote_cannot_be_edited_or_cancelled(): void
     {
-        // Su stock ya se descontó: editar, cancelar o convertir a venta lo
-        // dejaría descuadrado (o lo descontaría dos veces).
+        // Su stock ya se descontó: editar o cancelar lo dejaría descuadrado.
         $variant = $this->createVariant('Taupe', 10);
         $items = [['product_variant_id' => $variant->id, 'boxes' => 3]];
         $quoteId = $this->createQuote($items);
@@ -248,17 +246,6 @@ class QuotePaymentTest extends TestCase
         $this->patchJson("/api/quotes/{$quoteId}/cancel")
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Esta cotización ya fue pagada y no se puede cancelar.');
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Esta cotización ya fue pagada y no se puede convertir a venta.');
-
-        $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3, 'unit_price' => 100]],
-        ])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Esta cotización ya fue pagada y no se puede convertir a venta.');
 
         $this->assertSame(7, $variant->fresh()->stock_boxes);
     }

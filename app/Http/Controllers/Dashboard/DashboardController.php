@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
-use App\Models\SaleItem;
+use App\Models\QuoteItem;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,20 +18,29 @@ class DashboardController extends Controller
             'limit' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
+        // Cuenta como vendido lo de las cotizaciones pagadas: el pago es lo
+        // que descuenta el stock. El rango (inclusivo, solo fecha) se aplica
+        // a paid_at, no a la fecha en que se cotizó; whereHas respeta el
+        // SoftDeletes de Quote.
+        //
         // Agrupa por el par (variante, producto simple): cada línea apunta a
-        // solo uno de los dos, así que cada grupo es un único producto. El
-        // rango de fecha reusa Sale::dateRange() sobre la venta de la línea, y
-        // whereHas respeta el SoftDeletes de Sale.
+        // solo uno de los dos, así que cada grupo es un único producto.
         //
         // Se ordena por revenue porque es lo único comparable entre tipos:
         // quantity_sold suma unidades distintas según el tipo (m² para
         // variantes, unidades para productos simples), así que solo es
         // informativo por fila. boxes_sold es la cantidad real de las variantes
         // (se venden por caja); en productos simples es null.
-        $rows = SaleItem::query()
+        $from = $request->query('from');
+        $to = $request->query('to');
+
+        $rows = QuoteItem::query()
             ->select('product_variant_id', 'simple_product_id')
             ->selectRaw('SUM(quantity) as quantity_sold, SUM(boxes) as boxes_sold, SUM(line_total) as revenue')
-            ->whereHas('sale', fn (Builder $query) => $query->dateRange($request->query('from'), $request->query('to')))
+            ->whereHas('quote', fn (Builder $query) => $query
+                ->whereNotNull('paid_at')
+                ->when($from, fn (Builder $query) => $query->whereDate('paid_at', '>=', $from))
+                ->when($to, fn (Builder $query) => $query->whereDate('paid_at', '<=', $to)))
             ->groupBy('product_variant_id', 'simple_product_id')
             ->orderByDesc('revenue')
             ->limit($request->integer('limit') ?: 5)
@@ -46,7 +55,7 @@ class DashboardController extends Controller
         ]);
 
         return response()->json([
-            'data' => $rows->map(fn (SaleItem $row) => [
+            'data' => $rows->map(fn (QuoteItem $row) => [
                 // Producto simple: solo su nombre (no tiene línea/color/medida).
                 'name' => $row->simpleProduct
                     ? $row->simpleProduct->name

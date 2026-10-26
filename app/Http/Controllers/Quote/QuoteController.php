@@ -75,10 +75,7 @@ class QuoteController extends Controller
             'items.simpleProduct' => fn ($query) => $query->withTrashed(),
             'customer',
             'quoteStatus',
-            // withTrashed: el detalle debe seguir indicando a qué venta se
-            // convirtió aunque esa venta se dé de baja después.
-            'sale' => fn ($query) => $query->withTrashed(),
-            // Mismo criterio: uno dado de baja sigue ocupando el quote_id
+            // withTrashed: uno dado de baja sigue ocupando el quote_id
             // (UNIQUE), así que el detalle debe seguir mostrándolo.
             'comprobante' => fn ($query) => $query->withTrashed(),
         ]);
@@ -231,14 +228,14 @@ class QuoteController extends Controller
     }
 
     /**
-     * Marca la cotización como pagada y descuenta el stock de sus líneas, como
-     * una venta: valida stock suficiente de todo (agregado por producto) antes
+     * Marca la cotización como pagada y descuenta el stock de sus líneas:
+     * valida stock suficiente de todo (agregado por producto) antes
      * de mutar nada, y cada descuento pasa por StockMovement::record() con
      * origen 'quote_payment'. Los productos sin seguimiento no bloquean ni se
      * descuentan.
      *
-     * Mismo orden de bloqueo que SaleController@store (cotización, variantes,
-     * productos simples, por id): dos pagos concurrentes de la misma cotización
+     * Orden de bloqueo fijo (cotización, variantes, productos simples, por
+     * id): dos pagos concurrentes de la misma cotización
      * se serializan y el segundo la encuentra ya pagada.
      */
     public function markPaid(Request $request, Quote $quote): QuoteResource|JsonResponse
@@ -278,7 +275,7 @@ class QuoteController extends Controller
             $simpleProducts = [];
 
             // withTrashed() solo para nombrar en el mensaje un producto dado
-            // de baja; igual que en convert, no se deja pasar.
+            // de baja; no se deja pasar.
             foreach ($boxesNeededByVariant as $variantId => $boxesNeeded) {
                 $variant = $variants[$variantId] = ProductVariant::withTrashed()->lockForUpdate()->findOrFail($variantId);
 
@@ -343,102 +340,6 @@ class QuoteController extends Controller
         $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
 
         return new QuoteResource($result);
-    }
-
-    /**
-     * Payload de solo lectura para prellenar el form de nueva venta. No muta
-     * nada — la conversión real ocurre al confirmar POST /api/sales con
-     * quote_id, que marca la cotización como Convertida.
-     */
-    public function convert(Quote $quote): JsonResponse
-    {
-        if ($message = $quote->conversionBlockedMessage()) {
-            return response()->json(['message' => $message], 422);
-        }
-
-        $quote->load(['items.productVariant', 'items.simpleProduct']);
-
-        $unavailableVariantItems = $quote->items->filter(
-            fn ($item) => $item->product_variant_id !== null && $item->productVariant === null
-        );
-        $unavailableSimpleProductItems = $quote->items->filter(
-            fn ($item) => $item->simple_product_id !== null && $item->simpleProduct === null
-        );
-
-        if ($unavailableVariantItems->isNotEmpty() || $unavailableSimpleProductItems->isNotEmpty()) {
-            $reasons = [];
-
-            if ($unavailableVariantItems->isNotEmpty()) {
-                // withTrashed() solo para poder nombrar la variante en el mensaje; la conversión no continúa.
-                $trashedVariants = ProductVariant::withTrashed()
-                    ->whereIn('id', $unavailableVariantItems->pluck('product_variant_id'))
-                    ->get()
-                    ->keyBy('id');
-
-                $labels = $unavailableVariantItems->map(function ($item) use ($trashedVariants) {
-                    $variant = $trashedVariants->get($item->product_variant_id);
-
-                    return $variant->code ?? "ID {$item->product_variant_id}";
-                })->unique()->implode(', ');
-
-                $reasons[] = "las siguientes variantes ya no están disponibles: {$labels}";
-            }
-
-            if ($unavailableSimpleProductItems->isNotEmpty()) {
-                // withTrashed() solo para poder nombrar el producto en el mensaje; la conversión no continúa.
-                $trashedSimpleProducts = SimpleProduct::withTrashed()
-                    ->whereIn('id', $unavailableSimpleProductItems->pluck('simple_product_id'))
-                    ->get()
-                    ->keyBy('id');
-
-                $labels = $unavailableSimpleProductItems->map(function ($item) use ($trashedSimpleProducts) {
-                    $simpleProduct = $trashedSimpleProducts->get($item->simple_product_id);
-
-                    return $simpleProduct->name ?? "ID {$item->simple_product_id}";
-                })->unique()->implode(', ');
-
-                $reasons[] = "los siguientes productos ya no están disponibles: {$labels}";
-            }
-
-            return response()->json([
-                'message' => 'No se puede convertir la cotización: '.implode('; ', $reasons).'.',
-            ], 422);
-        }
-
-        // Se respeta el price_type de la cotización, pero el precio se
-        // re-resuelve contra el actual de ese tipo: si al producto le quitaron
-        // el mayoreo desde que se cotizó, se rechaza igual que al cotizar.
-        $missingPriceItems = $quote->items->filter(
-            fn ($item) => $item->simpleProduct?->missingPriceMessage($item->price_type) !== null
-        );
-
-        if ($missingPriceItems->isNotEmpty()) {
-            $labels = $missingPriceItems->map(fn ($item) => $item->simpleProduct->name)->unique()->implode(', ');
-
-            return response()->json([
-                'message' => "No se puede convertir la cotización: los siguientes productos no tienen precio de mayoreo configurado: {$labels}.",
-            ], 422);
-        }
-
-        return response()->json([
-            'data' => [
-                'quote_id' => $quote->id,
-                'customer_id' => $quote->customer_id,
-                'notes' => $quote->notes,
-                // Variantes: `boxes` es lo que se manda a POST /sales; `quantity`
-                // (m²) va solo como referencia. Simples: `quantity` en unidades.
-                'items' => $quote->items->map(fn ($item) => [
-                    'product_variant_id' => $item->product_variant_id,
-                    'simple_product_id' => $item->simple_product_id,
-                    'boxes' => $item->boxes,
-                    'quantity' => $item->quantity,
-                    'unit_price' => $item->simpleProduct?->priceFor($item->price_type)
-                        ?? ($item->productVariant->isSoldByPiece() ? $item->productVariant->price_per_box : $item->productVariant->price_per_m2),
-                    // Solo productos simples; en variantes POST /sales lo prohíbe.
-                    'price_type' => $item->simple_product_id ? $item->price_type : null,
-                ]),
-            ],
-        ]);
     }
 
     /**
@@ -550,7 +451,7 @@ class QuoteController extends Controller
      * - Producto simple: cantidad fraccionaria, o línea de mayoreo sin
      *   price_wholesale configurado (nunca cae al precio de menudeo).
      * - Variante sin m2_per_box: no hay forma de derivar los m² que cubren las
-     *   cajas, mismo rechazo que en SaleController@store (nunca 1:1). No
+     *   cajas, así que se rechaza (nunca 1:1). No
      *   aplica a variantes por pieza, que no derivan m².
      *
      * @param  array<int, array<string, mixed>>  $items  Líneas ya validadas del request.
@@ -595,7 +496,7 @@ class QuoteController extends Controller
         foreach ($items as $item) {
             // Precio siempre resuelto del catálogo actual, nunca del cliente.
             // Variantes por caja completa: se cotizan los m² que cubren las
-            // cajas (boxes × m2_per_box), mismo criterio que la venta.
+            // cajas (boxes × m2_per_box).
             // Variantes por pieza: `boxes` son piezas, cobradas a price_per_box.
             // Productos simples: menudeo o mayoreo según `price_type`; las
             // variantes no tienen mayoreo y siempre quedan en retail.

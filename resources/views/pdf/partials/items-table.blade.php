@@ -4,10 +4,9 @@
     // no del precio vigente de la variante: el documento histórico no cambia.
     $boxPrice = fn (array $item) => round($item['unit_price'] * $item['quantity'] / $item['boxes'], 2);
 @endphp
-{{-- Mismo criterio de cantidad que pdf/document.blade.php: variantes
-     en cajas con los m² que cubren (precio por m² y por caja, en un solo
-     renglón para no alterar las capacidades de PdfSheetLayout); productos
-     simples y variantes por pieza en unidades. --}}
+{{-- Cantidad: variantes en cajas con los m² que cubren (precio por m² y por
+     caja, en un solo renglón para no alterar las capacidades de
+     PdfSheetLayout); productos simples y variantes por pieza en unidades. --}}
 <table class="items">
     <thead>
         <tr>
