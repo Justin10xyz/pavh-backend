@@ -22,6 +22,10 @@ class ComprobanteController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $request->validate([
+            'customer_id' => ['nullable', 'integer'],
+        ]);
+
         $allowedRelations = [
             'customer' => 'customer',
         ];
@@ -34,7 +38,9 @@ class ComprobanteController extends Controller
 
         $comprobantes = Comprobante::query()
             ->when($with !== [], fn ($query) => $query->with($with))
-            ->latest()
+            ->forCustomer($request->integer('customer_id') ?: null)
+            ->orderByDesc('date')
+            ->latest('id')
             ->get();
 
         return ComprobanteResource::collection($comprobantes);
