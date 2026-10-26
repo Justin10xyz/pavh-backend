@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Customer;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
-use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -100,20 +99,18 @@ class CustomerApiTest extends TestCase
         $this->assertSoftDeleted('customers', ['id' => $customer->id]);
     }
 
-    public function test_it_deletes_a_customer_with_quotes_and_sales(): void
+    public function test_it_deletes_a_customer_with_quotes(): void
     {
         $customer = Customer::create(['name' => 'Cliente Con Historial']);
         $quote = $this->createQuoteFor($customer, 'COT-0001');
-        $sale = Sale::create(['folio' => 'VEN-0001', 'customer_id' => $customer->id, 'subtotal' => 100, 'total' => 100]);
 
         $this->deleteJson("/api/customers/{$customer->id}")->assertNoContent();
 
         $this->assertSoftDeleted('customers', ['id' => $customer->id]);
         $this->assertDatabaseHas('quotes', ['id' => $quote->id, 'customer_id' => $customer->id, 'deleted_at' => null]);
-        $this->assertDatabaseHas('sales', ['id' => $sale->id, 'customer_id' => $customer->id, 'deleted_at' => null]);
     }
 
-    public function test_delete_summary_counts_quotes_and_sales_of_the_customer(): void
+    public function test_delete_summary_counts_quotes_of_the_customer(): void
     {
         $customer = Customer::create(['name' => 'Cliente Frecuente']);
         $otherCustomer = Customer::create(['name' => 'Otro Cliente']);
@@ -121,11 +118,10 @@ class CustomerApiTest extends TestCase
         $this->createQuoteFor($customer, 'COT-0001');
         $this->createQuoteFor($customer, 'COT-0002');
         $this->createQuoteFor($otherCustomer, 'COT-0003');
-        Sale::create(['folio' => 'VEN-0001', 'customer_id' => $customer->id, 'subtotal' => 100, 'total' => 100]);
 
         $this->getJson("/api/customers/{$customer->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 2, 'sales_count' => 1]]);
+            ->assertExactJson(['data' => ['quotes_count' => 2]]);
     }
 
     public function test_delete_summary_returns_zero_counts_for_customer_without_history(): void
@@ -134,7 +130,7 @@ class CustomerApiTest extends TestCase
 
         $this->getJson("/api/customers/{$customer->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 0, 'sales_count' => 0]]);
+            ->assertExactJson(['data' => ['quotes_count' => 0]]);
     }
 
     private function createQuoteFor(Customer $customer, string $folio): Quote

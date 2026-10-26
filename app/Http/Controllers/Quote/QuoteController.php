@@ -228,14 +228,14 @@ class QuoteController extends Controller
     }
 
     /**
-     * Marca la cotización como pagada y descuenta el stock de sus líneas, como
-     * una venta: valida stock suficiente de todo (agregado por producto) antes
+     * Marca la cotización como pagada y descuenta el stock de sus líneas:
+     * valida stock suficiente de todo (agregado por producto) antes
      * de mutar nada, y cada descuento pasa por StockMovement::record() con
      * origen 'quote_payment'. Los productos sin seguimiento no bloquean ni se
      * descuentan.
      *
-     * Mismo orden de bloqueo que SaleController@store (cotización, variantes,
-     * productos simples, por id): dos pagos concurrentes de la misma cotización
+     * Orden de bloqueo fijo (cotización, variantes, productos simples, por
+     * id): dos pagos concurrentes de la misma cotización
      * se serializan y el segundo la encuentra ya pagada.
      */
     public function markPaid(Request $request, Quote $quote): QuoteResource|JsonResponse
@@ -451,7 +451,7 @@ class QuoteController extends Controller
      * - Producto simple: cantidad fraccionaria, o línea de mayoreo sin
      *   price_wholesale configurado (nunca cae al precio de menudeo).
      * - Variante sin m2_per_box: no hay forma de derivar los m² que cubren las
-     *   cajas, mismo rechazo que en SaleController@store (nunca 1:1). No
+     *   cajas, así que se rechaza (nunca 1:1). No
      *   aplica a variantes por pieza, que no derivan m².
      *
      * @param  array<int, array<string, mixed>>  $items  Líneas ya validadas del request.
@@ -496,7 +496,7 @@ class QuoteController extends Controller
         foreach ($items as $item) {
             // Precio siempre resuelto del catálogo actual, nunca del cliente.
             // Variantes por caja completa: se cotizan los m² que cubren las
-            // cajas (boxes × m2_per_box), mismo criterio que la venta.
+            // cajas (boxes × m2_per_box).
             // Variantes por pieza: `boxes` son piezas, cobradas a price_per_box.
             // Productos simples: menudeo o mayoreo según `price_type`; las
             // variantes no tienen mayoreo y siempre quedan en retail.

@@ -18,7 +18,7 @@ use Tests\TestCase;
  * Flujo de punta a punta de una cotización mixta (variante + producto simple):
  * cotizar → consultar → editar. Complementa los tests por paso de QuoteApiTest.
  */
-class MixedQuoteToSaleFlowTest extends TestCase
+class MixedQuoteFlowTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -36,7 +36,7 @@ class MixedQuoteToSaleFlowTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 

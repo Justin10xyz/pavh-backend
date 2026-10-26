@@ -26,7 +26,7 @@ class ComprobanteReportTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        $this->status = QuoteStatus::create(['name' => 'Convertida']);
+        $this->status = QuoteStatus::create(['name' => 'Pagada']);
     }
 
     /**

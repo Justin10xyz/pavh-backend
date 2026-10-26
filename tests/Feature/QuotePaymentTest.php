@@ -34,7 +34,7 @@ class QuotePaymentTest extends TestCase
         $this->user = User::factory()->create();
         $this->actingAs($this->user);
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 
@@ -117,7 +117,6 @@ class QuotePaymentTest extends TestCase
             'quantity' => 7,
             'source' => 'quote_payment',
             'quote_id' => $quoteId,
-            'sale_id' => null,
             'resulting_stock' => 3,
         ]);
         $this->assertDatabaseHas('stock_movements', [

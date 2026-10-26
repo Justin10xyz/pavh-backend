@@ -10,7 +10,6 @@ use App\Models\QuoteStatus;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Services\DocumentPdfGenerator;
 use App\Services\QuotePdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -63,13 +62,6 @@ class ProductDeletionTest extends TestCase
         ])->assertCreated()->json('data.id');
     }
 
-    private function createSale(ProductVariant ...$variants): int
-    {
-        return $this->postJson('/api/sales', [
-            'items' => array_map(fn (ProductVariant $variant) => ['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100.00], $variants),
-        ])->assertCreated()->json('data.id');
-    }
-
     public function test_delete_summary_returns_zero_counts_for_a_product_without_history(): void
     {
         $product = $this->createProduct();
@@ -77,33 +69,29 @@ class ProductDeletionTest extends TestCase
 
         $this->getJson("/api/products/{$product->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 0, 'sales_count' => 0]]);
+            ->assertExactJson(['data' => ['quotes_count' => 0]]);
     }
 
-    public function test_delete_summary_counts_distinct_quotes_and_sales_including_soft_deleted_variants(): void
+    public function test_delete_summary_counts_distinct_quotes_including_soft_deleted_variants(): void
     {
         $product = $this->createProduct();
         $taupe = $this->createVariant($product, 'Taupe');
         $gris = $this->createVariant($product, 'Gris');
         $discontinued = $this->createVariant($product, 'Blanco', '30X60');
 
-        // Dos líneas del mismo piso en una sola cotización/venta cuentan una vez.
+        // Dos líneas del mismo piso en una sola cotización cuentan una vez.
         $this->createQuote($taupe, $gris);
         $this->createQuote($discontinued);
-        $this->createSale($taupe, $gris);
-        $this->createSale($gris);
-        $this->createSale($discontinued);
 
         // Otro piso: no cuenta.
         $other = $this->createVariant($this->createProduct('Habitat'), 'Taupe');
         $this->createQuote($other);
-        $this->createSale($other);
 
         $discontinued->delete();
 
         $this->getJson("/api/products/{$product->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 2, 'sales_count' => 3]]);
+            ->assertExactJson(['data' => ['quotes_count' => 2]]);
     }
 
     public function test_destroy_soft_deletes_the_product_and_all_its_active_variants(): void
@@ -118,7 +106,7 @@ class ProductDeletionTest extends TestCase
         $kept = $this->createVariant($keptProduct, 'Taupe');
 
         // Sin bloqueo: con historial también se borra.
-        $this->createSale($variants[0]);
+        $this->createQuote($variants[0]);
 
         $this->travel(5)->minutes();
 
@@ -157,29 +145,8 @@ class ProductDeletionTest extends TestCase
         $this->assertPdfLineLabel(QuotePdfGenerator::class, "/api/quotes/{$quoteId}/pdf", 'description', 'Creato Taupe 60X120');
     }
 
-    public function test_sales_keep_showing_the_product_name_after_it_is_deleted(): void
-    {
-        $product = $this->createProduct();
-        $variant = $this->createVariant($product, 'Taupe');
-        $saleId = $this->createSale($variant);
-
-        $this->deleteJson("/api/products/{$product->id}")->assertNoContent();
-
-        $this->getJson('/api/sales?with=items')
-            ->assertOk()
-            ->assertJsonPath('data.0.items.0.product_variant.id', $variant->id)
-            ->assertJsonPath('data.0.items.0.product_variant.product.name', 'Creato');
-
-        $this->getJson("/api/sales/{$saleId}")
-            ->assertOk()
-            ->assertJsonPath('data.items.0.product_variant.color', 'Taupe')
-            ->assertJsonPath('data.items.0.product_variant.product.name', 'Creato');
-
-        $this->assertPdfLineLabel(DocumentPdfGenerator::class, "/api/sales/{$saleId}/pdf", 'variant_label', 'Creato Taupe 60X120');
-    }
-
     /**
-     * @param  class-string  $generator  Cotizaciones y ventas usan generadores (y clave de la línea) distintos.
+     * @param  class-string  $generator  Generador del PDF y clave de la línea que lleva el nombre.
      */
     private function assertPdfLineLabel(string $generator, string $url, string $key, string $expected): void
     {

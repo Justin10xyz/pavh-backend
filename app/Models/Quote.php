@@ -168,7 +168,6 @@ class Quote extends Model
 
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
-            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede cancelar.',
             'Cancelada' => 'Esta cotización ya está cancelada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede cancelar.",
         };
@@ -187,7 +186,6 @@ class Quote extends Model
 
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
-            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede marcar como pagada.',
             'Cancelada' => 'Esta cotización está cancelada y no se puede marcar como pagada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede marcar como pagada.",
         };

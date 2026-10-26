@@ -10,7 +10,6 @@ use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -34,7 +33,7 @@ class WholesalePriceTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
 
@@ -185,62 +184,5 @@ class WholesalePriceTest extends TestCase
             'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 2, 'price_type' => 'wholesale']],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('items.0.product_variant_id');
-
-        $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 2, 'unit_price' => 100, 'price_type' => 'retail']],
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors('items.0.product_variant_id');
-    }
-
-    public function test_sale_stores_price_type_as_sent_without_checking_it_against_unit_price(): void
-    {
-        // Sin price_wholesale y con un unit_price que no es ninguno de los dos:
-        // en ventas el precio lo decide el vendedor.
-        $simpleProduct = $this->createSimpleProduct(null);
-
-        $this->postJson('/api/sales', [
-            'items' => [
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'unit_price' => 99.99, 'price_type' => 'wholesale'],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 1, 'unit_price' => 189.50],
-            ],
-        ])->assertCreated()
-            ->assertJsonPath('data.items.0.price_type', 'wholesale')
-            ->assertJsonPath('data.items.0.unit_price', '99.99')
-            ->assertJsonPath('data.items.1.price_type', 'retail');
-
-        $this->assertDatabaseHas('sale_items', ['simple_product_id' => $simpleProduct->id, 'price_type' => 'wholesale', 'unit_price' => 99.99]);
-    }
-
-    public function test_pdf_lines_include_price_type(): void
-    {
-        // Solo la nota de venta: el Presupuesto usa la tabla del Comprobante,
-        // que no distingue mayoreo.
-        $simpleProduct = $this->createSimpleProduct();
-
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $this->variant->id, 'boxes' => 2, 'unit_price' => 100],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 1, 'unit_price' => 150, 'price_type' => 'wholesale'],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        $captured = null;
-        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
-            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $document) use (&$captured) {
-                $captured = $document;
-
-                return '%PDF-fake';
-            });
-        });
-
-        $this->get("/api/sales/{$saleId}/pdf")->assertOk();
-
-        $this->assertSame('retail', $captured['items'][0]['price_type']);
-        $this->assertSame('wholesale', $captured['items'][1]['price_type']);
-
-        // La plantilla real anota "Mayoreo" solo en la línea que lo trae.
-        $html = view('pdf.document', ['document' => $captured])->render();
-
-        $this->assertSame(1, substr_count($html, 'Mayoreo'));
     }
 }

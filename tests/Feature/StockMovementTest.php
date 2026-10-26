@@ -5,7 +5,6 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\Sale;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
 use App\Models\Supplier;
@@ -81,7 +80,6 @@ class StockMovementTest extends TestCase
             'quantity' => 5,
             'type' => 'add',
             'source' => 'manual',
-            'sale_id' => null,
             'resulting_stock' => 15,
         ]);
         $this->assertDatabaseHas('stock_movements', [
@@ -106,7 +104,6 @@ class StockMovementTest extends TestCase
             'quantity' => 12,
             'type' => 'subtract',
             'source' => 'manual',
-            'sale_id' => null,
             'resulting_stock' => 0,
         ]);
     }
@@ -123,57 +120,7 @@ class StockMovementTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
-    public function test_sale_records_one_movement_per_product_in_physical_stock_units(): void
-    {
-        // Dos líneas de la misma variante: 7 + 2 = 9 cajas.
-        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
-        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
-
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
-                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        $this->assertDatabaseCount('stock_movements', 2);
-        $this->assertDatabaseHas('stock_movements', [
-            'product_variant_id' => $variant->id,
-            'simple_product_id' => null,
-            'quantity' => 9,
-            'type' => 'subtract',
-            'source' => 'sale',
-            'sale_id' => $saleId,
-            'resulting_stock' => 1,
-        ]);
-        $this->assertDatabaseHas('stock_movements', [
-            'product_variant_id' => null,
-            'simple_product_id' => $simpleProduct->id,
-            'quantity' => 4,
-            'type' => 'subtract',
-            'source' => 'sale',
-            'sale_id' => $saleId,
-            'resulting_stock' => 16,
-        ]);
-    }
-
-    public function test_rejected_sale_records_nothing(): void
-    {
-        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
-        $simpleProduct = $this->createSimpleProduct(stockQuantity: 2);
-
-        $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 2, 'unit_price' => 100.00],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3, 'unit_price' => 189.50],
-            ],
-        ])->assertUnprocessable();
-
-        $this->assertDatabaseCount('stock_movements', 0);
-    }
-
-    public function test_it_lists_a_variant_history_newest_first_with_the_sale_folio(): void
+    public function test_it_lists_a_variant_history_newest_first(): void
     {
         $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
         $otherVariant = $this->createVariant(stockBoxes: 10, code: 'PIS-CREATO-GRI-60X120');
@@ -183,9 +130,7 @@ class StockMovementTest extends TestCase
 
         $this->travelBack();
         $this->travelTo(now()->subHour());
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00]],
-        ])->assertCreated()->json('data.id');
+        $this->patchJson("/api/product-variants/{$variant->id}/stock", ['quantity' => 7, 'type' => 'subtract'])->assertOk();
 
         $this->travelBack();
         $this->patchJson("/api/product-variants/{$otherVariant->id}/stock", ['quantity' => 1, 'type' => 'add'])->assertOk();
@@ -194,17 +139,13 @@ class StockMovementTest extends TestCase
             ->assertOk()
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('data.0.type', 'subtract')
-            ->assertJsonPath('data.0.source', 'sale')
+            ->assertJsonPath('data.0.source', 'manual')
             ->assertJsonPath('data.0.quantity', 7)
             ->assertJsonPath('data.0.resulting_stock', 8)
-            ->assertJsonPath('data.0.sale_folio', 'V-0001')
-            ->assertJsonPath('data.0.sale_id', $saleId)
             ->assertJsonPath('data.1.type', 'add')
             ->assertJsonPath('data.1.source', 'manual')
             ->assertJsonPath('data.1.quantity', 5)
-            ->assertJsonPath('data.1.resulting_stock', 15)
-            ->assertJsonPath('data.1.sale_folio', null)
-            ->assertJsonPath('data.1.sale_id', null);
+            ->assertJsonPath('data.1.resulting_stock', 15);
     }
 
     public function test_it_lists_a_simple_product_history(): void
@@ -212,35 +153,16 @@ class StockMovementTest extends TestCase
         $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
 
         $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['quantity' => 3, 'type' => 'subtract'])->assertOk();
-        $this->postJson('/api/sales', [
-            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50]],
-        ])->assertCreated();
+        $this->patchJson("/api/simple-products/{$simpleProduct->id}/stock", ['quantity' => 4, 'type' => 'subtract'])->assertOk();
 
         // Mismo segundo: el desempate por id mantiene el más reciente primero.
         $this->getJson("/api/simple-products/{$simpleProduct->id}/stock-movements")
             ->assertOk()
             ->assertJsonCount(2, 'data')
-            ->assertJsonPath('data.0.source', 'sale')
+            ->assertJsonPath('data.0.quantity', 4)
             ->assertJsonPath('data.0.resulting_stock', 13)
-            ->assertJsonPath('data.0.sale_folio', 'V-0001')
-            ->assertJsonPath('data.1.source', 'manual')
+            ->assertJsonPath('data.1.quantity', 3)
             ->assertJsonPath('data.1.resulting_stock', 17);
-    }
-
-    public function test_history_keeps_the_folio_of_a_soft_deleted_sale(): void
-    {
-        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
-
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50]],
-        ])->assertCreated()->json('data.id');
-
-        Sale::find($saleId)->delete();
-
-        $this->getJson("/api/simple-products/{$simpleProduct->id}/stock-movements")
-            ->assertOk()
-            ->assertJsonPath('data.0.sale_folio', 'V-0001')
-            ->assertJsonPath('data.0.sale_id', null);
     }
 
     public function test_manual_variant_adjustment_locks_the_row_before_mutating(): void
@@ -265,44 +187,6 @@ class StockMovementTest extends TestCase
         $this->assertLockedBeforeUpdate('simple_products');
     }
 
-    public function test_sale_locks_every_product_before_mutating_stock(): void
-    {
-        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 10);
-        $simpleProduct = $this->createSimpleProduct(stockQuantity: 20);
-
-        $this->logQueriesWithVisibleLocks();
-
-        $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 4, 'unit_price' => 189.50],
-            ],
-        ])->assertCreated();
-
-        $this->assertLockedBeforeUpdate('product_variants');
-        $this->assertLockedBeforeUpdate('simple_products');
-    }
-
-    public function test_insufficient_stock_check_on_a_sale_runs_against_the_locked_row(): void
-    {
-        // stock=2 cajas, se piden 7. El rechazo debe salir
-        // de la lectura bloqueada dentro de la transacción, no de una lectura
-        // previa sin lock que una venta concurrente podría dejar obsoleta.
-        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: 2);
-
-        $this->logQueriesWithVisibleLocks();
-
-        $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
-            ],
-        ])->assertUnprocessable();
-
-        $this->assertNotNull($this->lockedReadIndex('product_variants'));
-        $this->assertNull($this->queryIndex('insert into "sales"'));
-        $this->assertDatabaseCount('stock_movements', 0);
-    }
-
     public function test_record_rejects_a_stockable_without_id_and_leaves_stock_untouched(): void
     {
         // Sin id, el movimiento no apuntaría ni a variante ni a producto simple.
@@ -318,7 +202,7 @@ class StockMovementTest extends TestCase
         }
     }
 
-    public function test_record_rejects_a_sale_movement_without_a_sale(): void
+    public function test_record_rejects_the_removed_sale_source(): void
     {
         $simpleProduct = $this->createSimpleProduct(stockQuantity: 5);
 
@@ -489,23 +373,6 @@ class StockMovementTest extends TestCase
         $this->assertDatabaseCount('stock_movements', 0);
     }
 
-    public function test_sale_of_untracked_products_is_not_blocked_and_records_nothing(): void
-    {
-        $variant = $this->createVariant(m2PerBox: 1.44, stockBoxes: null);
-        $simpleProduct = $this->createSimpleProduct(stockQuantity: null);
-
-        $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 50, 'unit_price' => 100.00],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 40, 'unit_price' => 189.50],
-            ],
-        ])->assertCreated();
-
-        $this->assertDatabaseCount('stock_movements', 0);
-        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => null]);
-        $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => null]);
-    }
-
     public function test_untracked_variant_is_never_low_stock(): void
     {
         $variant = $this->createVariant(stockBoxes: null);
@@ -601,7 +468,6 @@ class StockMovementTest extends TestCase
             'quantity' => 8,
             'type' => 'subtract',
             'source' => 'deactivated',
-            'sale_id' => null,
             'resulting_stock' => null,
         ]);
         // Sin existencias también se puede desactivar: el movimiento queda en 0.
@@ -762,7 +628,6 @@ class StockMovementTest extends TestCase
             'quantity' => 10,
             'type' => 'add',
             'source' => 'initial',
-            'sale_id' => null,
             'resulting_stock' => 10,
         ]);
     }
@@ -835,7 +700,6 @@ class StockMovementTest extends TestCase
             'quantity' => 10,
             'type' => 'add',
             'source' => 'initial',
-            'sale_id' => null,
             'resulting_stock' => 10,
         ]);
     }

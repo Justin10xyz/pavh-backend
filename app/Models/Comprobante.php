@@ -104,8 +104,7 @@ class Comprobante extends Model
     /**
      * Filtra por la fecha del documento (date), no por created_at: la fecha de
      * un comprobante es editable y es la que cuenta para el periodo. Ambos
-     * límites son inclusivos; un límite nulo no filtra (igual que
-     * Sale::dateRange()).
+     * límites son inclusivos; un límite nulo no filtra.
      *
      * @param  Builder<Comprobante>  $query
      * @return Builder<Comprobante>

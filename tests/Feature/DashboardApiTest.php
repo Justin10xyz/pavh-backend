@@ -5,12 +5,14 @@ namespace Tests\Feature;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\Sale;
+use App\Models\Quote;
+use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class DashboardApiTest extends TestCase
@@ -67,20 +69,28 @@ class DashboardApiTest extends TestCase
     }
 
     /**
+     * Cotización pagada en $paidAt (creada un día antes, para que un filtro
+     * por created_at no coincida con uno por paid_at). Sin $paidAt queda sin
+     * pagar.
+     *
      * @param  array<int, array{0: ProductVariant|SimpleProduct, 1: float, 2: float, 3?: int}>  $lines  [producto, cantidad, precio unitario, cajas (variantes)]
      */
-    private function createSaleAt(string $createdAt, array $lines): Sale
+    private function createPaidQuoteAt(?string $paidAt, array $lines): Quote
     {
-        $sale = $this->travelTo($createdAt, fn () => Sale::create([
-            'folio' => sprintf('V-%04d', ++$this->folioSequence),
+        $createdAt = $paidAt ? Carbon::parse($paidAt)->subDay() : now();
+
+        $quote = $this->travelTo($createdAt, fn () => Quote::create([
+            'folio' => sprintf('COT-%04d', ++$this->folioSequence),
+            'quote_status_id' => QuoteStatus::firstOrCreate(['name' => $paidAt ? 'Pagada' : 'Borrador'])->id,
             'subtotal' => 0,
             'total' => 0,
+            'paid_at' => $paidAt,
         ]));
 
         foreach ($lines as $line) {
             [$product, $quantity, $unitPrice] = $line;
 
-            $sale->items()->create([
+            $quote->items()->create([
                 'product_variant_id' => $product instanceof ProductVariant ? $product->id : null,
                 'simple_product_id' => $product instanceof SimpleProduct ? $product->id : null,
                 'boxes' => $line[3] ?? null,
@@ -90,7 +100,7 @@ class DashboardApiTest extends TestCase
             ]);
         }
 
-        return $sale;
+        return $quote;
     }
 
     public function test_it_ranks_variants_and_simple_products_together_by_revenue(): void
@@ -99,11 +109,11 @@ class DashboardApiTest extends TestCase
         $blanco = $this->createVariant('Blanco');
         $pegazulejo = $this->createSimpleProduct('Pegazulejo gris 20kg');
 
-        $this->createSaleAt('2026-10-02 10:00:00', [
+        $this->createPaidQuoteAt('2026-10-02 10:00:00', [
             [$taupe, 10, 100, 7],
             [$pegazulejo, 4, 189.50],
         ]);
-        $this->createSaleAt('2026-10-03 12:00:00', [
+        $this->createPaidQuoteAt('2026-10-03 12:00:00', [
             [$pegazulejo, 8, 189.50],
             [$blanco, 3, 120, 3],
             [$taupe, 5, 100, 4],
@@ -145,15 +155,15 @@ class DashboardApiTest extends TestCase
             ]]);
     }
 
-    public function test_it_only_counts_sales_within_the_inclusive_date_range(): void
+    public function test_it_only_counts_quotes_paid_within_the_inclusive_date_range(): void
     {
         $taupe = $this->createVariant('Taupe');
         $pegazulejo = $this->createSimpleProduct('Pegazulejo gris 20kg');
 
-        $this->createSaleAt('2026-09-30 23:59:00', [[$taupe, 50, 100]]);
-        $this->createSaleAt('2026-10-01 00:00:00', [[$taupe, 2, 100]]);
-        $this->createSaleAt('2026-10-03 23:59:00', [[$pegazulejo, 5, 189.50]]);
-        $this->createSaleAt('2026-10-04 00:00:00', [[$pegazulejo, 50, 189.50]]);
+        $this->createPaidQuoteAt('2026-09-30 23:59:00', [[$taupe, 50, 100]]);
+        $this->createPaidQuoteAt('2026-10-01 00:00:00', [[$taupe, 2, 100]]);
+        $this->createPaidQuoteAt('2026-10-03 23:59:00', [[$pegazulejo, 5, 189.50]]);
+        $this->createPaidQuoteAt('2026-10-04 00:00:00', [[$pegazulejo, 50, 189.50]]);
 
         $this->getJson('/api/dashboard/top-products?from=2026-10-01&to=2026-10-03')
             ->assertOk()
@@ -164,22 +174,35 @@ class DashboardApiTest extends TestCase
             ->assertJsonPath('data.1.quantity_sold', 2);
     }
 
-    public function test_it_excludes_soft_deleted_sales(): void
+    public function test_it_excludes_soft_deleted_quotes(): void
     {
         $taupe = $this->createVariant('Taupe');
 
-        $this->createSaleAt('2026-10-02 10:00:00', [[$taupe, 2, 100]]);
-        $this->createSaleAt('2026-10-02 11:00:00', [[$taupe, 50, 100]])->delete();
+        $this->createPaidQuoteAt('2026-10-02 10:00:00', [[$taupe, 2, 100]]);
+        $this->createPaidQuoteAt('2026-10-02 11:00:00', [[$taupe, 50, 100]])->delete();
 
         $this->getJson('/api/dashboard/top-products')
             ->assertOk()
             ->assertJsonPath('data.0.quantity_sold', 2);
     }
 
+    public function test_it_excludes_unpaid_quotes(): void
+    {
+        $taupe = $this->createVariant('Taupe');
+
+        $this->createPaidQuoteAt('2026-10-02 10:00:00', [[$taupe, 2, 100]]);
+        $this->createPaidQuoteAt(null, [[$taupe, 50, 100]]);
+
+        $this->getJson('/api/dashboard/top-products')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.quantity_sold', 2);
+    }
+
     public function test_it_defaults_to_five_products_and_respects_the_limit(): void
     {
         foreach (['A', 'B', 'C', 'D', 'E', 'F'] as $index => $color) {
-            $this->createSaleAt('2026-10-02 10:00:00', [[$this->createVariant($color), 10 - $index, 100]]);
+            $this->createPaidQuoteAt('2026-10-02 10:00:00', [[$this->createVariant($color), 10 - $index, 100]]);
         }
 
         $this->getJson('/api/dashboard/top-products')
@@ -193,9 +216,9 @@ class DashboardApiTest extends TestCase
             ->assertJsonPath('data.1.name', 'Creato B 60x120');
     }
 
-    public function test_it_returns_an_empty_array_when_there_are_no_sales_in_the_range(): void
+    public function test_it_returns_an_empty_array_when_there_are_no_paid_quotes_in_the_range(): void
     {
-        $this->createSaleAt('2026-09-15 10:00:00', [[$this->createVariant('Taupe'), 10, 100]]);
+        $this->createPaidQuoteAt('2026-09-15 10:00:00', [[$this->createVariant('Taupe'), 10, 100]]);
 
         $this->getJson('/api/dashboard/top-products?from=2026-10-01&to=2026-10-31')
             ->assertOk()
@@ -207,7 +230,7 @@ class DashboardApiTest extends TestCase
         $taupe = $this->createVariant('Taupe');
         $pegazulejo = $this->createSimpleProduct('Pegazulejo gris 20kg');
 
-        $this->createSaleAt('2026-10-02 10:00:00', [[$taupe, 10, 100], [$pegazulejo, 4, 189.50]]);
+        $this->createPaidQuoteAt('2026-10-02 10:00:00', [[$taupe, 10, 100], [$pegazulejo, 4, 189.50]]);
 
         $taupe->product->delete();
         $taupe->delete();

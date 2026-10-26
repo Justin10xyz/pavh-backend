@@ -28,7 +28,7 @@ class QuoteApiTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
     }
@@ -167,7 +167,7 @@ class QuoteApiTest extends TestCase
         $quoteId = $created->json('data.id');
 
         Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
+            'quote_status_id' => QuoteStatus::where('name', 'Cancelada')->first()->id,
         ]);
 
         $this->putJson("/api/quotes/{$quoteId}", [
@@ -852,27 +852,8 @@ class QuoteApiTest extends TestCase
             ->assertJsonPath('data.status', 'Cancelada');
 
         $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $cancelledStatus->id]);
-        // Solo cambia el estado: las líneas siguen intactas y no se crea ninguna venta.
+        // Solo cambia el estado: las líneas siguen intactas.
         $this->assertDatabaseHas('quote_items', ['quote_id' => $quoteId, 'quantity' => 3]);
-        $this->assertDatabaseCount('sales', 0);
-    }
-
-    public function test_it_rejects_cancelling_a_converted_quote(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated()->json('data.id');
-
-        $convertedStatus = QuoteStatus::where('name', 'Convertida')->first();
-        Quote::find($quoteId)->update(['quote_status_id' => $convertedStatus->id]);
-
-        $this->patchJson("/api/quotes/{$quoteId}/cancel")
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta y no se puede cancelar.');
-
-        $this->assertDatabaseHas('quotes', ['id' => $quoteId, 'quote_status_id' => $convertedStatus->id]);
     }
 
     public function test_it_rejects_cancelling_an_already_cancelled_quote(): void
