@@ -6,7 +6,6 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\Sale;
 use App\Models\SimpleProduct;
@@ -16,12 +15,11 @@ use App\Models\User;
 use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Tests\Support\InspectsQueryLocks;
 use Tests\TestCase;
 
 class SaleApiTest extends TestCase
 {
-    use InspectsQueryLocks, RefreshDatabase;
+    use RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -148,215 +146,6 @@ class SaleApiTest extends TestCase
             'id' => $variant->id,
             'stock_boxes' => 10,
         ]);
-    }
-
-    public function test_full_quote_to_sale_conversion_flow(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
-        $customer = Customer::create(['name' => 'Juan Perez']);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'customer_id' => $customer->id,
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 4],
-            ],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        // El precio de catálogo cambia después de cotizar; convert debe reflejar el precio de HOY, no el congelado en la quote.
-        $variant->update(['price_per_m2' => 120.00]);
-
-        $convertResponse = $this->getJson("/api/quotes/{$quoteId}/convert")->assertOk();
-
-        $convertResponse->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.customer_id', $customer->id)
-            ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
-            ->assertJsonPath('data.items.0.boxes', 4)
-            ->assertJsonPath('data.items.0.quantity', '5.760')
-            ->assertJsonPath('data.items.0.unit_price', '120.00');
-
-        $saleResponse = $this->postJson('/api/sales', [
-            'customer_id' => $customer->id,
-            'quote_id' => $quoteId,
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 4, 'unit_price' => 120.00],
-            ],
-        ])->assertCreated();
-
-        $saleResponse->assertJsonPath('data.folio', 'V-0001')
-            ->assertJsonPath('data.quote_id', $quoteId)
-            // 4 cajas × 1.44 = 5.76 m² × 120.00
-            ->assertJsonPath('data.subtotal', '691.20');
-
-        $this->assertDatabaseHas('quotes', [
-            'id' => $quoteId,
-            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
-        ]);
-    }
-
-    public function test_it_rejects_converting_an_already_converted_quote(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
-        ]);
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
-    }
-
-    public function test_it_rejects_converting_a_cancelled_quote(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Cancelada')->first()->id,
-        ]);
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'Esta cotización está cancelada y no se puede convertir a venta.');
-    }
-
-    public function test_it_rejects_converting_a_quote_with_soft_deleted_variants(): void
-    {
-        $available = $this->createVariant('Taupe', 100.00);
-        $deleted = $this->createVariant('Gris', 100.00);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [
-                ['product_variant_id' => $available->id, 'boxes' => 1],
-                ['product_variant_id' => $deleted->id, 'boxes' => 2],
-            ],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        $deleted->delete();
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'No se puede convertir la cotización: las siguientes variantes ya no están disponibles: PIS-CREATO-Gris-60X120.');
-    }
-
-    public function test_it_rejects_creating_a_sale_from_an_already_converted_quote(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
-        ]);
-
-        $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
-        ])->assertStatus(422)
-            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
-
-        $this->assertDatabaseCount('sales', 0);
-    }
-
-    public function test_sale_from_a_quote_locks_the_quote_before_checking_and_converting_it(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated()->json('data.id');
-
-        $this->logQueriesWithVisibleLocks();
-
-        $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
-        ])->assertCreated();
-
-        // conversionBlockedMessage() lee el estado (quote_statuses) de la
-        // cotización ya bloqueada; el lock va antes que el de los productos
-        // y antes de marcarla como Convertida.
-        $quoteLockIndex = $this->lockedReadIndex('quotes');
-        $statusReadIndex = $this->queryIndex('from "quote_statuses"');
-
-        $this->assertNotNull($quoteLockIndex, 'No se leyó la cotización con lockForUpdate().');
-        $this->assertNotNull($statusReadIndex);
-        $this->assertLessThan($statusReadIndex, $quoteLockIndex);
-        $this->assertLessThan($this->lockedReadIndex('product_variants'), $quoteLockIndex);
-        $this->assertLockedBeforeUpdate('quotes');
-    }
-
-    public function test_rejection_of_an_already_converted_quote_comes_from_the_locked_read(): void
-    {
-        // Simula lo que ve la segunda de dos ventas concurrentes: al obtener
-        // el lock, la primera ya dejó la cotización en Convertida.
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated()->json('data.id');
-
-        Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Convertida')->first()->id,
-        ]);
-
-        $this->logQueriesWithVisibleLocks();
-
-        $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
-        ])->assertStatus(422)
-            ->assertJsonPath('message', 'Esta cotización ya fue convertida a venta.');
-
-        $quoteLockIndex = $this->lockedReadIndex('quotes');
-
-        $this->assertNotNull($quoteLockIndex, 'No se leyó la cotización con lockForUpdate().');
-        $this->assertLessThan($this->queryIndex('from "quote_statuses"'), $quoteLockIndex);
-        $this->assertNull($this->queryIndex('insert into "sales"'));
-        $this->assertDatabaseCount('stock_movements', 0);
-    }
-
-    public function test_it_rejects_creating_a_sale_from_a_cancelled_quote(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-
-        $quoteResponse = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
-        ])->assertCreated();
-
-        $quoteId = $quoteResponse->json('data.id');
-
-        Quote::find($quoteId)->update([
-            'quote_status_id' => QuoteStatus::where('name', 'Cancelada')->first()->id,
-        ]);
-
-        $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 1, 'unit_price' => 100]],
-        ])->assertStatus(422)
-            ->assertJsonPath('message', 'Esta cotización está cancelada y no se puede convertir a venta.');
-
-        $this->assertDatabaseCount('sales', 0);
-        $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
     }
 
     public function test_it_generates_unique_sequential_sale_folios(): void
@@ -792,71 +581,6 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseCount('sales', 0);
     }
 
-    public function test_convert_resolves_current_price_for_simple_product_lines(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-        $simpleProduct = $this->createSimpleProduct(price: 189.50);
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 4],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 3],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        // Igual que con variantes: convert refleja el precio de HOY, no el congelado en la cotización.
-        $simpleProduct->update(['price' => 210.00]);
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertOk()
-            ->assertJsonPath('data.items.0.product_variant_id', $variant->id)
-            ->assertJsonPath('data.items.0.simple_product_id', null)
-            ->assertJsonPath('data.items.0.unit_price', '100.00')
-            ->assertJsonPath('data.items.1.product_variant_id', null)
-            ->assertJsonPath('data.items.1.simple_product_id', $simpleProduct->id)
-            ->assertJsonPath('data.items.1.quantity', '3.000')
-            ->assertJsonPath('data.items.1.unit_price', '210.00');
-    }
-
-    public function test_it_rejects_converting_a_quote_with_soft_deleted_simple_products(): void
-    {
-        $variant = $this->createVariant('Taupe', 100.00);
-        $simpleProduct = $this->createSimpleProduct();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 1],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        $simpleProduct->delete();
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'No se puede convertir la cotización: los siguientes productos ya no están disponibles: Pegazulejo gris 20kg.');
-    }
-
-    public function test_it_names_both_soft_deleted_variants_and_simple_products_when_converting(): void
-    {
-        $variant = $this->createVariant('Gris', 100.00);
-        $simpleProduct = $this->createSimpleProduct();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [
-                ['product_variant_id' => $variant->id, 'boxes' => 1],
-                ['simple_product_id' => $simpleProduct->id, 'quantity' => 2],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        $variant->delete();
-        $simpleProduct->delete();
-
-        $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertStatus(422)
-            ->assertJsonPath('message', 'No se puede convertir la cotización: las siguientes variantes ya no están disponibles: PIS-CREATO-Gris-60X120; los siguientes productos ya no están disponibles: Pegazulejo gris 20kg.');
-    }
-
     public function test_it_decrements_stock_for_a_simple_product_line(): void
     {
         $simpleProduct = $this->createSimpleProduct(price: 189.50, stockQuantity: 20);
@@ -894,12 +618,7 @@ class SaleApiTest extends TestCase
         $variant = $this->createVariant('Taupe', 100.00, m2PerBox: 1.44, stockBoxes: 10);
         $simpleProduct = $this->createSimpleProduct(stockQuantity: 2);
 
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 5]],
-        ])->json('data.id');
-
         $this->postJson('/api/sales', [
-            'quote_id' => $quoteId,
             'items' => [
                 ['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 100.00],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 5, 'unit_price' => 189.50],
@@ -911,10 +630,6 @@ class SaleApiTest extends TestCase
         $this->assertDatabaseCount('sale_items', 0);
         $this->assertDatabaseHas('product_variants', ['id' => $variant->id, 'stock_boxes' => 10]);
         $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 2]);
-        $this->assertDatabaseHas('quotes', [
-            'id' => $quoteId,
-            'quote_status_id' => QuoteStatus::where('name', 'Borrador')->first()->id,
-        ]);
     }
 
     public function test_it_validates_and_decrements_stock_for_mixed_variant_and_simple_product_lines(): void

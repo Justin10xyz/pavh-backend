@@ -6,8 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Sale\StoreSaleRequest;
 use App\Http\Resources\Sale\SaleResource;
 use App\Models\ProductVariant;
-use App\Models\Quote;
-use App\Models\QuoteStatus;
 use App\Models\Sale;
 use App\Models\SimpleProduct;
 use App\Models\StockMovement;
@@ -189,23 +187,8 @@ class SaleController extends Controller
         // concurrentes sobre el mismo producto se serializan aquí, así que no
         // pueden ambas pasar la validación y dejar el stock negativo. Se
         // bloquea en orden de id para que dos ventas con los mismos productos
-        // no se crucen en deadlock.
-        //
-        // La cotización se bloquea igual y antes que los productos (orden
-        // fijo: cotización, variantes, productos simples): si dos ventas
-        // llegan con el mismo quote_id, la segunda espera a la primera y
-        // encuentra la cotización ya en "Convertida".
+        // no se crucen en deadlock (orden fijo: variantes, productos simples).
         $result = DB::transaction(function () use ($data, $lines, $request, $folioGenerator, $boxesNeededByVariant, $quantityNeededBySimpleProduct) {
-            $quote = null;
-
-            if (! empty($data['quote_id'])) {
-                $quote = Quote::lockForUpdate()->findOrFail($data['quote_id']);
-
-                if ($message = $quote->conversionBlockedMessage()) {
-                    return response()->json(['message' => $message], 422);
-                }
-            }
-
             ksort($boxesNeededByVariant);
             ksort($quantityNeededBySimpleProduct);
 
@@ -234,7 +217,6 @@ class SaleController extends Controller
 
             $sale = Sale::create([
                 'folio' => $folioGenerator->generate(),
-                'quote_id' => $data['quote_id'] ?? null,
                 'customer_id' => $data['customer_id'] ?? null,
                 'subtotal' => 0,
                 'total' => 0,
@@ -283,17 +265,10 @@ class SaleController extends Controller
                 'total' => $subtotal,
             ]);
 
-            if ($quote) {
-                $convertedStatus = QuoteStatus::where('name', 'Convertida')->firstOrFail();
-
-                $quote->update(['quote_status_id' => $convertedStatus->id]);
-            }
-
             return $sale;
         });
 
-        // Cotización no convertible o stock insuficiente: la transacción
-        // terminó sin escribir nada.
+        // Stock insuficiente: la transacción terminó sin escribir nada.
         if (! $result instanceof Sale) {
             return $result;
         }

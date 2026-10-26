@@ -45,7 +45,6 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);
     Route::apiResource('customers', CustomerController::class);
 
-    Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/to-comprobante', [QuoteController::class, 'toComprobante']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
     Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);

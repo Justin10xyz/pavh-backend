@@ -6,7 +6,6 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariant;
-use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Models\Supplier;
@@ -17,8 +16,7 @@ use Tests\TestCase;
 
 /**
  * Flujo de punta a punta de una cotización mixta (variante + producto simple):
- * cotizar → consultar → editar → convertir → vender → PDF. Complementa los
- * tests por paso de QuoteApiTest/SaleApiTest.
+ * cotizar → consultar → editar. Complementa los tests por paso de QuoteApiTest.
  */
 class MixedQuoteToSaleFlowTest extends TestCase
 {
@@ -90,31 +88,7 @@ class MixedQuoteToSaleFlowTest extends TestCase
         return $response->json('data.id');
     }
 
-    /**
-     * Arma el payload de POST /sales a partir de lo que devolvió convert,
-     * igual que lo hace el frontend.
-     */
-    private function salePayloadFromConvert(array $convertData): array
-    {
-        return [
-            'quote_id' => $convertData['quote_id'],
-            'customer_id' => $convertData['customer_id'],
-            // Variantes se venden por caja: la venta manda `boxes`, no m².
-            'items' => array_map(fn ($item) => $item['product_variant_id']
-                ? [
-                    'product_variant_id' => $item['product_variant_id'],
-                    'boxes' => $item['boxes'],
-                    'unit_price' => $item['unit_price'],
-                ]
-                : [
-                    'simple_product_id' => $item['simple_product_id'],
-                    'quantity' => $item['quantity'],
-                    'unit_price' => $item['unit_price'],
-                ], $convertData['items']),
-        ];
-    }
-
-    public function test_full_mixed_quote_to_sale_flow(): void
+    public function test_full_mixed_quote_flow(): void
     {
         // 4. Crear cotización: precios resueltos server-side.
         //    4 cajas × 1.44 = 5.76 m² × 100.00 = 576.00 ; 3 × 189.50 = 568.50 ; total 1144.50
@@ -152,64 +126,5 @@ class MixedQuoteToSaleFlowTest extends TestCase
             ->assertJsonPath('data.items.1.line_total', '758.00')
             ->assertJsonPath('data.subtotal', '1334.00')
             ->assertJsonPath('data.total', '1334.00');
-
-        // 7. Convert: precio de HOY para ambos tipos de línea, no el congelado.
-        $this->variant->update(['price_per_m2' => 120.00]);
-        $this->simpleProduct->update(['price' => 200.00]);
-
-        $convertResponse = $this->getJson("/api/quotes/{$quoteId}/convert")
-            ->assertOk()
-            ->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.customer_id', $this->customer->id)
-            ->assertJsonPath('data.items.0.product_variant_id', $this->variant->id)
-            ->assertJsonPath('data.items.0.unit_price', '120.00')
-            ->assertJsonPath('data.items.1.simple_product_id', $this->simpleProduct->id)
-            ->assertJsonPath('data.items.1.unit_price', '200.00');
-
-        // 8. Venta desde la cotización, con las líneas tal cual las devolvió convert.
-        //    Variante por caja completa: 4 cajas × 1.44 = 5.76 m² × 120.00 = 691.20
-        //    + 4 × 200.00 = 800.00 → 1491.20
-        $saleResponse = $this->postJson('/api/sales', $this->salePayloadFromConvert($convertResponse->json('data')))
-            ->assertCreated()
-            ->assertJsonPath('data.quote_id', $quoteId)
-            ->assertJsonPath('data.items.0.boxes', 4)
-            ->assertJsonPath('data.items.0.quantity', '5.760')
-            ->assertJsonPath('data.subtotal', '1491.20')
-            ->assertJsonPath('data.total', '1491.20');
-
-        // Variante: 4 cajas → 10 - 4 = 6
-        $this->assertDatabaseHas('product_variants', ['id' => $this->variant->id, 'stock_boxes' => 6]);
-        // Producto simple: 1:1, sin conversión → 20 - 4 = 16
-        $this->assertDatabaseHas('simple_products', ['id' => $this->simpleProduct->id, 'stock_quantity' => 16]);
-
-        $this->assertSame('Convertida', Quote::find($quoteId)->quoteStatus->name);
-
-        // 9. PDF de la venta con línea mixta.
-        $this->get("/api/sales/{$saleResponse->json('data.id')}/pdf")
-            ->assertOk()
-            ->assertHeader('Content-Type', 'application/pdf');
-    }
-
-    public function test_mixed_conversion_with_insufficient_simple_product_stock_changes_nothing(): void
-    {
-        $quoteId = $this->createMixedQuote(simpleQuantity: 4);
-
-        // El stock baja después de cotizar (ej. otra venta de mostrador).
-        $this->simpleProduct->update(['stock_quantity' => 3]);
-
-        $convertResponse = $this->getJson("/api/quotes/{$quoteId}/convert")->assertOk();
-
-        $this->postJson('/api/sales', $this->salePayloadFromConvert($convertResponse->json('data')))
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'Stock insuficiente para Pegazulejo gris 20kg. Disponible: 3 unidades, se requieren 4.');
-
-        $this->assertDatabaseCount('sales', 0);
-        $this->assertDatabaseCount('sale_items', 0);
-
-        // Ni la variante (que sí tenía stock suficiente) ni el producto simple se tocaron.
-        $this->assertDatabaseHas('product_variants', ['id' => $this->variant->id, 'stock_boxes' => 10]);
-        $this->assertDatabaseHas('simple_products', ['id' => $this->simpleProduct->id, 'stock_quantity' => 3]);
-
-        $this->assertSame('Borrador', Quote::find($quoteId)->quoteStatus->name);
     }
 }

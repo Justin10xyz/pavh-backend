@@ -440,20 +440,6 @@ class PieceSoldVariantTest extends TestCase
         $this->assertEqualsWithDelta(342.00, (float) $response->json('data.total'), 0.0001);
     }
 
-    public function test_convert_suggests_the_price_per_piece(): void
-    {
-        $variant = $this->createPieceVariant();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
-        ])->assertCreated()->json('data.id');
-
-        $item = $this->getJson("/api/quotes/{$quoteId}/convert")->assertOk()->json('data.items.0');
-
-        $this->assertSame(3, $item['boxes']);
-        $this->assertEqualsWithDelta(85.50, (float) $item['unit_price'], 0.0001);
-    }
-
     public function test_it_sells_a_piece_variant_and_decrements_stock(): void
     {
         $variant = $this->createPieceVariant(stock: 20);

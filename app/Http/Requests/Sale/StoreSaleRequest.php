@@ -20,8 +20,8 @@ class StoreSaleRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * A diferencia de quotes, aquí unit_price SÍ viene del cliente (permite
-     * ajustar el precio al convertir una cotización) — folio sigue sin regla,
+     * A diferencia de quotes, aquí unit_price SÍ viene del cliente (el precio
+     * de la venta lo decide el vendedor) — folio sigue sin regla,
      * se resuelve server-side vía SaleFolioGenerator.
      *
      * Cantidad según el tipo de línea:
@@ -41,7 +41,6 @@ class StoreSaleRequest extends FormRequest
     {
         return [
             'customer_id' => ['nullable', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
-            'quote_id' => ['nullable', 'integer', 'exists:quotes,id'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_variant_id' => ['nullable', 'required_without:items.*.simple_product_id', 'prohibits:items.*.simple_product_id,items.*.price_type', 'integer', Rule::exists('product_variants', 'id')->withoutTrashed()],
             'items.*.simple_product_id' => ['nullable', 'required_without:items.*.product_variant_id', 'prohibits:items.*.boxes', 'integer', Rule::exists('simple_products', 'id')->withoutTrashed()],
