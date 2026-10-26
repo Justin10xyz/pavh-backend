@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Comprobante;
 use App\Models\Customer;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
@@ -121,7 +122,7 @@ class CustomerApiTest extends TestCase
 
         $this->getJson("/api/customers/{$customer->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 2]]);
+            ->assertExactJson(['data' => ['quotes_count' => 2, 'comprobantes_count' => 0]]);
     }
 
     public function test_delete_summary_returns_zero_counts_for_customer_without_history(): void
@@ -130,7 +131,20 @@ class CustomerApiTest extends TestCase
 
         $this->getJson("/api/customers/{$customer->id}/delete-summary")
             ->assertOk()
-            ->assertExactJson(['data' => ['quotes_count' => 0]]);
+            ->assertExactJson(['data' => ['quotes_count' => 0, 'comprobantes_count' => 0]]);
+    }
+
+    public function test_delete_summary_counts_comprobantes_of_the_customer(): void
+    {
+        $customer = Customer::create(['name' => 'Cliente Frecuente']);
+        $otherCustomer = Customer::create(['name' => 'Otro Cliente']);
+
+        $this->createComprobanteFor($customer, 'CF-0001');
+        $this->createComprobanteFor($otherCustomer, 'CF-0002');
+
+        $this->getJson("/api/customers/{$customer->id}/delete-summary")
+            ->assertOk()
+            ->assertExactJson(['data' => ['quotes_count' => 1, 'comprobantes_count' => 1]]);
     }
 
     private function createQuoteFor(Customer $customer, string $folio): Quote
@@ -141,6 +155,23 @@ class CustomerApiTest extends TestCase
             'folio' => $folio,
             'customer_id' => $customer->id,
             'quote_status_id' => $status->id,
+            'subtotal' => 100,
+            'total' => 100,
+        ]);
+    }
+
+    /**
+     * Todo comprobante sale de una cotización: también suma a quotes_count.
+     */
+    private function createComprobanteFor(Customer $customer, string $folio): Comprobante
+    {
+        $quote = $this->createQuoteFor($customer, 'COT-'.$folio);
+
+        return Comprobante::create([
+            'folio' => $folio,
+            'quote_id' => $quote->id,
+            'customer_id' => $customer->id,
+            'date' => '2026-10-26',
             'subtotal' => 100,
             'total' => 100,
         ]);

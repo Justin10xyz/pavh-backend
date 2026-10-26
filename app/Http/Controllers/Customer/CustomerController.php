@@ -56,11 +56,12 @@ class CustomerController extends Controller
      */
     public function deleteSummary(Customer $customer): JsonResponse
     {
-        $customer->loadCount('quotes');
+        $customer->loadCount(['quotes', 'comprobantes']);
 
         return response()->json([
             'data' => [
                 'quotes_count' => $customer->quotes_count,
+                'comprobantes_count' => $customer->comprobantes_count,
             ],
         ]);
     }
