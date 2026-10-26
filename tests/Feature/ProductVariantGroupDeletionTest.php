@@ -8,7 +8,6 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Quote;
 use App\Models\QuoteStatus;
-use App\Models\Sale;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
@@ -121,7 +120,7 @@ class ProductVariantGroupDeletionTest extends TestCase
             ->assertJsonValidationErrors(['variant_ids.0']);
     }
 
-    public function test_deleted_variants_remain_visible_with_trashed_in_quotes_and_sales(): void
+    public function test_deleted_variants_remain_visible_with_trashed_in_quotes(): void
     {
         $product = $this->createProduct();
         $this->createVariant($product, 'Taupe', '60X120');
@@ -142,15 +141,6 @@ class ProductVariantGroupDeletionTest extends TestCase
             'line_total' => 516.96,
         ]);
 
-        $sale = Sale::create(['folio' => 'VEN-0001', 'subtotal' => 516.96, 'total' => 516.96]);
-        $sale->items()->create([
-            'product_variant_id' => $discontinued->id,
-            'boxes' => 1,
-            'quantity' => 1.44,
-            'unit_price' => 359.00,
-            'line_total' => 516.96,
-        ]);
-
         $this->deleteJson("/api/products/{$product->id}/variants", [
             'variant_ids' => [$discontinued->id],
         ])->assertNoContent();
@@ -162,7 +152,7 @@ class ProductVariantGroupDeletionTest extends TestCase
             $quoteItem->productVariant()->withTrashed()->first()?->id,
         );
 
-        $this->getJson("/api/sales/{$sale->id}")
+        $this->getJson("/api/quotes/{$quote->id}")
             ->assertOk()
             ->assertJsonPath('data.items.0.product_variant.id', $discontinued->id)
             ->assertJsonPath('data.items.0.product_variant.size', '30X60');

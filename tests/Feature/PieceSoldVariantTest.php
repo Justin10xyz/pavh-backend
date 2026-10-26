@@ -9,7 +9,6 @@ use App\Models\QuoteStatus;
 use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
-use App\Services\DocumentPdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -29,7 +28,7 @@ class PieceSoldVariantTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::create(['name' => $name]);
         }
     }
@@ -389,24 +388,6 @@ class PieceSoldVariantTest extends TestCase
             ->assertJsonPath('data.items.1.product_variant.product.unit_type', 'm2');
     }
 
-    public function test_sale_detail_exposes_each_variant_unit_type(): void
-    {
-        $pieceVariant = $this->createPieceVariant();
-        $m2Variant = $this->createM2Variant();
-
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [
-                ['product_variant_id' => $pieceVariant->id, 'boxes' => 3, 'unit_price' => 85.50],
-                ['product_variant_id' => $m2Variant->id, 'boxes' => 2, 'unit_price' => 359.00],
-            ],
-        ])->assertCreated()->json('data.id');
-
-        $this->getJson("/api/sales/{$saleId}")
-            ->assertOk()
-            ->assertJsonPath('data.items.0.product_variant.product.unit_type', 'pieza')
-            ->assertJsonPath('data.items.1.product_variant.product.unit_type', 'm2');
-    }
-
     public function test_it_quotes_a_piece_variant_without_m2_per_box(): void
     {
         $variant = $this->createPieceVariant();
@@ -438,81 +419,5 @@ class PieceSoldVariantTest extends TestCase
 
         $this->assertEqualsWithDelta(4, (float) $response->json('data.items.0.quantity'), 0.0001);
         $this->assertEqualsWithDelta(342.00, (float) $response->json('data.total'), 0.0001);
-    }
-
-    public function test_convert_suggests_the_price_per_piece(): void
-    {
-        $variant = $this->createPieceVariant();
-
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3]],
-        ])->assertCreated()->json('data.id');
-
-        $item = $this->getJson("/api/quotes/{$quoteId}/convert")->assertOk()->json('data.items.0');
-
-        $this->assertSame(3, $item['boxes']);
-        $this->assertEqualsWithDelta(85.50, (float) $item['unit_price'], 0.0001);
-    }
-
-    public function test_it_sells_a_piece_variant_and_decrements_stock(): void
-    {
-        $variant = $this->createPieceVariant(stock: 20);
-
-        $response = $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 7, 'unit_price' => 80.00]],
-        ])->assertCreated();
-
-        $item = $response->json('data.items.0');
-
-        $this->assertSame(7, $item['boxes']);
-        $this->assertEqualsWithDelta(7, (float) $item['quantity'], 0.0001);
-        $this->assertEqualsWithDelta(560.00, (float) $item['line_total'], 0.0001);
-        $this->assertEqualsWithDelta(560.00, (float) $response->json('data.total'), 0.0001);
-
-        $this->assertSame(13, $variant->fresh()->stock_boxes);
-        $this->assertDatabaseHas('stock_movements', [
-            'product_variant_id' => $variant->id,
-            'type' => 'subtract',
-            'quantity' => 7,
-            'source' => 'sale',
-        ]);
-    }
-
-    public function test_it_rejects_a_piece_sale_with_insufficient_stock(): void
-    {
-        $variant = $this->createPieceVariant(stock: 2);
-
-        $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 3, 'unit_price' => 85.50]],
-        ])->assertUnprocessable();
-
-        $this->assertSame(2, $variant->fresh()->stock_boxes);
-    }
-
-    public function test_pdf_reports_piece_lines_in_units(): void
-    {
-        $variant = $this->createPieceVariant();
-
-        $saleId = $this->postJson('/api/sales', [
-            'items' => [['product_variant_id' => $variant->id, 'boxes' => 5, 'unit_price' => 85.50]],
-        ])->assertCreated()->json('data.id');
-
-        $captured = null;
-        $this->mock(DocumentPdfGenerator::class, function ($mock) use (&$captured) {
-            $mock->shouldReceive('generate')->once()->andReturnUsing(function (array $document) use (&$captured) {
-                $captured = $document;
-
-                return '%PDF-fake';
-            });
-        });
-
-        $this->get("/api/sales/{$saleId}/pdf")->assertOk();
-
-        $this->assertSame('uds', $captured['items'][0]['unit']);
-
-        $html = view('pdf.document', ['document' => $captured])->render();
-
-        $this->assertMatchesRegularExpression('/\b5 uds\./u', $html);
-        $this->assertDoesNotMatchRegularExpression('/m²/u', $html);
     }
 }

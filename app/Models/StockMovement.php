@@ -17,14 +17,12 @@ use LogicException;
  * @property int $quantity
  * @property string $type
  * @property string $source
- * @property int|null $sale_id
  * @property int|null $quote_id
  * @property int|null $resulting_stock
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read ProductVariant|null $productVariant
  * @property-read Quote|null $quote
- * @property-read Sale|null $sale
  * @property-read SimpleProduct|null $simpleProduct
  *
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement newModelQuery()
@@ -35,7 +33,6 @@ use LogicException;
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereProductVariantId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereQuantity($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereResultingStock($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSaleId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSimpleProductId($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereSource($value)
  * @method static \Illuminate\Database\Eloquent\Builder<static>|StockMovement whereType($value)
@@ -49,7 +46,6 @@ use LogicException;
     'quantity',
     'type',
     'source',
-    'sale_id',
     'quote_id',
     'resulting_stock',
 ])]
@@ -65,7 +61,7 @@ class StockMovement extends Model
      * todo el stock que tenía (type 'subtract') y lo deja sin seguimiento.
      * 'quote_payment' es la salida al marcar pagada una cotización.
      */
-    public const SOURCES = ['initial', 'manual', 'sale', 'deactivated', 'quote_payment'];
+    public const SOURCES = ['initial', 'manual', 'deactivated', 'quote_payment'];
 
     protected function casts(): array
     {
@@ -89,14 +85,6 @@ class StockMovement extends Model
     public function simpleProduct(): BelongsTo
     {
         return $this->belongsTo(SimpleProduct::class);
-    }
-
-    /**
-     * @return BelongsTo<Sale, $this>
-     */
-    public function sale(): BelongsTo
-    {
-        return $this->belongsTo(Sale::class);
     }
 
     /**
@@ -130,7 +118,6 @@ class StockMovement extends Model
         string $type,
         int $quantity,
         string $source,
-        ?Sale $sale = null,
         ?Quote $quote = null,
     ): self {
         if (! in_array($type, self::TYPES, true)) {
@@ -170,10 +157,6 @@ class StockMovement extends Model
             throw new LogicException('Un movimiento de stock es inicial si y solo si el producto no lleva seguimiento de stock.');
         }
 
-        if (($source === 'sale') !== ($sale !== null)) {
-            throw new LogicException('Un movimiento de stock lleva venta si y solo si su origen es una venta.');
-        }
-
         if (($source === 'quote_payment') !== ($quote !== null)) {
             throw new LogicException('Un movimiento de stock lleva cotización si y solo si su origen es el pago de una cotización.');
         }
@@ -187,7 +170,7 @@ class StockMovement extends Model
             throw new LogicException('Un movimiento de stock debe apuntar exactamente a una variante o a un producto simple.');
         }
 
-        return DB::transaction(function () use ($stockable, $type, $quantity, $source, $sale, $quote, $attributes, $column) {
+        return DB::transaction(function () use ($stockable, $type, $quantity, $source, $quote, $attributes, $column) {
             // increment() sobre NULL deja NULL en SQL: se parte de 0.
             if ($source === 'initial') {
                 $stockable->update([$column => 0]);
@@ -206,7 +189,6 @@ class StockMovement extends Model
                 'quantity' => $quantity,
                 'type' => $type,
                 'source' => $source,
-                'sale_id' => $sale?->id,
                 'quote_id' => $quote?->id,
                 'resulting_stock' => $stockable->{$column},
             ]);

@@ -25,8 +25,6 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Collection<int, Quote> $quotes
  * @property-read int|null $quotes_count
- * @property-read Collection<int, Sale> $sales
- * @property-read int|null $sales_count
  *
  * @method static Builder<static>|Customer newModelQuery()
  * @method static Builder<static>|Customer newQuery()
@@ -60,14 +58,6 @@ class Customer extends Model
     public function quotes(): HasMany
     {
         return $this->hasMany(Quote::class);
-    }
-
-    /**
-     * @return HasMany<Sale, $this>
-     */
-    public function sales(): HasMany
-    {
-        return $this->hasMany(Sale::class);
     }
 
     /**

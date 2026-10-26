@@ -39,7 +39,6 @@ use Illuminate\Support\Carbon;
  * @property-read int|null $items_count
  * @property-read Comprobante|null $comprobante
  * @property-read QuoteStatus $quoteStatus
- * @property-read Sale|null $sale
  *
  * @method static Builder<static>|Quote forCustomer(?int $customerId)
  * @method static Builder<static>|Quote newModelQuery()
@@ -145,17 +144,6 @@ class Quote extends Model
     }
 
     /**
-     * Venta en la que se convirtió (sales.quote_id). Solo existe en estado
-     * Convertida: una cotización se convierte una sola vez.
-     *
-     * @return HasOne<Sale, $this>
-     */
-    public function sale(): HasOne
-    {
-        return $this->hasOne(Sale::class);
-    }
-
-    /**
      * Comprobante generado desde esta cotización (comprobantes.quote_id,
      * UNIQUE): a lo más uno por cotización.
      *
@@ -167,29 +155,9 @@ class Quote extends Model
     }
 
     /**
-     * Solo una cotización en Borrador puede convertirse a venta. Cualquier
-     * otro estado (incluidos los que se agreguen después al catálogo) se
-     * rechaza; devuelve el mensaje de rechazo, o null si se puede convertir.
-     */
-    public function conversionBlockedMessage(): ?string
-    {
-        // Pagada: su stock ya se descontó; convertirla a venta lo descontaría
-        // otra vez.
-        if ($this->paid_at !== null) {
-            return 'Esta cotización ya fue pagada y no se puede convertir a venta.';
-        }
-
-        return match ($this->quoteStatus->name) {
-            'Borrador' => null,
-            'Convertida' => 'Esta cotización ya fue convertida a venta.',
-            'Cancelada' => 'Esta cotización está cancelada y no se puede convertir a venta.',
-            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede convertir a venta.",
-        };
-    }
-
-    /**
-     * Mismo criterio que conversionBlockedMessage(): solo Borrador se puede
-     * cancelar y cualquier otro estado se rechaza.
+     * Solo una cotización en Borrador se puede cancelar; cualquier otro estado
+     * (incluidos los que se agreguen después al catálogo) se rechaza. Devuelve
+     * el mensaje de rechazo, o null si se puede cancelar.
      */
     public function cancellationBlockedMessage(): ?string
     {
@@ -200,14 +168,13 @@ class Quote extends Model
 
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
-            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede cancelar.',
             'Cancelada' => 'Esta cotización ya está cancelada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede cancelar.",
         };
     }
 
     /**
-     * Mismo criterio que conversionBlockedMessage(): solo una cotización en
+     * Mismo criterio que cancellationBlockedMessage(): solo una cotización en
      * Borrador se puede marcar como pagada, y una sola vez (el pago descuenta
      * su stock).
      */
@@ -219,7 +186,6 @@ class Quote extends Model
 
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
-            'Convertida' => 'Esta cotización ya fue convertida a venta y no se puede marcar como pagada.',
             'Cancelada' => 'Esta cotización está cancelada y no se puede marcar como pagada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede marcar como pagada.",
         };
@@ -227,18 +193,14 @@ class Quote extends Model
 
     /**
      * No se puede eliminar una cotización pagada (su stock ya se descontó) ni
-     * una que ya originó una venta o un comprobante: esos documentos la
-     * referencian. Cuenta también ventas y comprobantes dados de baja, que
-     * se siguen pudiendo consultar con su cotización.
+     * una que ya originó un comprobante: ese documento la referencia. Cuenta
+     * también comprobantes dados de baja, que se siguen pudiendo consultar
+     * con su cotización.
      */
     public function deletionBlockedMessage(): ?string
     {
         if ($this->paid_at !== null) {
             return 'Esta cotización ya fue pagada y no se puede eliminar.';
-        }
-
-        if ($this->sale()->withTrashed()->exists()) {
-            return 'Esta cotización ya fue convertida a venta y no se puede eliminar.';
         }
 
         if ($this->comprobante()->withTrashed()->exists()) {

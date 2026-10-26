@@ -117,13 +117,10 @@ class ProductVariantController extends Controller
 
     /**
      * Historial completo, sin paginar (mismo criterio que los demás listados).
-     * La venta se carga con withTrashed() para conservar el folio aunque la
-     * venta se haya dado de baja.
      */
     public function stockMovements(ProductVariant $productVariant): AnonymousResourceCollection
     {
         $movements = $productVariant->stockMovements()
-            ->with(['sale' => fn ($query) => $query->withTrashed()])
             ->latest()
             ->latest('id')
             ->get();

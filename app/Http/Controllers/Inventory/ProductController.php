@@ -9,7 +9,6 @@ use App\Http\Resources\Inventory\ProductResource;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Quote;
-use App\Models\Sale;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -80,7 +79,7 @@ class ProductController extends Controller
      * Payload de solo lectura para el ConfirmDialog de borrado, mismo contrato
      * que GET /api/customers/{id}/delete-summary. Es informativo: DELETE
      * /api/products/{product} no se bloquea aunque haya registros asociados.
-     * Cuenta cotizaciones/ventas distintas con al menos una línea de alguna
+     * Cuenta cotizaciones distintas con al menos una línea de alguna
      * variante del piso, incluidas las variantes ya dadas de baja una por una.
      */
     public function deleteSummary(Product $product): JsonResponse
@@ -92,7 +91,6 @@ class ProductController extends Controller
         return response()->json([
             'data' => [
                 'quotes_count' => Quote::whereHas('items', $referencesVariants)->count(),
-                'sales_count' => Sale::whereHas('items', $referencesVariants)->count(),
             ],
         ]);
     }

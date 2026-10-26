@@ -46,14 +46,8 @@ class QuoteResource extends JsonResource
             'paid_by' => $this->paid_by,
             'created_by' => $this->created_by,
             'items' => QuoteItemResource::collection($this->whenLoaded('items')),
-            // Solo id+folio, para enlazar a la venta desde el detalle. null si
-            // la relación se cargó pero la cotización no se ha convertido.
-            'sale' => $this->whenLoaded('sale', fn () => $this->sale ? [
-                'id' => $this->sale->id,
-                'folio' => $this->sale->folio,
-            ] : null),
-            // Igual que `sale`: id+folio del comprobante generado, null si la
-            // relación se cargó pero la cotización no se ha convertido.
+            // Solo id+folio, para enlazar al comprobante desde el detalle. null
+            // si la relación se cargó pero la cotización no se ha convertido.
             'comprobante' => $this->whenLoaded('comprobante', fn () => $this->comprobante ? [
                 'id' => $this->comprobante->id,
                 'folio' => $this->comprobante->folio,

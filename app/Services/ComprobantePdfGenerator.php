@@ -6,8 +6,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 /**
  * Genera el PDF del Comprobante Fiscal Simplificado, con el formato del papel
- * membretado. Mismo criterio que DocumentPdfGenerator: recibe una estructura
- * neutral armada por el controlador, no modelos Eloquent. Ningún dato faltante
+ * membretado. Recibe una estructura neutral armada por el controlador, no
+ * modelos Eloquent. Ningún dato faltante
  * bloquea la generación: los campos null se dejan en blanco.
  *
  * [
@@ -26,7 +26,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   ] | null,
  *   'items' => [[
  *     'description' => string, // variante: "línea color medida"; producto simple: su nombre
- *     'unit' => 'm2' | 'uds',  // mismo criterio que DocumentPdfGenerator
+ *     'unit' => 'm2' | 'uds',  // variante: cajas + m²; producto simple o variante por pieza: unidades
  *     'boxes' => ?int,
  *     'quantity' => float,
  *     'unit_price' => float,

@@ -14,7 +14,6 @@ use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
 use App\Http\Controllers\Quote\QuoteController;
 use App\Http\Controllers\Report\ComprobanteReportController;
-use App\Http\Controllers\Sale\SaleController;
 use App\Http\Controllers\Settings\BusinessSettingController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -45,15 +44,11 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/customers/{customer}/delete-summary', [CustomerController::class, 'deleteSummary']);
     Route::apiResource('customers', CustomerController::class);
 
-    Route::get('/quotes/{quote}/convert', [QuoteController::class, 'convert']);
     Route::get('/quotes/{quote}/to-comprobante', [QuoteController::class, 'toComprobante']);
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
     Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);
     Route::patch('/quotes/{quote}/mark-paid', [QuoteController::class, 'markPaid']);
     Route::apiResource('quotes', QuoteController::class);
-
-    Route::get('/sales/{sale}/pdf', [SaleController::class, 'downloadPdf']);
-    Route::apiResource('sales', SaleController::class)->only(['index', 'show', 'store']);
 
     Route::get('/comprobantes/{comprobante}/pdf', [ComprobanteController::class, 'downloadPdf']);
     Route::get('/comprobantes', [ComprobanteController::class, 'index']);

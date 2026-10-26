@@ -12,7 +12,7 @@ class QuoteStatusSeeder extends Seeder
      */
     public function run(): void
     {
-        foreach (['Borrador', 'Pagada', 'Convertida', 'Cancelada'] as $name) {
+        foreach (['Borrador', 'Pagada', 'Cancelada'] as $name) {
             QuoteStatus::updateOrCreate(['name' => $name]);
         }
     }
