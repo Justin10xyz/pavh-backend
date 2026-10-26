@@ -32,6 +32,7 @@ use Illuminate\Support\Carbon;
  * @property-read Quote|null $quote
  *
  * @method static Builder<static>|Comprobante dateRange(?string $from, ?string $to)
+ * @method static Builder<static>|Comprobante forCustomer(?int $customerId)
  * @method static Builder<static>|Comprobante newModelQuery()
  * @method static Builder<static>|Comprobante newQuery()
  * @method static Builder<static>|Comprobante onlyTrashed()
@@ -114,5 +115,18 @@ class Comprobante extends Model
         return $query
             ->when($from, fn (Builder $query) => $query->whereDate('date', '>=', $from))
             ->when($to, fn (Builder $query) => $query->whereDate('date', '<=', $to));
+    }
+
+    /**
+     * customer_id nulo no filtra. No excluye clientes dados de baja: su
+     * historial de comprobantes se sigue pudiendo consultar. Mismo criterio que
+     * Quote::scopeForCustomer().
+     *
+     * @param  Builder<Comprobante>  $query
+     * @return Builder<Comprobante>
+     */
+    public function scopeForCustomer(Builder $query, ?int $customerId): Builder
+    {
+        return $query->when($customerId, fn (Builder $query) => $query->where('customer_id', $customerId));
     }
 }
