@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Services\VariantCodeGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class VariantCodeGeneratorTest extends TestCase
@@ -74,5 +75,33 @@ class VariantCodeGeneratorTest extends TestCase
         $code = $this->generator->generate($this->product, 'Grayson', '60x120');
 
         $this->assertSame('PIS-CREATO-GRA2-60X120', $code);
+    }
+
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function colorsWithAccentsProvider(): array
+    {
+        return [
+            'ñ en la tercera letra' => ['Piñon', 'PIS-CREATO-PIN-60X120'],
+            'vocal acentuada en la tercera letra' => ['Olíva', 'PIS-CREATO-OLI-60X120'],
+            'ñ en la segunda letra' => ['Añil', 'PIS-CREATO-ANI-60X120'],
+            'vocal acentuada en la primera letra' => ['Ámbar', 'PIS-CREATO-AMB-60X120'],
+        ];
+    }
+
+    #[DataProvider('colorsWithAccentsProvider')]
+    public function test_removes_accents_from_color_segment(string $color, string $expectedCode): void
+    {
+        $this->assertSame($expectedCode, $this->generator->generate($this->product, $color, '60x120'));
+    }
+
+    public function test_removes_accents_when_collision_extends_color_to_four_letters(): void
+    {
+        $this->saveVariant('PIS-CREATO-CAF-60X120', 'Cafetal', '60X120');
+
+        $code = $this->generator->generate($this->product, 'Café', '60x120');
+
+        $this->assertSame('PIS-CREATO-CAFE-60X120', $code);
     }
 }
