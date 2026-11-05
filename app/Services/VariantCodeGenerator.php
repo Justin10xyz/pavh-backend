@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use Illuminate\Support\Str;
 
 class VariantCodeGenerator
 {
@@ -45,7 +46,9 @@ class VariantCodeGenerator
     {
         $firstWord = strtok(trim($color), ' ');
 
-        return strtoupper(substr($firstWord, 0, $length));
+        // Str::ascii antes de cortar: substr() trabaja por bytes y partiría una
+        // "ñ" o vocal acentuada, generando un código que MySQL rechaza.
+        return strtoupper(substr(Str::ascii($firstWord), 0, $length));
     }
 
     private function normalizeSize(string $size): string
