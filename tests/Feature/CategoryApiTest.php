@@ -420,4 +420,75 @@ class CategoryApiTest extends TestCase
             'price' => 185,
         ]);
     }
+
+    public function test_it_creates_a_simple_category_without_code_prefix(): void
+    {
+        $this->postJson('/api/categories', ['name' => 'Adhesivos', 'product_form_type' => 'simple'])
+            ->assertCreated()
+            ->assertJsonPath('data.code_prefix', null);
+
+        // Varias categorías General sin prefijo no chocan con el unique.
+        $this->postJson('/api/categories', ['name' => 'Boquillas', 'code_prefix' => '', 'product_form_type' => 'simple'])
+            ->assertCreated()
+            ->assertJsonPath('data.code_prefix', null);
+
+        $this->assertDatabaseHas('categories', ['name' => 'Adhesivos', 'code_prefix' => null]);
+    }
+
+    public function test_it_rejects_a_variant_category_without_code_prefix(): void
+    {
+        foreach ([['product_form_type' => 'variant'], []] as $extra) {
+            $this->postJson('/api/categories', ['name' => 'Pisos', ...$extra])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.code_prefix.0', 'El prefijo es obligatorio en categorías de tipo Pisos.');
+        }
+
+        $this->assertDatabaseCount('categories', 0);
+    }
+
+    public function test_it_rejects_a_code_prefix_with_dots_or_digits_with_a_clear_message(): void
+    {
+        $message = 'El prefijo solo puede llevar letras de la A a la Z y guiones, máximo 10 caracteres. Ejemplo: PIS.';
+
+        foreach (['AB.ADHE.GRIS.20KGS.NORM', 'PIS.POR', 'PIS2'] as $codePrefix) {
+            $this->postJson('/api/categories', ['name' => 'Pisos', 'code_prefix' => $codePrefix])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.code_prefix.0', $message);
+
+            // Aunque sea General, si se captura un prefijo se valida igual.
+            $this->postJson('/api/categories', ['name' => 'Adhesivos', 'code_prefix' => $codePrefix, 'product_form_type' => 'simple'])
+                ->assertUnprocessable()
+                ->assertJsonPath('errors.code_prefix.0', $message);
+        }
+
+        $this->postJson('/api/categories', ['name' => 'Pisos', 'code_prefix' => 'ABCDEFGHIJK'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code_prefix.0', $message);
+    }
+
+    public function test_it_updates_a_simple_category_without_code_prefix(): void
+    {
+        $category = Category::create(['name' => 'Adhesivos', 'product_form_type' => 'simple']);
+
+        $this->putJson("/api/categories/{$category->id}", ['name' => 'Adhesivos y boquillas'])
+            ->assertOk()
+            ->assertJsonPath('data.code_prefix', null);
+    }
+
+    public function test_it_requires_code_prefix_when_updating_a_variant_category_or_changing_to_variant(): void
+    {
+        $variant = Category::create(['name' => 'Pisos', 'code_prefix' => 'PI']);
+
+        $this->putJson("/api/categories/{$variant->id}", ['name' => 'Pisos'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.code_prefix.0', 'El prefijo es obligatorio en categorías de tipo Pisos.');
+
+        $simple = Category::create(['name' => 'Adhesivos', 'product_form_type' => 'simple']);
+
+        $this->putJson("/api/categories/{$simple->id}", ['name' => 'Adhesivos', 'product_form_type' => 'variant'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['code_prefix']);
+
+        $this->assertDatabaseHas('categories', ['id' => $simple->id, 'product_form_type' => 'simple']);
+    }
 }

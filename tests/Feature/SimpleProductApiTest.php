@@ -350,4 +350,15 @@ class SimpleProductApiTest extends TestCase
 
         $this->assertDatabaseHas('simple_products', ['id' => $simpleProduct->id, 'stock_quantity' => 12]);
     }
+
+    public function test_it_accepts_a_full_supplier_code_with_dots(): void
+    {
+        $this->postJson('/api/simple-products', [
+            'category_id' => $this->simpleCategory->id,
+            'code' => 'AB.ADHE.GRIS.20KG.MAES',
+            'name' => 'Adhesivo gris 20kg maestro',
+            'price' => 189.50,
+        ])->assertCreated()
+            ->assertJsonPath('data.code', 'AB.ADHE.GRIS.20KG.MAES');
+    }
 }
