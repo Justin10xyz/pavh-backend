@@ -34,7 +34,9 @@ class UpdateCategoryRequest extends FormRequest
 
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('categories', 'name')->ignore($category->id)->withoutTrashed()],
-            'code_prefix' => ['required', 'string', 'max:10', 'regex:/^[A-Z]+(-[A-Z]+)*$/', Rule::unique('categories', 'code_prefix')->ignore($category->id)->withoutTrashed()],
+            // El prefijo solo se usa para autogenerar códigos de variantes (VariantCodeGenerator),
+            // así que es obligatorio en Pisos (variant) y opcional en General (simple).
+            'code_prefix' => ['nullable', Rule::requiredIf(fn () => $this->input('product_form_type', $category->product_form_type) === 'variant'), 'string', 'max:10', 'regex:/^[A-Z]+(-[A-Z]+)*$/', Rule::unique('categories', 'code_prefix')->ignore($category->id)->withoutTrashed()],
             'product_form_type' => ['sometimes', 'string', Rule::in(['variant', 'simple'])],
         ];
     }
@@ -43,6 +45,11 @@ class UpdateCategoryRequest extends FormRequest
     {
         return [
             'name.unique' => __('validation.custom.categories.name.unique'),
+            'code_prefix.required' => __('validation.custom.categories.code_prefix.required'),
+            'code_prefix.string' => __('validation.custom.categories.code_prefix.format'),
+            'code_prefix.max' => __('validation.custom.categories.code_prefix.format'),
+            'code_prefix.regex' => __('validation.custom.categories.code_prefix.format'),
+            'code_prefix.unique' => __('validation.custom.categories.code_prefix.unique'),
         ];
     }
 }

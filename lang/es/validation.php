@@ -204,6 +204,11 @@ return [
             'name' => [
                 'unique' => 'Ya existe una categoría con ese nombre.',
             ],
+            'code_prefix' => [
+                'required' => 'El prefijo es obligatorio en categorías de tipo Pisos.',
+                'format' => 'El prefijo solo puede llevar letras de la A a la Z y guiones, máximo 10 caracteres. Ejemplo: PIS.',
+                'unique' => 'Ya existe una categoría con ese prefijo.',
+            ],
         ],
         'suppliers' => [
             'name' => [

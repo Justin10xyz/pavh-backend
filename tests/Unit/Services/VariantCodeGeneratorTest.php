@@ -9,6 +9,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Services\VariantCodeGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
@@ -103,5 +104,18 @@ class VariantCodeGeneratorTest extends TestCase
         $code = $this->generator->generate($this->product, 'Café', '60x120');
 
         $this->assertSame('PIS-CREATO-CAFE-60X120', $code);
+    }
+
+    public function test_fails_with_a_clear_message_when_the_category_has_no_prefix(): void
+    {
+        $this->product->category->update(['code_prefix' => null]);
+        $this->product->refresh();
+
+        try {
+            $this->generator->generate($this->product, 'Taupe', '60x120');
+            $this->fail('Se esperaba una ValidationException.');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('no tiene prefijo de código', $e->errors()['product_id'][0]);
+        }
     }
 }
