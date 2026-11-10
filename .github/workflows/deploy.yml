@@ -2,19 +2,33 @@ name: Deploy to production
 
 on:
   push:
-    branches: [main]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag a desplegar (rollback: una versión anterior, ej. v1.2.0)'
+        required: true
 
 concurrency:
   group: deploy-backend-production
   cancel-in-progress: false
+
+permissions:
+  contents: read
+
 
 jobs:
   deploy:
     name: Deploy backend to innovapisos.app
     runs-on: ubuntu-latest
     environment: production
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      - name: Validate tag
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Tag inválido: $TAG"; exit 1; }
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -24,4 +38,21 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           command_timeout: 10m
           script_stop: true
-          script: bash ~/scripts/deploy-backend.sh
+          envs: TAG
+          script: bash ~/scripts/deploy-backend.sh "$TAG"
+
+
+  release:
+    needs: deploy
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Create GitHub Release
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+            gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
