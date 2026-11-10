@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property string $name
- * @property string $code_prefix
+ * @property string|null $code_prefix
  * @property string $product_form_type
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at

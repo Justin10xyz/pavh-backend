@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class VariantCodeGenerator
 {
@@ -14,6 +15,15 @@ class VariantCodeGenerator
     public function generate(Product $product, string $color, string $size): string
     {
         $prefix = $product->category->code_prefix;
+
+        // El prefijo es opcional en categorías General; si una de Pisos llegara
+        // a quedar sin él, mejor un 422 claro que un código "-LINEA-COLOR-MEDIDA".
+        if ($prefix === null || $prefix === '') {
+            throw ValidationException::withMessages([
+                'product_id' => "La categoría \"{$product->category->name}\" no tiene prefijo de código. Captúralo en Configuración → Categorías antes de agregar variantes.",
+            ]);
+        }
+
         $line = $this->normalizeLine($product->name);
         $sizeSegment = $this->normalizeSize($size);
 
