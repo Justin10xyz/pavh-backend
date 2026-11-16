@@ -5,28 +5,33 @@
     (['width' => pt, 'height' => pt]).
 --}}
 /*
- * Fuentes: mismas que el frontend (Inter), copiadas de @fontsource a
- * resources/fonts. dompdf no soporta woff2, por eso se usan los .woff (subset
- * latin, que cubre acentos y ñ). Si una fuente no carga, dompdf cae a
- * Helvetica.
+ * Fuentes: mismas que el frontend (Inter), TTF estáticos (no variable) del
+ * release oficial de Inter (github.com/rsms/inter, extras/ttf) en
+ * resources/fonts. Si una fuente no carga, dompdf cae a Helvetica.
  *
- * Ojo: NO agregar format('woff') al src — el parser de @font-face de dompdf
- * 3.x descarta en silencio cualquier fuente cuyo format() no sea 'truetype'.
- * Sin format() la toma como truetype y php-font-lib detecta que es WOFF por
- * el encabezado del archivo.
+ * Tienen que ser TrueType: dompdf no convierte WOFF/WOFF2, los incrusta tal
+ * cual en /FontFile2 y el visor de iOS (Quick Look) los rechaza y muestra
+ * símbolos raros, aunque en escritorio se vean bien. Tampoco usar la versión
+ * variable (InterVariable): dompdf solo toma la instancia por defecto.
+ *
+ * El parser de @font-face de dompdf 3.x descarta en silencio cualquier
+ * fuente cuyo format() no sea 'truetype'.
  *
  * Inter 600 se registra como 'bold' porque dompdf solo distingue
  * normal/bold.
+ *
+ * Al cambiar estos archivos, borrar la caché de dompdf (storage/fonts/inter_*)
+ * para que regenere los .ufm.
  */
 @font-face {
     font-family: 'Inter';
     font-weight: normal;
-    src: url('{{ resource_path('fonts/inter-latin-400-normal.woff') }}');
+    src: url('{{ resource_path('fonts/Inter-Regular.ttf') }}') format('truetype');
 }
 @font-face {
     font-family: 'Inter';
     font-weight: bold;
-    src: url('{{ resource_path('fonts/inter-latin-600-normal.woff') }}');
+    src: url('{{ resource_path('fonts/Inter-SemiBold.ttf') }}') format('truetype');
 }
 
 @page {
