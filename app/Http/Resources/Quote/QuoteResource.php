@@ -37,6 +37,7 @@ class QuoteResource extends JsonResource
             'down_payment' => $this->down_payment,
             'shipping_cost' => $this->shipping_cost,
             // Mismo formato de string con 2 decimales que los montos con cast decimal:2.
+            'installments_total' => number_format($this->installmentsTotal(), 2, '.', ''),
             'balance' => number_format($this->balance(), 2, '.', ''),
             'payment_terms' => $this->payment_terms,
             // Solo día: sin hora ni zona, para que no se recorra al serializar.
@@ -46,6 +47,7 @@ class QuoteResource extends JsonResource
             'paid_by' => $this->paid_by,
             'created_by' => $this->created_by,
             'items' => QuoteItemResource::collection($this->whenLoaded('items')),
+            'installments' => QuoteInstallmentResource::collection($this->whenLoaded('installments')),
             // Solo id+folio, para enlazar al comprobante desde el detalle. null
             // si la relación se cargó pero la cotización no se ha convertido.
             'comprobante' => $this->whenLoaded('comprobante', fn () => $this->comprobante ? [
