@@ -31,7 +31,11 @@ use Barryvdh\DomPDF\Facade\Pdf;
  *   'shipping_cost' => float, // 0 si no aplica; solo se muestra si > 0
  *   'total' => float,         // quotes.total tal cual: subtotal - descuento + envío
  *   'down_payment' => float,  // 0 si no aplica; solo se muestra si > 0
- *   'balance' => float,       // total - anticipo; puede ser negativo
+ *   'installments_total' => float, // abonos vigentes; 0 si no hay; fila solo si > 0
+ *   'installments' => [         // abonos vigentes, del más antiguo al más reciente;
+ *     ['date' => string, 'amount' => float], ...  // date ya formateada (d/m/Y)
+ *   ],                          // el pie muestra a lo más los 5 más recientes
+ *   'balance' => float,       // total - anticipo - abonos; puede ser negativo
  *   'payment_terms' => 'cash' | 'credit',
  *   'credit_due_date' => ?string, // ya formateada; solo con crédito
  * ]

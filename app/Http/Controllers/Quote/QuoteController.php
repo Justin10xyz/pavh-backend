@@ -436,6 +436,11 @@ class QuoteController extends Controller
             'shipping_cost' => (float) $quote->shipping_cost,
             'total' => (float) $quote->total,
             'down_payment' => (float) $quote->down_payment,
+            'installments_total' => $quote->installmentsTotal(),
+            'installments' => $quote->installments->map(fn ($installment) => [
+                'date' => $installment->payment_date->format('d/m/Y'),
+                'amount' => (float) $installment->amount,
+            ])->all(),
             'balance' => $quote->balance(),
             'payment_terms' => $quote->payment_terms,
             'credit_due_date' => $quote->credit_due_date?->format('d/m/Y'),
