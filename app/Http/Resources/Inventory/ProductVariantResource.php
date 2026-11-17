@@ -28,6 +28,7 @@ class ProductVariantResource extends JsonResource
             'price_per_box' => $this->price_per_box,
             'pieces_per_box' => $this->pieces_per_box,
             'm2_per_box' => $this->m2_per_box,
+            'm2_per_piece' => $this->m2_per_piece,
             'kilos_per_box' => $this->kilos_per_box,
             'boxes_per_pallet' => $this->boxes_per_pallet,
             'stock_boxes' => $this->stock_boxes,

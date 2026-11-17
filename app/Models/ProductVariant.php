@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property numeric|null $price_per_box
  * @property int|null $pieces_per_box
  * @property numeric|null $m2_per_box
+ * @property numeric|null $m2_per_piece
  * @property numeric|null $kilos_per_box
  * @property int|null $boxes_per_pallet
  * @property int|null $stock_boxes
@@ -85,6 +86,7 @@ use Illuminate\Support\Carbon;
     'price_per_box',
     'pieces_per_box',
     'm2_per_box',
+    'm2_per_piece',
     'kilos_per_box',
     'boxes_per_pallet',
     'stock_boxes',
@@ -107,6 +109,7 @@ class ProductVariant extends Model
             'price_per_m2' => 'decimal:2',
             'price_per_box' => 'decimal:2',
             'm2_per_box' => 'decimal:3',
+            'm2_per_piece' => 'decimal:4',
             'kilos_per_box' => 'decimal:2',
             'stock_boxes' => 'integer',
         ];
