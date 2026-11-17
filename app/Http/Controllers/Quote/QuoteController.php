@@ -46,6 +46,7 @@ class QuoteController extends Controller
             // withTrashed por el mismo criterio que show: uno dado de baja
             // sigue ocupando el quote_id. Solo lo que usa QuoteResource.
             'comprobante' => ['comprobante' => fn ($query) => $query->withTrashed()->select(['id', 'quote_id', 'folio'])],
+            'installments' => ['installments'],
         ];
 
         // Se combinan como arreglos (no flatMap) para conservar la llave de
@@ -56,8 +57,10 @@ class QuoteController extends Controller
             ->unique()
             ->reduce(fn (array $carry, $relation) => [...$carry, ...$allowedRelations[$relation]], []);
 
+        // withSum siempre: balance() lo usa para no consultar los abonos por cotización.
         $quotes = Quote::query()
             ->when($with !== [], fn ($query) => $query->with($with))
+            ->withSum('installments', 'amount')
             ->forCustomer($request->integer('customer_id') ?: null)
             ->latest()
             ->get();
@@ -78,6 +81,7 @@ class QuoteController extends Controller
             // withTrashed: uno dado de baja sigue ocupando el quote_id
             // (UNIQUE), así que el detalle debe seguir mostrándolo.
             'comprobante' => fn ($query) => $query->withTrashed(),
+            'installments',
         ]);
 
         return new QuoteResource($quote);
@@ -191,7 +195,7 @@ class QuoteController extends Controller
             $this->createItems($quote, $lines);
         });
 
-        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($quote);
     }
@@ -222,7 +226,7 @@ class QuoteController extends Controller
 
         $quote->update(['quote_status_id' => $cancelledStatus->id]);
 
-        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($quote);
     }
@@ -337,7 +341,7 @@ class QuoteController extends Controller
             return $result;
         }
 
-        $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($result);
     }

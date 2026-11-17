@@ -37,6 +37,8 @@ use Illuminate\Support\Carbon;
  * @property-read Customer|null $customer
  * @property-read Collection<int, QuoteItem> $items
  * @property-read int|null $items_count
+ * @property-read Collection<int, QuoteInstallment> $installments
+ * @property-read numeric|null $installments_sum_amount
  * @property-read Comprobante|null $comprobante
  * @property-read QuoteStatus $quoteStatus
  *
@@ -166,6 +168,11 @@ class Quote extends Model
             return 'Esta cotización ya fue pagada y no se puede cancelar.';
         }
 
+        // Abonos vigentes: el dinero recibido no se puede quedar en una cancelada.
+        if ($this->installments()->exists()) {
+            return 'Esta cotización tiene abonos registrados; anúlalos antes de cancelarla.';
+        }
+
         return match ($this->quoteStatus->name) {
             'Borrador' => null,
             'Cancelada' => 'Esta cotización ya está cancelada.',
@@ -192,15 +199,39 @@ class Quote extends Model
     }
 
     /**
-     * No se puede eliminar una cotización pagada (su stock ya se descontó) ni
-     * una que ya originó un comprobante: ese documento la referencia. Cuenta
-     * también comprobantes dados de baja, que se siguen pudiendo consultar
-     * con su cotización.
+     * Mismo criterio que markPaidBlockedMessage(): solo una cotización en
+     * Borrador admite registrar o anular abonos. `$voiding` solo cambia la
+     * redacción (registrar/anular).
+     */
+    public function installmentBlockedMessage(bool $voiding = false): ?string
+    {
+        $action = $voiding ? 'anular' : 'registrar';
+
+        if ($this->paid_at !== null) {
+            return "Esta cotización ya fue pagada y no se le pueden {$action} abonos.";
+        }
+
+        return match ($this->quoteStatus->name) {
+            'Borrador' => null,
+            'Cancelada' => "Esta cotización está cancelada y no se le pueden {$action} abonos.",
+            default => "Esta cotización está en estado {$this->quoteStatus->name} y no se le pueden {$action} abonos.",
+        };
+    }
+
+    /**
+     * No se puede eliminar una cotización pagada (su stock ya se descontó), con
+     * abonos vigentes, ni una que ya originó un comprobante: ese documento la
+     * referencia. Cuenta también comprobantes dados de baja, que se siguen
+     * pudiendo consultar con su cotización.
      */
     public function deletionBlockedMessage(): ?string
     {
         if ($this->paid_at !== null) {
             return 'Esta cotización ya fue pagada y no se puede eliminar.';
+        }
+
+        if ($this->installments()->exists()) {
+            return 'Esta cotización tiene abonos registrados; anúlalos antes de eliminarla.';
         }
 
         if ($this->comprobante()->withTrashed()->exists()) {
@@ -229,12 +260,30 @@ class Quote extends Model
     }
 
     /**
-     * Saldo pendiente: total (ya con descuento y envío) - anticipo. Anticipo
-     * null (no aplica) cuenta como 0.
+     * Saldo pendiente: total (ya con descuento y envío) - anticipo - abonos.
+     * Anticipo null (no aplica) cuenta como 0; los abonos anulados no cuentan.
      */
     public function balance(): float
     {
-        return round((float) $this->total - (float) $this->down_payment, 2);
+        return round((float) $this->total - (float) $this->down_payment - $this->installmentsTotal(), 2);
+    }
+
+    /**
+     * Suma de los abonos vigentes, sin una consulta por cotización en un
+     * listado: usa la relación si ya está cargada, o installments_sum_amount
+     * si la consulta trajo withSum('installments', 'amount'). Solo si no hay
+     * ninguno de los dos carga la relación (una consulta, y las siguientes
+     * llamadas ya la reutilizan).
+     */
+    public function installmentsTotal(): float
+    {
+        if (! $this->relationLoaded('installments') && array_key_exists('installments_sum_amount', $this->attributes)) {
+            return round((float) $this->attributes['installments_sum_amount'], 2);
+        }
+
+        $this->loadMissing('installments');
+
+        return round((float) $this->installments->sum('amount'), 2);
     }
 
     /**
