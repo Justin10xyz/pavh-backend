@@ -157,6 +157,17 @@ class Quote extends Model
     }
 
     /**
+     * Abonos vigentes (los anulados quedan fuera por el soft delete), del más
+     * antiguo al más reciente.
+     *
+     * @return HasMany<QuoteInstallment, $this>
+     */
+    public function installments(): HasMany
+    {
+        return $this->hasMany(QuoteInstallment::class)->orderBy('payment_date')->orderBy('id');
+    }
+
+    /**
      * Solo una cotización en Borrador se puede cancelar; cualquier otro estado
      * (incluidos los que se agreguen después al catálogo) se rechaza. Devuelve
      * el mensaje de rechazo, o null si se puede cancelar.
