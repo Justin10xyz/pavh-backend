@@ -207,6 +207,8 @@ class ProductVariant extends Model
      *   atributos dejarían de tener sentido a medio editar.
      * - En un producto por pieza no se aceptan price_per_m2, m2_per_box, pei
      *   ni ett con valor. price_per_box no se exige: la fila ya lo tiene.
+     * - En un producto por m² no se acepta m2_per_piece con valor (es solo de
+     *   pisos por pieza).
      *
      * @param  array<string, mixed>  $data  Payload ya validado.
      */
@@ -223,7 +225,9 @@ class ProductVariant extends Model
         }
 
         if (! $targetProduct->isSoldByPiece()) {
-            return null;
+            return ($data['m2_per_piece'] ?? null) !== null
+                ? "La variante {$this->code} se vende por m²: no lleva m² por pieza."
+                : null;
         }
 
         $m2Attributes = array_filter(

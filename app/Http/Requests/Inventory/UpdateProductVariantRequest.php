@@ -46,6 +46,8 @@ class UpdateProductVariantRequest extends FormRequest
             'price_per_box' => ['sometimes', 'numeric'],
             'pieces_per_box' => ['sometimes', 'nullable', 'integer'],
             'm2_per_box' => ['sometimes', 'nullable', 'numeric'],
+            // Solo pisos por pieza: el guard está en ProductVariant::updateBlockedMessage().
+            'm2_per_piece' => ['sometimes', 'nullable', 'numeric', 'gt:0', 'max:9999.9999'],
             'kilos_per_box' => ['sometimes', 'nullable', 'numeric'],
             'boxes_per_pallet' => ['sometimes', 'nullable', 'integer'],
             'minimum_stock' => ['sometimes', 'nullable', 'integer'],

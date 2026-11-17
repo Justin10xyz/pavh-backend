@@ -37,7 +37,8 @@ class StoreProductVariantRequest extends FormRequest
      * padre (product_id del mismo payload). Un piso por pieza solo lleva
      * price_per_box (el precio por pieza); price_per_m2, m2_per_box, pei y
      * ett no aplican y se prohíben para no guardar datos sin sentido.
-     * face_count sí aplica a ambos tipos.
+     * m2_per_piece es lo inverso: opcional en pisos por pieza, prohibido en
+     * los de m². face_count sí aplica a ambos tipos.
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
@@ -53,6 +54,8 @@ class StoreProductVariantRequest extends FormRequest
             'price_per_box' => ['required', 'numeric'],
             'pieces_per_box' => ['nullable', 'integer'],
             'm2_per_box' => $soldByPiece ? ['prohibited'] : ['nullable', 'numeric'],
+            // Al revés que m2_per_box: solo aplica a pisos por pieza (opcional).
+            'm2_per_piece' => $soldByPiece ? ['nullable', 'numeric', 'gt:0', 'max:9999.9999'] : ['prohibited'],
             'kilos_per_box' => ['nullable', 'numeric'],
             'boxes_per_pallet' => ['nullable', 'integer'],
             'stock_boxes' => ['nullable', 'integer', 'min:0'],
