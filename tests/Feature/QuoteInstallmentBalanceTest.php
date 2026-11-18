@@ -10,6 +10,7 @@ use App\Models\SimpleProduct;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class QuoteInstallmentBalanceTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     private User $user;
 
@@ -53,6 +54,7 @@ class QuoteInstallmentBalanceTest extends TestCase
     private function createQuote(array $extra = []): Quote
     {
         $id = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             ...$extra,
             'items' => [['simple_product_id' => $this->simpleProduct->id, 'quantity' => 10]],
         ])->assertCreated()->json('data.id');

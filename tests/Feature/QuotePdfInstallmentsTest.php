@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\QuotePdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 /**
@@ -19,7 +20,7 @@ use Tests\TestCase;
  */
 class QuotePdfInstallmentsTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     private SimpleProduct $simpleProduct;
 
@@ -49,6 +50,7 @@ class QuotePdfInstallmentsTest extends TestCase
     private function createQuote(): int
     {
         return $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'down_payment' => 200,
             'items' => [['simple_product_id' => $this->simpleProduct->id, 'quantity' => 10]],
         ])->assertCreated()->json('data.id');

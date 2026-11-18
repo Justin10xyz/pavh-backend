@@ -24,9 +24,12 @@ class UpdateQuoteRequest extends FormRequest
      * Un PUT reemplaza todas las líneas de la cotización, así que items sigue
      * siendo obligatorio (no "sometimes") aunque customer_id/notes sí lo sean.
      *
-     * customer_id acepta clientes borrados a propósito: re-enviar el cliente
-     * actual (ya borrado) no debe bloquear la edición. El rechazo de un cliente
-     * borrado *nuevo* depende del modelo y vive en QuoteController@update.
+     * customer_id: si llega, no puede ser null (todo presupuesto lleva
+     * cliente). Si no llega se conserva el actual; un Borrador viejo sin
+     * cliente se rechaza en QuoteController@update. Acepta clientes borrados a
+     * propósito: re-enviar el cliente actual (ya borrado) no debe bloquear la
+     * edición. El rechazo de un cliente borrado *nuevo* depende del modelo y
+     * vive en QuoteController@update.
      *
      * Cantidad por tipo de línea: mismo contrato que StoreQuoteRequest
      * (`boxes` en variantes, `quantity` en productos simples).
@@ -44,7 +47,7 @@ class UpdateQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['sometimes', 'nullable', 'integer', Rule::exists('customers', 'id')],
+            'customer_id' => ['sometimes', 'required', 'integer', Rule::exists('customers', 'id')],
             'notes' => ['sometimes', 'nullable', 'string'],
             'discount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'down_payment' => ['sometimes', 'nullable', 'numeric', 'min:0'],
@@ -57,6 +60,16 @@ class UpdateQuoteRequest extends FormRequest
             'items.*.boxes' => ['nullable', 'required_with:items.*.product_variant_id', 'prohibits:items.*.quantity', 'integer', 'min:1'],
             'items.*.quantity' => ['nullable', 'required_with:items.*.simple_product_id', 'numeric', 'min:0.01'],
             'items.*.price_type' => ['nullable', Rule::in(SimpleProduct::PRICE_TYPES)],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'customer_id.required' => __('validation.custom.quotes.customer_id.required'),
         ];
     }
 }

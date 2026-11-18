@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 /**
@@ -19,7 +20,7 @@ use Tests\TestCase;
  */
 class PieceCoverageTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -223,6 +224,7 @@ class PieceCoverageTest extends TestCase
         $variant = $this->createPieceVariant(0.04);
 
         $response = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 6]],
         ])->assertCreated();
 
