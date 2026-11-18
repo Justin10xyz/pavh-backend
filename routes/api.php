@@ -13,6 +13,7 @@ use App\Http\Controllers\Inventory\SimpleProductController;
 use App\Http\Controllers\Inventory\SupplierController;
 use App\Http\Controllers\Inventory\UnitTypeController;
 use App\Http\Controllers\Quote\QuoteController;
+use App\Http\Controllers\Quote\QuoteInstallmentController;
 use App\Http\Controllers\Report\ComprobanteReportController;
 use App\Http\Controllers\Settings\BusinessSettingController;
 use Illuminate\Http\Request;
@@ -48,6 +49,9 @@ Route::middleware(['auth:sanctum', 'throttle:api'])->group(function () {
     Route::get('/quotes/{quote}/pdf', [QuoteController::class, 'downloadPdf']);
     Route::patch('/quotes/{quote}/cancel', [QuoteController::class, 'cancel']);
     Route::patch('/quotes/{quote}/mark-paid', [QuoteController::class, 'markPaid']);
+    Route::post('/quotes/{quote}/installments', [QuoteInstallmentController::class, 'store']);
+    // scopeBindings: un abono de otra cotización (o ya anulado) da 404.
+    Route::delete('/quotes/{quote}/installments/{installment}', [QuoteInstallmentController::class, 'destroy'])->scopeBindings();
     Route::apiResource('quotes', QuoteController::class);
 
     Route::get('/comprobantes/{comprobante}/pdf', [ComprobanteController::class, 'downloadPdf']);

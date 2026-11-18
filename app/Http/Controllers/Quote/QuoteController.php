@@ -46,6 +46,7 @@ class QuoteController extends Controller
             // withTrashed por el mismo criterio que show: uno dado de baja
             // sigue ocupando el quote_id. Solo lo que usa QuoteResource.
             'comprobante' => ['comprobante' => fn ($query) => $query->withTrashed()->select(['id', 'quote_id', 'folio'])],
+            'installments' => ['installments'],
         ];
 
         // Se combinan como arreglos (no flatMap) para conservar la llave de
@@ -56,8 +57,10 @@ class QuoteController extends Controller
             ->unique()
             ->reduce(fn (array $carry, $relation) => [...$carry, ...$allowedRelations[$relation]], []);
 
+        // withSum siempre: balance() lo usa para no consultar los abonos por cotización.
         $quotes = Quote::query()
             ->when($with !== [], fn ($query) => $query->with($with))
+            ->withSum('installments', 'amount')
             ->forCustomer($request->integer('customer_id') ?: null)
             ->latest()
             ->get();
@@ -78,6 +81,7 @@ class QuoteController extends Controller
             // withTrashed: uno dado de baja sigue ocupando el quote_id
             // (UNIQUE), así que el detalle debe seguir mostrándolo.
             'comprobante' => fn ($query) => $query->withTrashed(),
+            'installments',
         ]);
 
         return new QuoteResource($quote);
@@ -160,6 +164,16 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        // Todo presupuesto lleva cliente: si el payload no trae uno, un Borrador
+        // viejo sin cliente no se puede guardar así (si lo trae, el Request ya
+        // rechazó el null).
+        if ($message = $quote->missingCustomerMessage($data)) {
+            return response()->json([
+                'message' => $message,
+                'errors' => ['customer_id' => [$message]],
+            ], 422);
+        }
+
         if ($message = $this->lineRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }
@@ -191,7 +205,7 @@ class QuoteController extends Controller
             $this->createItems($quote, $lines);
         });
 
-        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($quote);
     }
@@ -222,7 +236,7 @@ class QuoteController extends Controller
 
         $quote->update(['quote_status_id' => $cancelledStatus->id]);
 
-        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $quote->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($quote);
     }
@@ -337,7 +351,7 @@ class QuoteController extends Controller
             return $result;
         }
 
-        $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus']);
+        $result->load(['items.productVariant', 'items.simpleProduct', 'customer', 'quoteStatus', 'installments']);
 
         return new QuoteResource($result);
     }
@@ -432,6 +446,11 @@ class QuoteController extends Controller
             'shipping_cost' => (float) $quote->shipping_cost,
             'total' => (float) $quote->total,
             'down_payment' => (float) $quote->down_payment,
+            'installments_total' => $quote->installmentsTotal(),
+            'installments' => $quote->installments->map(fn ($installment) => [
+                'date' => $installment->payment_date->format('d/m/Y'),
+                'amount' => (float) $installment->amount,
+            ])->all(),
             'balance' => $quote->balance(),
             'payment_terms' => $quote->payment_terms,
             'credit_due_date' => $quote->credit_due_date?->format('d/m/Y'),

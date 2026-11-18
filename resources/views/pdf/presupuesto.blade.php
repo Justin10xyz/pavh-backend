@@ -11,15 +11,27 @@
         $logo = ['height' => round($page['height'] * 0.10)];
         $logo['width'] = round($logo['height'] * 889 / 539);
 
-        // Capacidades medidas con el encabezado y la caja de totales completa
-        // (los 7 renglones) de esta plantilla; ver PdfSheetLayout.
+        // Renglones de la caja de totales: Subtotal, TOTAL, SALDO y Forma de
+        // pago siempre; Descuento, Envío, Anticipo y Abonos solo si aplican.
+        $totalsRows = 4 + count(array_filter([
+            $quote['discount'] > 0,
+            $quote['shipping_cost'] > 0,
+            $quote['down_payment'] > 0,
+            ($quote['installments_total'] ?? 0) > 0,
+        ]));
+
+        // Capacidades medidas con el encabezado y la caja de totales de 7
+        // renglones de esta plantilla; ver PdfSheetLayout. Con los 8 (todo lo
+        // anterior más Abonos) la última hoja lleva una línea menos: medido,
+        // con 21 el pie ya no cabe y pasa a otra hoja. Una hoja sola (10) sí
+        // tiene margen para el renglón extra.
         $layout = \App\Services\PdfSheetLayout::for(
             $quote['items'],
             rowsAtFullSize: 6,
             rowsOnOnePage: 10,
             rowsFirstSheet: 20,
             rowsMiddleSheet: 32,
-            rowsLastSheet: 21,
+            rowsLastSheet: $totalsRows > 7 ? 20 : 21,
         );
         $sheetCount = count($layout->sheets);
     @endphp
@@ -108,6 +120,27 @@
             border-top: 0.5pt solid #A67C3D;
             font-size: 6.5pt;
         }
+
+        /*
+         * Detalle de abonos, a la izquierda de la caja de totales. Más compacto
+         * que la caja (letra y padding menores) y con a lo más
+         * $maxInstallmentRows abonos, para que nunca sea más alto que ella:
+         * el pie no crece y PdfSheetLayout conserva sus capacidades.
+         */
+        .installments {
+            width: 150pt;
+            border: 0.5pt solid #A67C3D;
+        }
+
+        .installments td {
+            font-size: 6pt;
+            line-height: 1.1;
+            padding: 1pt 4pt;
+        }
+
+        .installments .installments-title td {
+            border-bottom: 0.5pt solid #A67C3D;
+        }
     </style>
 </head>
 <body>
@@ -119,6 +152,20 @@
 
         // Saldo negativo (anticipo mayor al total): signo explícito antes del $.
         $formatSigned = fn (float $amount) => ($amount < 0 ? '-' : '').'$'.number_format(abs($amount), 2);
+
+        // Abonos vigentes, del más antiguo al más reciente. Sin las llaves
+        // (datos de antes de los abonos) cuentan como ninguno.
+        $installments = $quote['installments'] ?? [];
+        $installmentsTotal = (float) ($quote['installments_total'] ?? 0);
+
+        // Detalle en el pie: título + a lo más 5 abonos + "y N anteriores" son
+        // 7 renglones de 6pt, apenas más bajos (medido: ~1.5pt) que la caja de
+        // totales más chica con abonos (5 renglones de 7pt), así que nunca
+        // cambian la altura del pie. Con 6 ya la rebasaría. Si hay más, van
+        // los más recientes.
+        $maxInstallmentRows = 5;
+        $olderInstallments = max(0, count($installments) - $maxInstallmentRows);
+        $shownInstallments = array_slice($installments, $olderInstallments);
     @endphp
 
     @foreach ($layout->sheets as $sheetItems)
@@ -173,7 +220,26 @@
             @if ($loop->last)
                 <table class="footer">
                     <tr>
-                        <td></td>
+                        <td>
+                            @if ($installments !== [])
+                                <table class="installments">
+                                    <tr class="installments-title">
+                                        <td class="label" colspan="2">Abonos</td>
+                                    </tr>
+                                    @foreach ($shownInstallments as $installment)
+                                        <tr>
+                                            <td>{{ $installment['date'] }}</td>
+                                            <td class="text-right">${{ number_format($installment['amount'], 2) }}</td>
+                                        </tr>
+                                    @endforeach
+                                    @if ($olderInstallments > 0)
+                                        <tr>
+                                            <td class="muted" colspan="2">y {{ $olderInstallments }} {{ $olderInstallments === 1 ? 'abono anterior' : 'abonos anteriores' }}</td>
+                                        </tr>
+                                    @endif
+                                </table>
+                            @endif
+                        </td>
                         <td style="width: 200pt;">
                             <table class="totals">
                                 <tr>
@@ -200,6 +266,12 @@
                                     <tr>
                                         <td class="label">Anticipo</td>
                                         <td class="text-right">-${{ number_format($quote['down_payment'], 2) }}</td>
+                                    </tr>
+                                @endif
+                                @if ($installmentsTotal > 0)
+                                    <tr>
+                                        <td class="label">Abonos</td>
+                                        <td class="text-right">-${{ number_format($installmentsTotal, 2) }}</td>
                                     </tr>
                                 @endif
                                 <tr class="balance">

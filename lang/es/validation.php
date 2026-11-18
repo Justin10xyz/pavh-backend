@@ -220,6 +220,13 @@ return [
                 'unique' => 'Ya existe un estilo de piso con ese nombre.',
             ],
         ],
+        // Todo presupuesto lleva cliente (Store y Update; ver QuoteController@update
+        // para un Borrador viejo sin cliente).
+        'quotes' => [
+            'customer_id' => [
+                'required' => 'Selecciona un cliente para el presupuesto.',
+            ],
+        ],
     ],
 
     /*

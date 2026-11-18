@@ -26,6 +26,9 @@ class StoreQuoteRequest extends FormRequest
      * tienen regla aquí para que cualquier valor enviado por el cliente se
      * descarte al llamar a validated().
      *
+     * `customer_id` es obligatorio: todo presupuesto lleva un cliente vigente
+     * (no dado de baja).
+     *
      * Cantidad según el tipo de línea (mismo contrato que StoreSaleRequest):
      * - Variante: `boxes` (cajas completas, entero); sus m² (`quantity`) los
      *   deriva el backend como boxes × m2_per_box y no se aceptan del cliente.
@@ -44,7 +47,7 @@ class StoreQuoteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'customer_id' => ['nullable', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
+            'customer_id' => ['required', 'integer', Rule::exists('customers', 'id')->withoutTrashed()],
             'notes' => ['nullable', 'string'],
             'discount' => ['nullable', 'numeric', 'min:0'],
             'down_payment' => ['nullable', 'numeric', 'min:0'],
@@ -57,6 +60,16 @@ class StoreQuoteRequest extends FormRequest
             'items.*.boxes' => ['nullable', 'required_with:items.*.product_variant_id', 'prohibits:items.*.quantity', 'integer', 'min:1'],
             'items.*.quantity' => ['nullable', 'required_with:items.*.simple_product_id', 'numeric', 'min:0.01'],
             'items.*.price_type' => ['nullable', Rule::in(SimpleProduct::PRICE_TYPES)],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'customer_id.required' => __('validation.custom.quotes.customer_id.required'),
         ];
     }
 }

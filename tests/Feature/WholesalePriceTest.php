@@ -11,6 +11,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 /**
@@ -19,7 +20,7 @@ use Tests\TestCase;
  */
 class WholesalePriceTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     private Category $simpleCategory;
 
@@ -124,6 +125,7 @@ class WholesalePriceTest extends TestCase
         $simpleProduct = $this->createSimpleProduct();
 
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'price_type' => 'wholesale'],
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 1],
@@ -142,6 +144,7 @@ class WholesalePriceTest extends TestCase
         $simpleProduct = $this->createSimpleProduct(null);
 
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [
                 ['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'price_type' => 'wholesale'],
             ],
@@ -156,6 +159,7 @@ class WholesalePriceTest extends TestCase
         $simpleProduct = $this->createSimpleProduct(null);
 
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2]],
         ])->assertCreated()->json('data.id');
 
@@ -173,6 +177,7 @@ class WholesalePriceTest extends TestCase
         $simpleProduct = $this->createSimpleProduct();
 
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['simple_product_id' => $simpleProduct->id, 'quantity' => 2, 'price_type' => 'vip']],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('items.0.price_type');
@@ -181,6 +186,7 @@ class WholesalePriceTest extends TestCase
     public function test_it_rejects_price_type_on_variant_lines(): void
     {
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 2, 'price_type' => 'wholesale']],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('items.0.product_variant_id');
