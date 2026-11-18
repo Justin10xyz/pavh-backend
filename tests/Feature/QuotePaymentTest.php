@@ -13,11 +13,12 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 class QuotePaymentTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     private User $user;
 
@@ -80,7 +81,7 @@ class QuotePaymentTest extends TestCase
      */
     private function createQuote(array $items, array $extra = []): int
     {
-        return $this->postJson('/api/quotes', [...$extra, 'items' => $items])
+        return $this->postJson('/api/quotes', ['customer_id' => $this->quoteCustomerId(), ...$extra, 'items' => $items])
             ->assertCreated()
             ->json('data.id');
     }
@@ -256,6 +257,7 @@ class QuotePaymentTest extends TestCase
 
         // 5 cajas × 1 m² × $100 = $500 - $80 = $420
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 80,
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
         ])
@@ -297,6 +299,7 @@ class QuotePaymentTest extends TestCase
 
         // 5 cajas × 1 m² × $100 = $500 - $80 + $120.50 = $540.50
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 80,
             'shipping_cost' => 120.50,
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
@@ -331,6 +334,7 @@ class QuotePaymentTest extends TestCase
         // subtotal 500 - 600 + 200 = 100 >= 0, pero el descuento sigue siendo
         // mayor que el subtotal.
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 600,
             'shipping_cost' => 200,
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
@@ -386,6 +390,7 @@ class QuotePaymentTest extends TestCase
         $variant = $this->createVariant('Taupe', null, 100.00);
 
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 500.01,
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 5]],
         ])
@@ -418,6 +423,7 @@ class QuotePaymentTest extends TestCase
 
         // $1,000 - $100 de descuento + $150 de envío - $300 de anticipo = $750
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 100,
             'shipping_cost' => 150,
             'down_payment' => 300,
@@ -436,6 +442,7 @@ class QuotePaymentTest extends TestCase
 
         // Sin campos de pago: payment_terms queda en su default y el saldo es el total.
         $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 2]],
         ])
             ->assertCreated()

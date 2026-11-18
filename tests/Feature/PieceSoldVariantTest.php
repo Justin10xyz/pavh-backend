@@ -10,6 +10,7 @@ use App\Models\Supplier;
 use App\Models\UnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 /**
@@ -18,7 +19,7 @@ use Tests\TestCase;
  */
 class PieceSoldVariantTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     protected function setUp(): void
     {
@@ -376,6 +377,7 @@ class PieceSoldVariantTest extends TestCase
         $m2Variant = $this->createM2Variant();
 
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [
                 ['product_variant_id' => $pieceVariant->id, 'boxes' => 3],
                 ['product_variant_id' => $m2Variant->id, 'boxes' => 2],
@@ -393,6 +395,7 @@ class PieceSoldVariantTest extends TestCase
         $variant = $this->createPieceVariant();
 
         $response = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 6]],
         ])->assertCreated();
 
@@ -410,6 +413,7 @@ class PieceSoldVariantTest extends TestCase
         $variant = $this->createPieceVariant();
 
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'items' => [['product_variant_id' => $variant->id, 'boxes' => 1]],
         ])->assertCreated()->json('data.id');
 

@@ -202,11 +202,33 @@ class Quote extends Model
             return 'Esta cotización ya fue marcada como pagada.';
         }
 
-        return match ($this->quoteStatus->name) {
+        $statusMessage = match ($this->quoteStatus->name) {
             'Borrador' => null,
             'Cancelada' => 'Esta cotización está cancelada y no se puede marcar como pagada.',
             default => "Esta cotización está en estado {$this->quoteStatus->name} y no se puede marcar como pagada.",
         };
+
+        // Un Borrador viejo puede no tener cliente (antes era opcional).
+        if ($statusMessage === null && $this->customer_id === null) {
+            return 'Asigna un cliente al presupuesto antes de marcarlo como pagado.';
+        }
+
+        return $statusMessage;
+    }
+
+    /**
+     * Todo presupuesto lleva cliente. Para un PUT: si `$data` (ya validado) no
+     * trae customer_id se conserva el actual, que en un Borrador anterior a
+     * esta regla puede ser null. Si lo trae, UpdateQuoteRequest ya rechazó el
+     * null.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function missingCustomerMessage(array $data): ?string
+    {
+        $customerId = array_key_exists('customer_id', $data) ? $data['customer_id'] : $this->customer_id;
+
+        return $customerId === null ? __('validation.custom.quotes.customer_id.required') : null;
     }
 
     /**

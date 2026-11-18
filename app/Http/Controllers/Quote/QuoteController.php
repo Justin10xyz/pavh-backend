@@ -164,6 +164,16 @@ class QuoteController extends Controller
             ], 422);
         }
 
+        // Todo presupuesto lleva cliente: si el payload no trae uno, un Borrador
+        // viejo sin cliente no se puede guardar así (si lo trae, el Request ya
+        // rechazó el null).
+        if ($message = $quote->missingCustomerMessage($data)) {
+            return response()->json([
+                'message' => $message,
+                'errors' => ['customer_id' => [$message]],
+            ], 422);
+        }
+
         if ($message = $this->lineRejectionMessage($data['items'])) {
             return response()->json(['message' => $message], 422);
         }

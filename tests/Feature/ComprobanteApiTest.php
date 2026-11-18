@@ -8,6 +8,7 @@ use App\Models\Comprobante;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Quote;
 use App\Models\QuoteStatus;
 use App\Models\SimpleProduct;
 use App\Models\Supplier;
@@ -15,11 +16,12 @@ use App\Models\UnitType;
 use App\Models\User;
 use App\Services\ComprobantePdfGenerator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\CreatesQuoteCustomers;
 use Tests\TestCase;
 
 class ComprobanteApiTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesQuoteCustomers, RefreshDatabase;
 
     private User $user;
 
@@ -147,6 +149,7 @@ class ComprobanteApiTest extends TestCase
     public function test_store_copies_the_quote_total_with_shipping_cost_included(): void
     {
         $quoteId = $this->postJson('/api/quotes', [
+            'customer_id' => $this->quoteCustomerId(),
             'discount' => 100,
             'shipping_cost' => 250,
             'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 10]],
@@ -402,10 +405,16 @@ class ComprobanteApiTest extends TestCase
 
     public function test_it_downloads_the_pdf_of_a_comprobante_without_customer(): void
     {
-        $quoteId = $this->postJson('/api/quotes', [
-            'items' => [['product_variant_id' => $this->variant->id, 'boxes' => 1]],
-        ])->assertCreated()->json('data.id');
-        $this->patchJson("/api/quotes/{$quoteId}/mark-paid")->assertOk();
+        // Presupuesto pagado de antes de que el cliente fuera obligatorio: ya no
+        // se puede crear por la API, así que se crea directo.
+        $quoteId = Quote::create([
+            'folio' => 'COT-0099',
+            'quote_status_id' => QuoteStatus::where('name', 'Pagada')->value('id'),
+            'customer_id' => null,
+            'subtotal' => 100,
+            'total' => 100,
+            'paid_at' => now(),
+        ])->id;
 
         $comprobanteId = $this->postJson('/api/comprobantes', ['quote_id' => $quoteId])
             ->assertCreated()
