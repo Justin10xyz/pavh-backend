@@ -170,8 +170,15 @@
     @endphp
 
     @foreach ($layout->sheets as $sheetItems)
-        {{-- Salto de carta después de cada $paper['sheets'] hojas. --}}
-        <div @class(['sheet', 'sheet-break' => ! $loop->last && $loop->iteration % $paper['sheets'] === 0])>
+        {{-- Con 2 hojas por carta, las impares van arriba y las pares abajo
+             (ver sheet-styles); salto de carta después de cada $paper['sheets'] hojas. --}}
+        @php($isBottomSheet = $paper['sheets'] === 2 && $loop->iteration % 2 === 0)
+        <div @class([
+            'sheet',
+            'sheet-top' => ! $isBottomSheet,
+            'sheet-bottom' => $isBottomSheet,
+            'sheet-break' => ! $loop->last && $loop->iteration % $paper['sheets'] === 0,
+        ])>
             @if ($loop->first)
                 <table class="header">
                     <tr>

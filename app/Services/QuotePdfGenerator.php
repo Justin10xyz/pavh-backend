@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\PDF as DomPdfDocument;
 
 /**
  * Genera el PDF del Presupuesto (cotización). Mismo tamaño de hoja y papel, logo,
@@ -59,11 +60,22 @@ class QuotePdfGenerator
      */
     public function generate(array $quote): string
     {
+        return $this->document($quote)->output();
+    }
+
+    /**
+     * El documento armado, sin renderizar: el que generate() convierte en PDF.
+     * Expuesto para que los tests midan el layout de dompdf de lo mismo que se
+     * entrega (ver HalfSheetPdfPaperTest).
+     *
+     * @param  array<string, mixed>  $quote  Estructura descrita en el docblock de la clase.
+     */
+    public function document(array $quote): DomPdfDocument
+    {
         return Pdf::loadView('pdf.presupuesto', [
             'quote' => $quote,
             ...ComprobantePdfGenerator::sheetViewData(self::SHEETS_PER_PAPER),
         ])
-            ->setPaper([0, 0, self::PAPER_WIDTH, self::PAPER_HEIGHT])
-            ->output();
+            ->setPaper([0, 0, self::PAPER_WIDTH, self::PAPER_HEIGHT]);
     }
 }
