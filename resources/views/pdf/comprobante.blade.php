@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <title>Comprobante {{ $comprobante['folio'] }}</title>
     @php
-        // Media carta horizontal; ver ComprobantePdfGenerator.
-        $page ??= ['width' => \App\Services\ComprobantePdfGenerator::PAGE_WIDTH, 'height' => \App\Services\ComprobantePdfGenerator::PAGE_HEIGHT];
+        // Hojas de media carta sobre papel carta; ver ComprobantePdfGenerator.
+        $sheet ??= \App\Services\ComprobantePdfGenerator::sheetViewData(\App\Services\ComprobantePdfGenerator::SHEETS_PER_PAPER)['sheet'];
+        $paper ??= \App\Services\ComprobantePdfGenerator::sheetViewData(\App\Services\ComprobantePdfGenerator::SHEETS_PER_PAPER)['paper'];
 
-        // Cédula de Identificación Fiscal: fracción aproximada de la página
+        // Cédula de Identificación Fiscal: fracción aproximada de la hoja
         // tomada del talonario real (~27% del ancho x ~22% del alto).
-        $cifWidth = round($page['width'] * 0.27);
-        $cifHeight = round($page['height'] * 0.22);
+        $cifWidth = round($sheet['width'] * 0.27);
+        $cifHeight = round($sheet['height'] * 0.22);
 
         // Imagen de la cédula (2148x1450): más angosta que la caja, así que se
         // ajusta por alto al interior de la caja (sin borde ni padding) y el
@@ -19,8 +20,8 @@
         $cifImage['width'] = round($cifImage['height'] * 2148 / 1450);
 
         // Logo compacto (ícono + "INNOVA", 889x539): se fija la altura (~10%
-        // del alto de página) y el ancho sale de su proporción real.
-        $logo = ['height' => round($page['height'] * 0.10)];
+        // del alto de la hoja) y el ancho sale de su proporción real.
+        $logo = ['height' => round($sheet['height'] * 0.10)];
         $logo['width'] = round($logo['height'] * 889 / 539);
 
         // Capacidades medidas con el encabezado y el pie de esta plantilla;
@@ -137,7 +138,15 @@
     @endphp
 
     @foreach ($layout->sheets as $sheetItems)
-        <div @class(['sheet-break' => ! $loop->last])>
+        {{-- Con 2 hojas por carta, las impares van arriba y las pares abajo
+             (ver sheet-styles); salto de carta después de cada $paper['sheets'] hojas. --}}
+        @php($isBottomSheet = $paper['sheets'] === 2 && $loop->iteration % 2 === 0)
+        <div @class([
+            'sheet',
+            'sheet-top' => ! $isBottomSheet,
+            'sheet-bottom' => $isBottomSheet,
+            'sheet-break' => ! $loop->last && $loop->iteration % $paper['sheets'] === 0,
+        ])>
             @if ($loop->first)
                 <table class="header">
                     <tr>

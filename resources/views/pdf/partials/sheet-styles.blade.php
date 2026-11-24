@@ -2,7 +2,8 @@
     Estilos compartidos por los PDFs de media carta horizontal (Comprobante y
     Presupuesto): fuentes, base, logo, bloque de negocio, cliente y tabla de
     líneas. Recibe $layout (App\Services\PdfSheetLayout) y $logo
-    (['width' => pt, 'height' => pt]).
+    (['width' => pt, 'height' => pt]); las plantillas de media carta además
+    $sheet y $paper (ver ComprobantePdfGenerator::sheetViewData), el reporte no.
 --}}
 /*
  * Fuentes: mismas que el frontend (Inter), TTF estáticos (no variable) del
@@ -34,9 +35,57 @@
     src: url('{{ resource_path('fonts/Inter-SemiBold.ttf') }}') format('truetype');
 }
 
+@isset($paper)
+/*
+ * Hojas de media carta ($sheet) sobre papel carta ($paper): sin márgenes de
+ * página; cada hoja es un .sheet de exactamente $sheet['height'] de alto
+ * (padding incluido) que lleva sus propios márgenes, así que dos hojas
+ * llenan una carta y la segunda empieza justo en la mitad.
+ *
+ * El padding depende de la posición en la carta: el lado que toca el borde
+ * de la carta lleva 22pt (libra la zona no imprimible) y el que da a la
+ * mitad, 10pt. Hoja de arriba (.sheet-top): 22 arriba / 10 abajo; hoja de
+ * abajo (.sheet-bottom, solo con 2 hojas por carta): 10 arriba / 22 abajo.
+ * Con 1 hoja por carta todas son de arriba. En ambos casos el alto interior
+ * es 396 - 32 = 364pt, el mismo con el que se midieron las capacidades de
+ * PdfSheetLayout (antes, con @page margin 16pt arriba y abajo).
+ *
+ * Si el contenido rebasara el alto interior (p. ej. descripciones en dos
+ * renglones), dompdf no lo resuelve igual en las dos mitades: la hoja de
+ * abajo se pasa entera a la mitad superior de una carta nueva, y la de
+ * arriba se queda y se recorta en su borde (overflow: hidden) para no
+ * invadir a la de abajo.
+ */
+@php
+    $sheetPadding = ['edge' => 22, 'middle' => 10, 'side' => 20];
+@endphp
+@page {
+    margin: 0;
+}
+
+.sheet {
+    height: {{ $sheet['height'] - $sheetPadding['edge'] - $sheetPadding['middle'] }}pt;
+    padding-left: {{ $sheetPadding['side'] }}pt;
+    padding-right: {{ $sheetPadding['side'] }}pt;
+    overflow: hidden;
+    page-break-inside: avoid;
+}
+
+.sheet-top {
+    padding-top: {{ $sheetPadding['edge'] }}pt;
+    padding-bottom: {{ $sheetPadding['middle'] }}pt;
+}
+
+.sheet-bottom {
+    padding-top: {{ $sheetPadding['middle'] }}pt;
+    padding-bottom: {{ $sheetPadding['edge'] }}pt;
+}
+@else
+/* Carta vertical (reporte): márgenes de página. */
 @page {
     margin: 16pt 20pt;
 }
+@endisset
 
 body {
     font-family: 'Inter', Helvetica, Arial, sans-serif;

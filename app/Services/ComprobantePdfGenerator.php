@@ -38,10 +38,23 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class ComprobantePdfGenerator
 {
-    // Media carta horizontal (8.5" x 5.5"), el tamaño del talonario real.
-    public const PAGE_WIDTH = 612;
+    // Hoja: media carta horizontal (8.5" x 5.5"), el tamaño del talonario real.
+    // Es la unidad de diseño: PdfSheetLayout reparte las líneas en hojas y la
+    // plantilla dimensiona logo y cédula como fracción de su alto.
+    public const SHEET_WIDTH = 612;
 
-    public const PAGE_HEIGHT = 396;
+    public const SHEET_HEIGHT = 396;
+
+    // Papel: carta vertical (8.5" x 11"). El cliente imprime en hoja carta
+    // completa; los visores centran una página más chica que el papel, así
+    // que el PDF ya mide carta y cada hoja va en su mitad.
+    public const PAPER_WIDTH = 612;
+
+    public const PAPER_HEIGHT = 792;
+
+    // Hojas por carta: 2 = hoja 1 arriba y hoja 2 abajo, hoja 3 arriba de la
+    // siguiente carta...; 1 = cada hoja arriba de su propia carta.
+    public const SHEETS_PER_PAPER = 2;
 
     /**
      * @param  array<string, mixed>  $comprobante  Estructura descrita en el docblock de la clase.
@@ -49,12 +62,25 @@ class ComprobantePdfGenerator
      */
     public function generate(array $comprobante): string
     {
-        // La plantilla dimensiona algunas cajas como fracción de la página.
         return Pdf::loadView('pdf.comprobante', [
             'comprobante' => $comprobante,
-            'page' => ['width' => self::PAGE_WIDTH, 'height' => self::PAGE_HEIGHT],
+            ...self::sheetViewData(self::SHEETS_PER_PAPER),
         ])
-            ->setPaper([0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT])
+            ->setPaper([0, 0, self::PAPER_WIDTH, self::PAPER_HEIGHT])
             ->output();
+    }
+
+    /**
+     * Medidas de hoja y papel que esperan las plantillas de media carta
+     * (Comprobante y Presupuesto) y sheet-styles.
+     *
+     * @return array{sheet: array{width: int, height: int}, paper: array{width: int, height: int, sheets: int}}
+     */
+    public static function sheetViewData(int $sheetsPerPaper): array
+    {
+        return [
+            'sheet' => ['width' => self::SHEET_WIDTH, 'height' => self::SHEET_HEIGHT],
+            'paper' => ['width' => self::PAPER_WIDTH, 'height' => self::PAPER_HEIGHT, 'sheets' => $sheetsPerPaper],
+        ];
     }
 }
