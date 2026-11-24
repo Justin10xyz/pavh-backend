@@ -2,7 +2,8 @@
     Estilos compartidos por los PDFs de media carta horizontal (Comprobante y
     Presupuesto): fuentes, base, logo, bloque de negocio, cliente y tabla de
     líneas. Recibe $layout (App\Services\PdfSheetLayout) y $logo
-    (['width' => pt, 'height' => pt]).
+    (['width' => pt, 'height' => pt]); las plantillas de media carta además
+    $sheet y $paper (ver ComprobantePdfGenerator::sheetViewData), el reporte no.
 --}}
 /*
  * Fuentes: mismas que el frontend (Inter), TTF estáticos (no variable) del
@@ -34,9 +35,41 @@
     src: url('{{ resource_path('fonts/Inter-SemiBold.ttf') }}') format('truetype');
 }
 
+@isset($paper)
+/*
+ * Hojas de media carta ($sheet) sobre papel carta ($paper): sin márgenes de
+ * página; cada hoja es un .sheet de exactamente $sheet['height'] de alto
+ * (padding incluido) que lleva sus propios márgenes, así que dos hojas
+ * llenan una carta y la segunda empieza justo en la mitad. Arriba lleva más
+ * que abajo para librar la zona no imprimible del borde de la carta.
+ *
+ * El contenido de una hoja no puede pasar de su alto interior (358pt): las
+ * capacidades de PdfSheetLayout están medidas para que quepa (peor caso
+ * medido: ~357.96pt, Presupuesto con caja de totales de 8 renglones y
+ * abonos). Si se rebasara (p. ej. descripciones en dos renglones), dompdf
+ * no lo resuelve igual en las dos mitades: la hoja de abajo se pasa entera
+ * a la mitad superior de una carta nueva, y la de arriba se queda y se
+ * recorta en su borde (overflow: hidden) para no invadir a la de abajo.
+ */
+@php
+    $sheetPadding = ['top' => 22, 'side' => 20, 'bottom' => 16];
+@endphp
+@page {
+    margin: 0;
+}
+
+.sheet {
+    height: {{ $sheet['height'] - $sheetPadding['top'] - $sheetPadding['bottom'] }}pt;
+    padding: {{ $sheetPadding['top'] }}pt {{ $sheetPadding['side'] }}pt {{ $sheetPadding['bottom'] }}pt;
+    overflow: hidden;
+    page-break-inside: avoid;
+}
+@else
+/* Carta vertical (reporte): márgenes de página. */
 @page {
     margin: 16pt 20pt;
 }
+@endisset
 
 body {
     font-family: 'Inter', Helvetica, Arial, sans-serif;
