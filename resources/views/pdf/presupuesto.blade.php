@@ -4,11 +4,12 @@
     <meta charset="utf-8">
     <title>Presupuesto {{ $quote['folio'] }}</title>
     @php
-        // Media carta horizontal, mismo tamaño que el Comprobante; ver QuotePdfGenerator.
-        $page ??= ['width' => \App\Services\QuotePdfGenerator::PAGE_WIDTH, 'height' => \App\Services\QuotePdfGenerator::PAGE_HEIGHT];
+        // Hojas de media carta sobre papel carta, igual que el Comprobante; ver QuotePdfGenerator.
+        $sheet ??= \App\Services\ComprobantePdfGenerator::sheetViewData(\App\Services\QuotePdfGenerator::SHEETS_PER_PAPER)['sheet'];
+        $paper ??= \App\Services\ComprobantePdfGenerator::sheetViewData(\App\Services\QuotePdfGenerator::SHEETS_PER_PAPER)['paper'];
 
-        // Mismo logo y proporción que el Comprobante.
-        $logo = ['height' => round($page['height'] * 0.10)];
+        // Mismo logo y proporción que el Comprobante (sobre el alto de la hoja, no del papel).
+        $logo = ['height' => round($sheet['height'] * 0.10)];
         $logo['width'] = round($logo['height'] * 889 / 539);
 
         // Renglones de la caja de totales: Subtotal, TOTAL, SALDO y Forma de
@@ -169,7 +170,15 @@
     @endphp
 
     @foreach ($layout->sheets as $sheetItems)
-        <div @class(['sheet-break' => ! $loop->last])>
+        {{-- Con 2 hojas por carta, las impares van arriba y las pares abajo
+             (ver sheet-styles); salto de carta después de cada $paper['sheets'] hojas. --}}
+        @php($isBottomSheet = $paper['sheets'] === 2 && $loop->iteration % 2 === 0)
+        <div @class([
+            'sheet',
+            'sheet-top' => ! $isBottomSheet,
+            'sheet-bottom' => $isBottomSheet,
+            'sheet-break' => ! $loop->last && $loop->iteration % $paper['sheets'] === 0,
+        ])>
             @if ($loop->first)
                 <table class="header">
                     <tr>

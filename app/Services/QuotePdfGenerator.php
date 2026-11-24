@@ -3,9 +3,10 @@
 namespace App\Services;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\PDF as DomPdfDocument;
 
 /**
- * Genera el PDF del Presupuesto (cotización). Mismo tamaño de página, logo,
+ * Genera el PDF del Presupuesto (cotización). Mismo tamaño de hoja y papel, logo,
  * bloque de negocio, cliente y tabla de líneas que el Comprobante Fiscal
  * Simplificado, pero con banda de color y caja de totales con saldo para que
  * no se confundan; sin datos fiscales (RFC/idCIF, régimen, lugar de
@@ -42,9 +43,16 @@ use Barryvdh\DomPDF\Facade\Pdf;
  */
 class QuotePdfGenerator
 {
-    public const PAGE_WIDTH = ComprobantePdfGenerator::PAGE_WIDTH;
+    // Hoja y papel: ver ComprobantePdfGenerator.
+    public const SHEET_WIDTH = ComprobantePdfGenerator::SHEET_WIDTH;
 
-    public const PAGE_HEIGHT = ComprobantePdfGenerator::PAGE_HEIGHT;
+    public const SHEET_HEIGHT = ComprobantePdfGenerator::SHEET_HEIGHT;
+
+    public const PAPER_WIDTH = ComprobantePdfGenerator::PAPER_WIDTH;
+
+    public const PAPER_HEIGHT = ComprobantePdfGenerator::PAPER_HEIGHT;
+
+    public const SHEETS_PER_PAPER = 2;
 
     /**
      * @param  array<string, mixed>  $quote  Estructura descrita en el docblock de la clase.
@@ -52,11 +60,22 @@ class QuotePdfGenerator
      */
     public function generate(array $quote): string
     {
+        return $this->document($quote)->output();
+    }
+
+    /**
+     * El documento armado, sin renderizar: el que generate() convierte en PDF.
+     * Expuesto para que los tests midan el layout de dompdf de lo mismo que se
+     * entrega (ver HalfSheetPdfPaperTest).
+     *
+     * @param  array<string, mixed>  $quote  Estructura descrita en el docblock de la clase.
+     */
+    public function document(array $quote): DomPdfDocument
+    {
         return Pdf::loadView('pdf.presupuesto', [
             'quote' => $quote,
-            'page' => ['width' => self::PAGE_WIDTH, 'height' => self::PAGE_HEIGHT],
+            ...ComprobantePdfGenerator::sheetViewData(self::SHEETS_PER_PAPER),
         ])
-            ->setPaper([0, 0, self::PAGE_WIDTH, self::PAGE_HEIGHT])
-            ->output();
+            ->setPaper([0, 0, self::PAPER_WIDTH, self::PAPER_HEIGHT]);
     }
 }

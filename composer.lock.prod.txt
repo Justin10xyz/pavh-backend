@@ -1,0 +1,85 @@
+barryvdh/laravel-dompdf v3.1.2 ^8.1
+brick/math 1.0.0 ^8.2
+carbonphp/carbon-doctrine-types 3.2.1 ^8.1
+dflydev/dot-access-data v3.0.3 ^7.1 || ^8.0
+doctrine/inflector 2.1.1 ^7.2 || ^8.0
+doctrine/lexer 3.0.3 ^8.1
+dompdf/dompdf v3.1.6 ^7.1 || ^8.0
+dompdf/php-font-lib 1.0.2 ^7.1 || ^8.0
+dompdf/php-svg-lib 1.0.2 ^7.1 || ^8.0
+dragonmantank/cron-expression v3.6.1 ^8.2|^8.3|^8.4|^8.5
+egulias/email-validator 4.0.4 >=8.1
+fruitcake/php-cors v1.4.0 ^8.1
+graham-campbell/result-type v1.2.0 ^7.2.5 || ^8.0
+guzzlehttp/guzzle 8.5.3 ^7.4 || ^8.0
+guzzlehttp/promises 3.1.1 ^7.4 || ^8.0
+guzzlehttp/psr7 3.5.1 ^7.4 || ^8.0
+guzzlehttp/uri-template v2.0.1 ^7.4 || ^8.0
+laravel/framework v13.43.0 ^8.3
+laravel/prompts v0.3.27 ^8.1
+laravel/sanctum v4.3.3 ^8.2
+laravel/serializable-closure v2.2.0 ^8.1
+laravel/tinker v3.0.2 ^8.1
+league/commonmark 2.10.7 ^7.4 || ^8.0
+league/config v1.2.0 ^7.4 || ^8.0
+league/flysystem 3.36.0 ^8.0.2
+league/flysystem-local 3.35.3 ^8.0.2
+league/mime-type-detection 1.17.0 ^7.4 || ^8.0
+league/uri 7.10.0 ^8.1
+league/uri-interfaces 7.10.0 ^8.1
+masterminds/html5 2.11.0 >=7.4
+monolog/monolog 3.13.0 >=8.1
+nesbot/carbon 3.15.1 ^8.1
+nette/schema v1.4.0 8.1 - 8.6
+nette/utils v4.1.6 8.2 - 8.6
+nikic/php-parser v5.8.0 >=7.4
+nunomaduro/termwind v2.4.1 ^8.2
+phpoption/phpoption 1.10.0 ^7.2.5 || ^8.0
+psr/clock 1.0.0 ^7.0 || ^8.0
+psr/container 2.0.2 >=7.4.0
+psr/event-dispatcher 1.0.0 >=7.2.0
+psr/http-client 1.0.3 ^7.0 || ^8.0
+psr/http-factory 1.1.0 >=7.1
+psr/http-message 2.0 ^7.2 || ^8.0
+psr/log 3.0.2 >=8.0.0
+psr/simple-cache 3.0.0 >=8.0.0
+psy/psysh v0.12.24 ^8.0 || ^7.4
+ramsey/collection 2.1.1 ^8.1
+ramsey/uuid 4.10.0 ^8.0
+sabberworm/php-css-parser v9.5.0 ^7.2.0 || ~8.0.0 || ~8.1.0 || ~8.2.0 || ~8.3.0 || ~8.4.0 || ~8.5.0 || ~8.6.0
+symfony/clock v7.4.21 >=8.2
+symfony/console v7.4.23 >=8.2
+symfony/css-selector v7.4.22 >=8.2
+symfony/deprecation-contracts v3.8.1 >=8.1
+symfony/error-handler v7.4.22 >=8.2
+symfony/event-dispatcher v7.4.17 >=8.2
+symfony/event-dispatcher-contracts v3.8.1 >=8.1
+symfony/finder v7.4.23 >=8.2
+symfony/http-foundation v7.4.23 >=8.2
+symfony/http-kernel v7.4.23 >=8.2
+symfony/mailer v7.4.22 >=8.2
+symfony/mime v7.4.22 >=8.2
+symfony/polyfill-ctype v1.37.0 >=7.2
+symfony/polyfill-intl-grapheme v1.43.3 >=7.2
+symfony/polyfill-intl-idn v1.43.0 >=7.2
+symfony/polyfill-intl-normalizer v1.43.0 >=7.2
+symfony/polyfill-mbstring v1.43.3 >=7.2
+symfony/polyfill-php80 v1.43.0 >=7.2
+symfony/polyfill-php82 v1.43.0 >=7.2
+symfony/polyfill-php83 v1.43.0 >=7.2
+symfony/polyfill-php84 v1.43.0 >=7.2
+symfony/polyfill-php85 v1.44.0 >=7.2
+symfony/polyfill-php86 v1.43.0 >=7.2
+symfony/polyfill-time v1.42.0 >=8.1
+symfony/polyfill-uuid v1.43.0 >=7.2
+symfony/process v7.4.22 >=8.2
+symfony/routing v7.4.23 >=8.2
+symfony/service-contracts v3.8.1 >=8.1
+symfony/string v7.4.22 >=8.2
+symfony/translation v7.4.23 >=8.2
+symfony/translation-contracts v3.8.1 >=8.1
+symfony/uid v7.4.21 >=8.2
+symfony/var-dumper v7.4.22 >=8.2
+tijsverkoyen/css-to-inline-styles v2.4.0 ^7.4 || ^8.0
+vlucas/phpdotenv v5.8.0 ^7.2.5 || ^8.0
+voku/portable-ascii 2.1.1 >=7.1.0
